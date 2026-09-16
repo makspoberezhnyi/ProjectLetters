@@ -60,7 +60,7 @@ public struct MainEditorView: View {
                             selectedText: $selectedText,
                             selectionRange: $selectionRange,
                             onSelectionChanged: { _, _ in
-                                runLinter()
+                                // Selection updated asynchronously
                             }
                         )
                         .background(Color(NSColor.textBackgroundColor))

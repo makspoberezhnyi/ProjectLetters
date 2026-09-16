@@ -41,53 +41,72 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.textColor = NSColor.textColor
         textView.backgroundColor = .clear
         textView.drawsBackground = false
-        textView.delegate = context.coordinator
 
-        // Margin insets for a beautiful page-like canvas
+        // Margin insets for a page-like canvas
         textView.textContainerInset = NSSize(width: 48, height: 48)
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
 
-        scrollView.documentView = textView
-        context.coordinator.textView = textView
+        context.coordinator.isInitializing = true
         textView.string = text
+        textView.delegate = context.coordinator
+        context.coordinator.textView = textView
+        scrollView.documentView = textView
+
+        DispatchQueue.main.async {
+            context.coordinator.isInitializing = false
+        }
 
         return scrollView
     }
 
     public func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
-        if textView.string != text {
+        if textView.string != text && !context.coordinator.isInitializing {
+            context.coordinator.isInitializing = true
             textView.string = text
+            DispatchQueue.main.async {
+                context.coordinator.isInitializing = false
+            }
         }
     }
 
     public class Coordinator: NSObject, NSTextViewDelegate {
         var parent: TextKit2EditorView
         weak var textView: NSTextView?
+        var isInitializing = false
 
         init(_ parent: TextKit2EditorView) {
             self.parent = parent
         }
 
         public func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            parent.text = textView.string
+            guard let textView = notification.object as? NSTextView, !isInitializing else { return }
+            let string = textView.string
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if self.parent.text != string {
+                    self.parent.text = string
+                }
+            }
         }
 
         public func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
+            guard let textView = notification.object as? NSTextView, !isInitializing else { return }
             let range = textView.selectedRange()
-            parent.selectionRange = range
+            let nsString = textView.string as NSString
+            let sub = range.length > 0 && range.location + range.length <= nsString.length ? nsString.substring(with: range) : ""
 
-            if range.length > 0, let str = textView.string as NSString? {
-                let sub = str.substring(with: range)
-                parent.selectedText = sub
-                parent.onSelectionChanged?(range, sub)
-            } else {
-                parent.selectedText = ""
-                parent.onSelectionChanged?(range, "")
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if self.parent.selectionRange != range {
+                    self.parent.selectionRange = range
+                }
+                if self.parent.selectedText != sub {
+                    self.parent.selectedText = sub
+                }
+                self.parent.onSelectionChanged?(range, sub)
             }
         }
     }
