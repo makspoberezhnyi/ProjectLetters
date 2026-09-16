@@ -3,12 +3,30 @@ import AppKit
 import LettersKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var window: NSWindow?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+
+        let contentView = MainEditorView()
+        let hostingView = NSHostingView(rootView: contentView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1120, height: 740),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.center()
+        window.title = "Letters"
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.contentView = hostingView
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        self.window = window
+
         NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first {
-            window.makeKeyAndOrderFront(nil)
-        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -17,37 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct LettersApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    var body: some Scene {
-        WindowGroup("Letters") {
-            MainEditorView()
-                .frame(minWidth: 960, minHeight: 640)
-        }
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified(showsTitle: true))
-        .commands {
-            SidebarCommands()
-            CommandGroup(replacing: .newItem) {
-                Button("New Document") {
-                    // New document
-                }
-                .keyboardShortcut("n", modifiers: .command)
-            }
-            CommandMenu("Letters") {
-                Button("Command Palette...") {
-                    // Trigger Cmd+K
-                }
-                .keyboardShortcut("k", modifiers: .command)
-
-                Divider()
-
-                Button("Export as DOCX...") {
-                    // Export
-                }
-                .keyboardShortcut("e", modifiers: .command)
-            }
-        }
+enum LettersMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
     }
 }
