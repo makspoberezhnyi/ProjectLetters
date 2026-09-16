@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(LettersKit)
 import LettersKit
+#endif
 
 public struct FloatingActionMenu: View {
     let selectedText: String

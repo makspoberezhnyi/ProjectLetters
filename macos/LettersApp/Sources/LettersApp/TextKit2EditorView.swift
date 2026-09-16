@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
+#if canImport(LettersKit)
 import LettersKit
+#endif
 
 public struct TextKit2EditorView: NSViewRepresentable {
     @Binding var text: String

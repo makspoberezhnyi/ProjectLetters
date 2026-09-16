@@ -1,0 +1,272 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		820B68458F3B5FC58A5A2215 /* shim.c in Sources */ = {isa = PBXBuildFile; fileRef = 14E9C123A2455A0AA0B34DBD /* shim.c */; };
+		DF65AE3506A856A38D577A75 /* DocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C3E0EFE9C952C49BD42999 /* DocumentModel.swift */; };
+		D041FA244F1350128A4C8082 /* CoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */; };
+		DEB669D5CB1D560F91DA95B7 /* AIGateway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02636281821E5ED19CA49946 /* AIGateway.swift */; };
+		9C92B015C3195CFA9596670E /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F512B921A195EAF9AB6DC3C /* TranslationService.swift */; };
+		35B29CF4029A5F0885027A11 /* LettersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801953898BED5339AC886A7C /* LettersApp.swift */; };
+		508986EF36BE5E039535191F /* MainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F06682BCC855F218E0B2296 /* MainEditorView.swift */; };
+		0C8D87CE5EE75687A8B7361F /* TextKit2EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */; };
+		C686D40AD63A5208B5371020 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2E2D958FA05D21BB95C77B /* CommandPaletteView.swift */; };
+		80319C9E4B2050968FE350EF /* FloatingActionMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337F10FDDBCF52AAB1737ACF /* FloatingActionMenu.swift */; };
+		2797CE91D0BF594387A581B7 /* SourceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */; };
+		9905AB804FAE57FBAE0ACB07 /* AssistantSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */; };
+		527C1756F23258CFBD781EAA /* DocumentOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		14E9C123A2455A0AA0B34DBD /* shim.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "LettersApp/Sources/LettersCoreC/shim.c"; sourceTree = "<group>"; };
+		D3005EE29D1C5292927E4982 /* letters_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LettersApp/Sources/LettersCoreC/include/letters_core.h"; sourceTree = "<group>"; };
+		25F7DE8109B858BC8460CD19 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.module-map; path = "LettersApp/Sources/LettersCoreC/include/module.modulemap"; sourceTree = "<group>"; };
+		80C3E0EFE9C952C49BD42999 /* DocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/DocumentModel.swift"; sourceTree = "<group>"; };
+		2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/CoreBridge.swift"; sourceTree = "<group>"; };
+		02636281821E5ED19CA49946 /* AIGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/AIGateway.swift"; sourceTree = "<group>"; };
+		8F512B921A195EAF9AB6DC3C /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/TranslationService.swift"; sourceTree = "<group>"; };
+		801953898BED5339AC886A7C /* LettersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/LettersApp.swift"; sourceTree = "<group>"; };
+		6F06682BCC855F218E0B2296 /* MainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/MainEditorView.swift"; sourceTree = "<group>"; };
+		2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/TextKit2EditorView.swift"; sourceTree = "<group>"; };
+		3A2E2D958FA05D21BB95C77B /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/CommandPaletteView.swift"; sourceTree = "<group>"; };
+		337F10FDDBCF52AAB1737ACF /* FloatingActionMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/FloatingActionMenu.swift"; sourceTree = "<group>"; };
+		E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SourceManagerView.swift"; sourceTree = "<group>"; };
+		9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/AssistantSidebarView.swift"; sourceTree = "<group>"; };
+		DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DocumentOutlineView.swift"; sourceTree = "<group>"; };
+		CC59F701E35B58EA91D6096B /* Letters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Letters.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		569C9CD3487F5ED2A1EE6B6D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AC7B0D9F87A259F59BB658FD = {
+			isa = PBXGroup;
+			children = (
+				29040342C6925CC794C66F0F /* Products */,
+				14E9C123A2455A0AA0B34DBD /* shim.c */,
+				D3005EE29D1C5292927E4982 /* letters_core.h */,
+				25F7DE8109B858BC8460CD19 /* module.modulemap */,
+				80C3E0EFE9C952C49BD42999 /* DocumentModel.swift */,
+				2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */,
+				02636281821E5ED19CA49946 /* AIGateway.swift */,
+				8F512B921A195EAF9AB6DC3C /* TranslationService.swift */,
+				801953898BED5339AC886A7C /* LettersApp.swift */,
+				6F06682BCC855F218E0B2296 /* MainEditorView.swift */,
+				2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */,
+				3A2E2D958FA05D21BB95C77B /* CommandPaletteView.swift */,
+				337F10FDDBCF52AAB1737ACF /* FloatingActionMenu.swift */,
+				E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */,
+				9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */,
+				DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */,
+			);
+			sourceTree = "<group>";
+		};
+		29040342C6925CC794C66F0F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CC59F701E35B58EA91D6096B /* Letters.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5DB7645B1A1A5E8BA7EF8D35 /* Letters */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A5CA62053C7D5BACA4A55AEF /* Build configuration list for PBXNativeTarget "Letters" */;
+			buildPhases = (
+				69556572C59D55C58BA8C6EC /* Sources */,
+				569C9CD3487F5ED2A1EE6B6D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Letters;
+			productName = Letters;
+			productReference = CC59F701E35B58EA91D6096B /* Letters.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CB2AA7564FE65A77A67DBBFE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 942D1889F73A590F97900C59 /* Build configuration list for PBXProject "Letters" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AC7B0D9F87A259F59BB658FD;
+			productRefGroup = 29040342C6925CC794C66F0F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5DB7645B1A1A5E8BA7EF8D35 /* Letters */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		69556572C59D55C58BA8C6EC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				820B68458F3B5FC58A5A2215 /* shim.c in Sources */,
+				DF65AE3506A856A38D577A75 /* DocumentModel.swift in Sources */,
+				D041FA244F1350128A4C8082 /* CoreBridge.swift in Sources */,
+				DEB669D5CB1D560F91DA95B7 /* AIGateway.swift in Sources */,
+				9C92B015C3195CFA9596670E /* TranslationService.swift in Sources */,
+				35B29CF4029A5F0885027A11 /* LettersApp.swift in Sources */,
+				508986EF36BE5E039535191F /* MainEditorView.swift in Sources */,
+				0C8D87CE5EE75687A8B7361F /* TextKit2EditorView.swift in Sources */,
+				C686D40AD63A5208B5371020 /* CommandPaletteView.swift in Sources */,
+				80319C9E4B2050968FE350EF /* FloatingActionMenu.swift in Sources */,
+				2797CE91D0BF594387A581B7 /* SourceManagerView.swift in Sources */,
+				9905AB804FAE57FBAE0ACB07 /* AssistantSidebarView.swift in Sources */,
+				527C1756F23258CFBD781EAA /* DocumentOutlineView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0AD6A3562A285382A3E004EB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		9C018DCB2A975A9B9A47B42F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		22CFAFEF858D58168FCAC79D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Letters;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.projectletters.Letters;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_INCLUDE_PATHS = (
+					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
+				);
+			};
+			name = Debug;
+		};
+		9085A806B38056169D3AE0BE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Letters;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.projectletters.Letters;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_INCLUDE_PATHS = (
+					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
+				);
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		942D1889F73A590F97900C59 /* Build configuration list for PBXProject "Letters" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0AD6A3562A285382A3E004EB /* Debug */,
+				9C018DCB2A975A9B9A47B42F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A5CA62053C7D5BACA4A55AEF /* Build configuration list for PBXNativeTarget "Letters" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				22CFAFEF858D58168FCAC79D /* Debug */,
+				9085A806B38056169D3AE0BE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = CB2AA7564FE65A77A67DBBFE /* Project object */;
+}

@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(LettersCoreC)
 import LettersCoreC
+#endif
 
 public final class CoreBridge: @unchecked Sendable {
     public static let shared = CoreBridge()

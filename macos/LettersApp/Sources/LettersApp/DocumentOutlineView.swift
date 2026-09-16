@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(LettersKit)
 import LettersKit
+#endif
 
 public struct DocumentOutlineView: View {
     @Binding var document: DocumentModel

@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
+#if canImport(LettersKit)
 import LettersKit
+#endif
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
