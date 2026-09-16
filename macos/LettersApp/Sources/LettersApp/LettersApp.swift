@@ -1,12 +1,29 @@
 import SwiftUI
+import AppKit
 import LettersKit
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+}
 
 @main
 struct LettersApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Letters") {
             MainEditorView()
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 960, minHeight: 640)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: true))
@@ -14,7 +31,7 @@ struct LettersApp: App {
             SidebarCommands()
             CommandGroup(replacing: .newItem) {
                 Button("New Document") {
-                    // New window
+                    // New document
                 }
                 .keyboardShortcut("n", modifiers: .command)
             }
