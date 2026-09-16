@@ -4,13 +4,15 @@ Originally scoped for academic copywriting. Expanded here to cover business repo
 
 ## 1. Core Architecture and Native Engine
 * **SwiftUI Frontend (macOS First):** The initial interface is built entirely in Swift and SwiftUI, wrapping TextKit 2 for viewport based rendering. This ensures it feels incredibly lightweight, handles massive documents smoothly, and natively supports dynamic themes across Apple platforms.
-* **Headless Rust Core:** Beneath the UI runs a headless Rust engine exposed via a Foreign Function Interface (FFI). This engine parses, edits, and writes native .docx files, ensuring zero format loss.
-* **Future Windows Portability:** By keeping all business logic in the Rust core, a future Windows version (using WinUI 3) can connect to the exact same engine.
+* **Headless Rust Core:** Beneath the UI runs a headless Rust engine exposed via a Foreign Function Interface (FFI) on desktop and compiled to WebAssembly (Wasm) for the browser. This engine parses, edits, and writes native .docx files, ensuring zero format loss across all platforms.
+* **Future Windows & Web Portability:** By encapsulating all business logic, document parsing, citation engines, and style verification in the portable Rust core:
+    * **Windows Version:** Can connect directly via native C FFI using WinUI 3.
+    * **Web / Cloud Version:** Can run the exact same core compiled to WebAssembly (Wasm) inside the browser (enabling client-side, zero-server DOCX rendering and privacy-preserving document manipulation).
 * **Native macOS Integrations:** Deep hooks into CoreSpotlight for document indexing and native tabbed window management for a first party feel.
 
 ## 2. Bring Your Own Key (BYOK) Artificial Intelligence
 * **Universal Cloud API Gateway:** Connect directly to major vendors like Anthropic, OpenAI, or Google using personal API keys. You pay only for the exact tokens you consume without ongoing software subscriptions.
-* **Native Credential Security:** API keys are stored securely using the native macOS Keychain (and later, the Windows Credential Locker), rather than custom security layers.
+* **Native Credential Security:** API keys are stored securely using the native macOS Keychain on Apple platforms, Windows Credential Locker on Windows, and encrypted client-side storage (Web Crypto API) for the Web version, rather than custom cloud-side security layers.
 * **Contextual Chat Assistant:** A persistent sidebar companion that can summarize highlighted text, suggest structural improvements, or brainstorm angles on complex topics.
 
 ## 3. Linked Sources and Style Profiles
