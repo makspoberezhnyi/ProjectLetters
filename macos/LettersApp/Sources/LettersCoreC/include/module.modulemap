@@ -1,0 +1,4 @@
+module LettersCoreC [system] {
+    header "letters_core.h"
+    export *
+}
