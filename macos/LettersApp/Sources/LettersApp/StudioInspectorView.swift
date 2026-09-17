@@ -4,6 +4,7 @@ import LettersKit
 #endif
 
 public struct StudioInspectorView: View {
+    @Binding var activePersona: StudioPersona
     @Binding var sources: [String: Source]
     @Binding var activeCitationStyle: CitationStyle
     @Binding var lintIssues: [StyleLintMatch]
@@ -11,11 +12,34 @@ public struct StudioInspectorView: View {
     @Binding var paragraphSpacing: CGFloat
     let currentDocumentContext: () -> String
     var onRunLinter: () -> Void
+    var onAddSource: () -> Void
 
     @State private var isTypographyExpanded = true
     @State private var isSourcesExpanded = true
     @State private var isLinterExpanded = true
     @State private var isCopilotExpanded = true
+
+    public init(
+        activePersona: Binding<StudioPersona>,
+        sources: Binding<[String: Source]>,
+        activeCitationStyle: Binding<CitationStyle>,
+        lintIssues: Binding<[StyleLintMatch]>,
+        lineSpacing: Binding<CGFloat>,
+        paragraphSpacing: Binding<CGFloat>,
+        currentDocumentContext: @escaping () -> String,
+        onRunLinter: @escaping () -> Void,
+        onAddSource: @escaping () -> Void
+    ) {
+        self._activePersona = activePersona
+        self._sources = sources
+        self._activeCitationStyle = activeCitationStyle
+        self._lintIssues = lintIssues
+        self._lineSpacing = lineSpacing
+        self._paragraphSpacing = paragraphSpacing
+        self.currentDocumentContext = currentDocumentContext
+        self.onRunLinter = onRunLinter
+        self.onAddSource = onAddSource
+    }
 
     public var body: some View {
         ScrollView {
@@ -52,16 +76,6 @@ public struct StudioInspectorView: View {
                             .labelsHidden()
                             .frame(width: 130)
                         }
-
-                        HStack {
-                            Text("Drop Caps")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Toggle("", isOn: .constant(false))
-                                .toggleStyle(.switch)
-                                .controlSize(.mini)
-                        }
                     }
                     .padding(8)
                     .background(StudioTheme.surfaceHighlight, in: RoundedRectangle(cornerRadius: 6))
@@ -73,15 +87,26 @@ public struct StudioInspectorView: View {
                 // Section 2: Linked Citations (CSL Profiles)
                 DisclosureGroup("Linked Citations & Styles", isExpanded: $isSourcesExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("Style", selection: $activeCitationStyle) {
-                            ForEach(CitationStyle.allCases, id: \.self) { s in
-                                Text(s.displayName).tag(s)
+                        HStack {
+                            Picker("Style", selection: $activeCitationStyle) {
+                                ForEach(CitationStyle.allCases, id: \.self) { s in
+                                    Text(s.displayName).tag(s)
+                                }
                             }
+                            .labelsHidden()
+
+                            Spacer()
+
+                            Button(action: onAddSource) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Add Linked Source")
                         }
-                        .labelsHidden()
 
                         if sources.isEmpty {
-                            Text("No sources linked in document.")
+                            Text("No sources linked. Click + to add a citation.")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         } else {
@@ -111,7 +136,7 @@ public struct StudioInspectorView: View {
                 DisclosureGroup("Style Rules & Linting (\(lintIssues.count))", isExpanded: $isLinterExpanded) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text("Active Profile: Academic")
+                            Text("Profile: Academic Standard")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                             Spacer()
@@ -169,5 +194,17 @@ public struct StudioInspectorView: View {
                 .foregroundColor(StudioTheme.border),
             alignment: .leading
         )
+        .onChange(of: activePersona) { _, newPersona in
+            switch newPersona {
+            case .typography:
+                isTypographyExpanded = true
+            case .citations:
+                isSourcesExpanded = true
+            case .aiStudio:
+                isCopilotExpanded = true
+            case .write:
+                break
+            }
+        }
     }
 }

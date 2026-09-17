@@ -38,9 +38,11 @@ public enum StudioTool: String, CaseIterable, Identifiable {
 
 public struct StudioToolRail: View {
     @Binding var activeTool: StudioTool
+    var onToolClicked: ((StudioTool) -> Void)?
 
-    public init(activeTool: Binding<StudioTool>) {
+    public init(activeTool: Binding<StudioTool>, onToolClicked: ((StudioTool) -> Void)? = nil) {
         self._activeTool = activeTool
+        self.onToolClicked = onToolClicked
     }
 
     public var body: some View {
@@ -48,6 +50,7 @@ public struct StudioToolRail: View {
             ForEach(StudioTool.allCases) { tool in
                 Button {
                     activeTool = tool
+                    onToolClicked?(tool)
                 } label: {
                     ZStack {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -73,15 +76,15 @@ public struct StudioToolRail: View {
                 .padding(.horizontal, 4)
 
             Button {
-                // Settings or Preferences
+                onToolClicked?(.copilot)
             } label: {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "questionmark.circle")
                     .font(.system(size: 13))
                     .foregroundColor(.secondary)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
-            .help("Studio Settings")
+            .help("Studio Help & Shortcuts")
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)

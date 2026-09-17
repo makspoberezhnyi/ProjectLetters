@@ -30,7 +30,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
 * Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
 """
 
-    @State private var activeTool: StudioTool = .text
+    @State private var activeTool: StudioTool = .select
     @State private var activePersona: StudioPersona = .write
     @State private var selectedPage: Int = 1
     @State private var selectedText: String = ""
@@ -41,8 +41,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var lintIssues: [StyleLintMatch] = []
     @State private var toastMessage: String? = nil
     @State private var zoomScale: Double = 1.0
+    @State private var showingAddSourceSheet: Bool = false
 
-    // Typography States
+    // New Source form states
+    @State private var newSourceTitle: String = ""
+    @State private var newSourceAuthor: String = ""
+    @State private var newSourceYear: String = ""
+    @State private var newSourceType: SourceType = .journalArticle
+
+    // Live Typography States (Directly updates TextKit 2)
     @State private var fontFamily: String = "Default Serif (Georgia)"
     @State private var fontSize: CGFloat = 15.0
     @State private var isBold: Bool = false
@@ -68,7 +75,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Top Studio Persona & Formatting Ribbon
+            // 1. Top Studio Persona & Live Formatting Ribbon
             StudioTopBar(
                 activePersona: $activePersona,
                 fontFamily: $fontFamily,
@@ -90,7 +97,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
             // 2. Main Studio Workspace Layout
             HStack(spacing: 0) {
                 // Left Pro Tool Rail (Affinity / Figma Style)
-                StudioToolRail(activeTool: $activeTool)
+                StudioToolRail(activeTool: $activeTool) { clickedTool in
+                    handleToolAction(clickedTool)
+                }
 
                 // Left Pages / Spreads & Outline Navigator
                 StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
@@ -99,7 +108,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 ZStack(alignment: .bottom) {
                     ScrollView([.vertical, .horizontal]) {
                         VStack(spacing: 20) {
-                            // Document Sheet Title
+                            // Document Sheet Title Header (Clean and de-duplicated)
                             HStack {
                                 TextField("Document Title", text: $documentTitle)
                                     .textFieldStyle(.plain)
@@ -115,12 +124,19 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .frame(width: 816 * zoomScale)
                             .padding(.top, 24)
 
-                            // Graphic Studio Paper Sheet
+                            // Graphic Studio Paper Sheet Canvas
                             ZStack(alignment: .top) {
                                 TextKit2EditorView(
                                     text: $rawText,
                                     selectedText: $selectedText,
                                     selectionRange: $selectionRange,
+                                    fontFamily: fontFamily,
+                                    fontSize: fontSize,
+                                    isBold: isBold,
+                                    isItalic: isItalic,
+                                    alignment: textAlignment,
+                                    lineSpacing: lineSpacing,
+                                    paragraphSpacing: paragraphSpacing,
                                     onSelectionChanged: { _, _ in }
                                 )
                                 .frame(width: 816)
@@ -158,8 +174,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                             showInspector = true
                                         },
                                         onCite: {
-                                            activePersona = .citations
-                                            showInspector = true
+                                            insertCitationForSelection()
                                         }
                                     )
                                     .padding(.top, 16)
@@ -196,13 +211,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 // Right Studio Inspector (Accordion Style)
                 if showInspector {
                     StudioInspectorView(
+                        activePersona: $activePersona,
                         sources: $document.sources,
                         activeCitationStyle: $activeCitationStyle,
                         lintIssues: $lintIssues,
                         lineSpacing: $lineSpacing,
                         paragraphSpacing: $paragraphSpacing,
                         currentDocumentContext: { rawText },
-                        onRunLinter: runLinter
+                        onRunLinter: runLinter,
+                        onAddSource: { showingAddSourceSheet = true }
                     )
                     .transition(.move(edge: .trailing))
                 }
@@ -218,12 +235,91 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 zoomLevel: $zoomScale
             )
         }
+        .sheet(isPresented: $showingAddSourceSheet) {
+            VStack(spacing: 16) {
+                Text("Add Linked Source Citation")
+                    .font(.headline)
+
+                Form {
+                    TextField("Title", text: $newSourceTitle)
+                    TextField("Author(s) (comma separated)", text: $newSourceAuthor)
+                    TextField("Year", text: $newSourceYear)
+                    Picker("Source Type", selection: $newSourceType) {
+                        ForEach(SourceType.allCases, id: \.self) { st in
+                            Text(st.rawValue.capitalized).tag(st)
+                        }
+                    }
+                }
+                .frame(width: 320)
+
+                HStack {
+                    Button("Cancel") {
+                        showingAddSourceSheet = false
+                    }
+                    Button("Add & Insert") {
+                        let id = UUID().uuidString.prefix(6).lowercased()
+                        let authors = newSourceAuthor.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                        let yearInt = Int(newSourceYear)
+                        let source = Source(
+                            id: String(id),
+                            sourceType: newSourceType,
+                            authors: authors,
+                            year: yearInt,
+                            title: newSourceTitle
+                        )
+                        document.sources[String(id)] = source
+                        let ref = CitationReference(sourceId: String(id))
+                        let rendered = CoreBridge.shared.renderCitation(source: source, reference: ref, style: activeCitationStyle)
+                        rawText += " \(rendered)"
+                        showingAddSourceSheet = false
+                        newSourceTitle = ""
+                        newSourceAuthor = ""
+                        newSourceYear = ""
+                        showToast("✓ Added citation \(rendered)")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newSourceTitle.isEmpty)
+                }
+            }
+            .padding(20)
+        }
         .sheet(isPresented: $showCommandPalette) {
             CommandPaletteView(isPresented: $showCommandPalette, commands: paletteCommands)
         }
         .onAppear {
             runLinter()
         }
+    }
+
+    // MARK: - Tool Actions
+    private func handleToolAction(_ tool: StudioTool) {
+        switch tool {
+        case .select:
+            showToast("Selection Mode active")
+        case .text:
+            rawText += "\n\n## New Section Heading\nType section body text here..."
+            showToast("✓ Inserted Text Frame")
+        case .table:
+            rawText += "\n\n| Item | Q1 Revenue | Q2 Revenue | Total (=Q1+Q2) |\n| :--- | :--- | :--- | :--- |\n| Core Platform | $1,200 | $2,400 | $3,600 |\n| AI Gateway | $800 | $1,600 | $2,400 |\n"
+            showToast("✓ Inserted Smart Table")
+        case .citation:
+            showingAddSourceSheet = true
+        case .style:
+            activePersona = .write
+            showInspector = true
+            runLinter()
+            showToast("✓ Scanned style rules")
+        case .copilot:
+            activePersona = .aiStudio
+            showInspector = true
+            showToast("✓ Opened AI Copilot")
+        case .pan:
+            showToast("Canvas Pan tool active")
+        }
+    }
+
+    private func insertCitationForSelection() {
+        showingAddSourceSheet = true
     }
 
     private var paletteCommands: [CommandItem] {
@@ -233,6 +329,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
             },
             CommandItem(title: "Export as Markdown (.md)", subtitle: "Save clean markdown text", icon: "doc.text", shortcut: "⌘⇧S") {
                 saveDocumentAsMarkdown()
+            },
+            CommandItem(title: "Insert Smart Table", subtitle: "Embed interactive calculation table", icon: "tablecells", shortcut: "⌘T") {
+                handleToolAction(.table)
+            },
+            CommandItem(title: "Add Linked Source", subtitle: "Open citation metadata manager", icon: "quote.opening", shortcut: "⌘C") {
+                showingAddSourceSheet = true
             },
             CommandItem(title: "Toggle AI Assistant", subtitle: "Open BYOK Copilot companion", icon: "sparkles", shortcut: "⌘J") {
                 activePersona = .aiStudio

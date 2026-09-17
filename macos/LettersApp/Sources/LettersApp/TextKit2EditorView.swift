@@ -8,17 +8,38 @@ public struct TextKit2EditorView: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectedText: String
     @Binding var selectionRange: NSRange
+    var fontFamily: String
+    var fontSize: CGFloat
+    var isBold: Bool
+    var isItalic: Bool
+    var alignment: TextAlignment
+    var lineSpacing: CGFloat
+    var paragraphSpacing: CGFloat
     var onSelectionChanged: ((NSRange, String) -> Void)?
 
     public init(
         text: Binding<String>,
         selectedText: Binding<String>,
         selectionRange: Binding<NSRange>,
+        fontFamily: String = "Default Serif (Georgia)",
+        fontSize: CGFloat = 15.0,
+        isBold: Bool = false,
+        isItalic: Bool = false,
+        alignment: TextAlignment = .leading,
+        lineSpacing: CGFloat = 1.15,
+        paragraphSpacing: CGFloat = 12.0,
         onSelectionChanged: ((NSRange, String) -> Void)? = nil
     ) {
         self._text = text
         self._selectedText = selectedText
         self._selectionRange = selectionRange
+        self.fontFamily = fontFamily
+        self.fontSize = fontSize
+        self.isBold = isBold
+        self.isItalic = isItalic
+        self.alignment = alignment
+        self.lineSpacing = lineSpacing
+        self.paragraphSpacing = paragraphSpacing
         self.onSelectionChanged = onSelectionChanged
     }
 
@@ -41,13 +62,23 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.isAutomaticQuoteSubstitutionEnabled = true
         textView.isAutomaticDashSubstitutionEnabled = true
         
-        // Professional typography
-        textView.font = NSFont.systemFont(ofSize: 15, weight: .regular)
+        let font = resolveFont(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+        let paragraphStyle = resolveParagraphStyle(alignment: alignment, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
+        
+        textView.font = font
         textView.textColor = NSColor.labelColor
         textView.backgroundColor = .clear
         textView.drawsBackground = false
+        textView.defaultParagraphStyle = paragraphStyle
+        
+        let typingAttrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraphStyle
+        ]
+        textView.typingAttributes = typingAttrs
 
-        // Document page margins
+        // Document page margins (1-inch margins)
         textView.textContainerInset = NSSize(width: 64, height: 64)
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
@@ -72,13 +103,78 @@ public struct TextKit2EditorView: NSViewRepresentable {
 
     public func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
+        
+        let font = resolveFont(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+        let paragraphStyle = resolveParagraphStyle(alignment: alignment, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraphStyle
+        ]
+        textView.typingAttributes = attrs
+
+        // Update font if changed
+        if textView.font != font {
+            textView.font = font
+        }
+        textView.defaultParagraphStyle = paragraphStyle
+
+        // Update text if changed externally
         if textView.string != text && !context.coordinator.isInitializing {
             context.coordinator.isInitializing = true
+            let selected = textView.selectedRange()
             textView.string = text
+            if selected.location + selected.length <= (text as NSString).length {
+                textView.setSelectedRange(selected)
+            }
             DispatchQueue.main.async {
                 context.coordinator.isInitializing = false
             }
         }
+    }
+
+    private func resolveFont(family: String, size: CGFloat, bold: Bool, italic: Bool) -> NSFont {
+        var baseName = "Georgia"
+        if family.contains("SF Pro") || family.contains("Modern Sans") {
+            let weight: NSFont.Weight = bold ? .bold : .regular
+            let systemFont = NSFont.systemFont(ofSize: size, weight: weight)
+            if italic {
+                let descriptor = systemFont.fontDescriptor.withSymbolicTraits(.italic)
+                return NSFont(descriptor: descriptor, size: size) ?? systemFont
+            }
+            return systemFont
+        } else if family.contains("Times New Roman") {
+            baseName = bold ? (italic ? "TimesNewRomanPS-BoldItalicMT" : "TimesNewRomanPS-BoldMT") : (italic ? "TimesNewRomanPS-ItalicMT" : "TimesNewRomanPSMT")
+            if let custom = NSFont(name: baseName, size: size) { return custom }
+        } else if family.contains("Helvetica Neue") {
+            baseName = bold ? (italic ? "HelveticaNeue-BoldItalic" : "HelveticaNeue-Bold") : (italic ? "HelveticaNeue-Italic" : "HelveticaNeue")
+            if let custom = NSFont(name: baseName, size: size) { return custom }
+        } else if family.contains("Courier") {
+            baseName = bold ? (italic ? "Courier-BoldOblique" : "Courier-Bold") : (italic ? "Courier-Oblique" : "Courier")
+            if let custom = NSFont(name: baseName, size: size) { return custom }
+        } else if family.contains("Charter") {
+            baseName = bold ? (italic ? "Charter-BoldItalic" : "Charter-Bold") : (italic ? "Charter-Italic" : "Charter-Roman")
+            if let custom = NSFont(name: baseName, size: size) { return custom }
+        } else {
+            // Georgia default
+            baseName = bold ? (italic ? "Georgia-BoldItalic" : "Georgia-Bold") : (italic ? "Georgia-Italic" : "Georgia")
+            if let custom = NSFont(name: baseName, size: size) { return custom }
+        }
+
+        return NSFont(name: baseName, size: size) ?? NSFont.systemFont(ofSize: size)
+    }
+
+    private func resolveParagraphStyle(alignment: TextAlignment, lineSpacing: CGFloat, paragraphSpacing: CGFloat) -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        switch alignment {
+        case .leading: style.alignment = .left
+        case .center: style.alignment = .center
+        case .trailing: style.alignment = .right
+        }
+        style.lineHeightMultiple = lineSpacing
+        style.paragraphSpacing = paragraphSpacing
+        return style
     }
 
     public class Coordinator: NSObject, NSTextViewDelegate {
