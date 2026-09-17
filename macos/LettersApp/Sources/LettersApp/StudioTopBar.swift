@@ -27,6 +27,13 @@ public struct StudioTopBar: View {
     @Binding var isUnderline: Bool
     @Binding var alignment: TextAlignment
     @Binding var lineSpacing: CGFloat
+    var onSelectPersona: ((StudioPersona) -> Void)? = nil
+    var onToggleBold: (() -> Void)? = nil
+    var onToggleItalic: (() -> Void)? = nil
+    var onToggleUnderline: (() -> Void)? = nil
+    var onSetAlignment: ((TextAlignment) -> Void)? = nil
+    var onSetFontFamily: ((String) -> Void)? = nil
+    var onSetFontSize: ((CGFloat) -> Void)? = nil
     var onExportDocx: () -> Void
     var onSaveMarkdown: () -> Void
     var onToggleInspector: () -> Void
@@ -41,6 +48,7 @@ public struct StudioTopBar: View {
                 ForEach(StudioPersona.allCases) { persona in
                     Button {
                         activePersona = persona
+                        onSelectPersona?(persona)
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: persona.icon)
@@ -72,6 +80,7 @@ public struct StudioTopBar: View {
                     ForEach(availableFonts, id: \.self) { font in
                         Button(font) {
                             fontFamily = font
+                            onSetFontFamily?(font)
                         }
                     }
                 } label: {
@@ -96,6 +105,7 @@ public struct StudioTopBar: View {
                     ForEach(availableSizes, id: \.self) { size in
                         Button("\(Int(size)) pt") {
                             fontSize = size
+                            onSetFontSize?(size)
                         }
                     }
                 } label: {
@@ -115,9 +125,9 @@ public struct StudioTopBar: View {
 
                 // Styles: Bold, Italic, Underline
                 HStack(spacing: 2) {
-                    ToggleStyleButton(icon: "bold", isActive: $isBold, shortcut: "⌘B")
-                    ToggleStyleButton(icon: "italic", isActive: $isItalic, shortcut: "⌘I")
-                    ToggleStyleButton(icon: "underline", isActive: $isUnderline, shortcut: "⌘U")
+                    ToggleStyleButton(icon: "bold", isActive: $isBold, shortcut: "⌘B", onTrigger: onToggleBold)
+                    ToggleStyleButton(icon: "italic", isActive: $isItalic, shortcut: "⌘I", onTrigger: onToggleItalic)
+                    ToggleStyleButton(icon: "underline", isActive: $isUnderline, shortcut: "⌘U", onTrigger: onToggleUnderline)
                 }
                 .padding(2)
                 .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
@@ -126,6 +136,7 @@ public struct StudioTopBar: View {
                 HStack(spacing: 2) {
                     Button {
                         alignment = .leading
+                        onSetAlignment?(.leading)
                     } label: {
                         Image(systemName: "text.alignleft")
                             .font(.system(size: 12))
@@ -137,6 +148,7 @@ public struct StudioTopBar: View {
 
                     Button {
                         alignment = .center
+                        onSetAlignment?(.center)
                     } label: {
                         Image(systemName: "text.aligncenter")
                             .font(.system(size: 12))
@@ -148,6 +160,7 @@ public struct StudioTopBar: View {
 
                     Button {
                         alignment = .trailing
+                        onSetAlignment?(.trailing)
                     } label: {
                         Image(systemName: "text.alignright")
                             .font(.system(size: 12))
@@ -206,10 +219,12 @@ struct ToggleStyleButton: View {
     let icon: String
     @Binding var isActive: Bool
     let shortcut: String
+    var onTrigger: (() -> Void)? = nil
 
     var body: some View {
         Button {
             isActive.toggle()
+            onTrigger?()
         } label: {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .medium))
@@ -221,3 +236,4 @@ struct ToggleStyleButton: View {
         .help(shortcut)
     }
 }
+

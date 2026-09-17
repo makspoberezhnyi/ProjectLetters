@@ -100,6 +100,29 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 isUnderline: $isUnderline,
                 alignment: $textAlignment,
                 lineSpacing: $lineSpacing,
+                onSelectPersona: { persona in
+                    activePersona = persona
+                    showInspector = true
+                    showToast("✓ Switched to \(persona.rawValue) mode")
+                },
+                onToggleBold: {
+                    toggleBoldAction()
+                },
+                onToggleItalic: {
+                    toggleItalicAction()
+                },
+                onToggleUnderline: {
+                    toggleUnderlineAction()
+                },
+                onSetAlignment: { align in
+                    setAlignmentAction(align)
+                },
+                onSetFontFamily: { font in
+                    setFontFamilyAction(font)
+                },
+                onSetFontSize: { size in
+                    setFontSizeAction(size)
+                },
                 onExportDocx: saveDocumentAsDocx,
                 onSaveMarkdown: saveDocumentAsMarkdown,
                 onToggleInspector: {
@@ -188,6 +211,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                     fontSize: fontSize,
                                     isBold: isBold,
                                     isItalic: isItalic,
+                                    isUnderline: isUnderline,
                                     alignment: textAlignment,
                                     lineSpacing: lineSpacing,
                                     paragraphSpacing: paragraphSpacing,
@@ -350,27 +374,95 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func handleToolAction(_ tool: StudioTool) {
         switch tool {
         case .select:
-            showToast("Selection Mode active")
+            showToast("✓ Selection Tool active")
         case .text:
             rawText += "\n\n## New Section Heading\nType section body text here..."
-            showToast("✓ Inserted Text Frame")
+            showToast("✓ Inserted Text Section")
         case .table:
-            rawText += "\n\n| Item | Q1 Revenue | Q2 Revenue | Total (=Q1+Q2) |\n| :--- | :--- | :--- | :--- |\n| Core Platform | $1,200 | $2,400 | $3,600 |\n| AI Gateway | $800 | $1,600 | $2,400 |\n"
+            rawText += "\n\n| Item / Metric | Q1 Actual | Q2 Actual | Total |\n| :--- | :--- | :--- | :--- |\n| Core Platform | $1,200 | $2,400 | $3,600 |\n| AI Copilot | $800 | $1,600 | $2,400 |\n"
             showToast("✓ Inserted Smart Table")
         case .citation:
             showingAddSourceSheet = true
+            showToast("✓ Add Linked Citation")
         case .style:
             activePersona = .write
             showInspector = true
             runLinter()
-            showToast("✓ Scanned style rules")
+            showToast("✓ Scanned style rules: \(lintIssues.count) notices found")
         case .copilot:
             activePersona = .aiStudio
             showInspector = true
-            showToast("✓ Opened AI Copilot")
+            showToast("✓ AI Copilot Studio opened")
         case .pan:
-            showToast("Canvas Pan tool active")
+            showToast("✓ Hand Pan tool active")
         }
+    }
+
+    private func toggleBoldAction() {
+        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if selectedText.hasPrefix("**") && selectedText.hasSuffix("**") {
+                let unwrapped = String(selectedText.dropFirst(2).dropLast(2))
+                rawText = rawText.replacingOccurrences(of: selectedText, with: unwrapped)
+                selectedText = unwrapped
+            } else {
+                let wrapped = "**\(selectedText)**"
+                rawText = rawText.replacingOccurrences(of: selectedText, with: wrapped)
+                selectedText = wrapped
+            }
+            showToast("✓ Formatted Bold")
+        } else {
+            showToast(isBold ? "✓ Bold mode enabled" : "Bold mode disabled")
+        }
+    }
+
+    private func toggleItalicAction() {
+        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if selectedText.hasPrefix("*") && selectedText.hasSuffix("*") {
+                let unwrapped = String(selectedText.dropFirst(1).dropLast(1))
+                rawText = rawText.replacingOccurrences(of: selectedText, with: unwrapped)
+                selectedText = unwrapped
+            } else {
+                let wrapped = "*\(selectedText)*"
+                rawText = rawText.replacingOccurrences(of: selectedText, with: wrapped)
+                selectedText = wrapped
+            }
+            showToast("✓ Formatted Italic")
+        } else {
+            showToast(isItalic ? "✓ Italic mode enabled" : "Italic mode disabled")
+        }
+    }
+
+    private func toggleUnderlineAction() {
+        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if selectedText.hasPrefix("<u>") && selectedText.hasSuffix("</u>") {
+                let unwrapped = String(selectedText.dropFirst(3).dropLast(4))
+                rawText = rawText.replacingOccurrences(of: selectedText, with: unwrapped)
+                selectedText = unwrapped
+            } else {
+                let wrapped = "<u>\(selectedText)</u>"
+                rawText = rawText.replacingOccurrences(of: selectedText, with: wrapped)
+                selectedText = wrapped
+            }
+            showToast("✓ Formatted Underline")
+        } else {
+            showToast(isUnderline ? "✓ Underline mode enabled" : "Underline mode disabled")
+        }
+    }
+
+    private func setAlignmentAction(_ align: TextAlignment) {
+        textAlignment = align
+        let name = align == .leading ? "Left" : align == .center ? "Center" : "Right"
+        showToast("✓ Alignment: \(name)")
+    }
+
+    private func setFontFamilyAction(_ font: String) {
+        fontFamily = font
+        showToast("✓ Font: \(font)")
+    }
+
+    private func setFontSizeAction(_ size: CGFloat) {
+        fontSize = size
+        showToast("✓ Font Size: \(Int(size)) pt")
     }
 
     private func insertCitationForSelection() {

@@ -12,6 +12,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     var fontSize: CGFloat
     var isBold: Bool
     var isItalic: Bool
+    var isUnderline: Bool
     var alignment: TextAlignment
     var lineSpacing: CGFloat
     var paragraphSpacing: CGFloat
@@ -26,6 +27,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         fontSize: CGFloat = 15.0,
         isBold: Bool = false,
         isItalic: Bool = false,
+        isUnderline: Bool = false,
         alignment: TextAlignment = .leading,
         lineSpacing: CGFloat = 1.15,
         paragraphSpacing: CGFloat = 12.0,
@@ -39,6 +41,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self.fontSize = fontSize
         self.isBold = isBold
         self.isItalic = isItalic
+        self.isUnderline = isUnderline
         self.alignment = alignment
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
@@ -111,18 +114,36 @@ public struct TextKit2EditorView: NSViewRepresentable {
         let font = resolveFont(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = resolveParagraphStyle(alignment: alignment, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
 
-        let attrs: [NSAttributedString.Key: Any] = [
+        var typingAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraphStyle
         ]
-        textView.typingAttributes = attrs
+        if isUnderline {
+            typingAttrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        }
+        textView.typingAttributes = typingAttrs
 
-        // Update font if changed
+        // Update default font and paragraph style
         if textView.font != font {
             textView.font = font
         }
         textView.defaultParagraphStyle = paragraphStyle
+
+        // Apply live formatting to text storage
+        if let textStorage = textView.textStorage, textStorage.length > 0 {
+            let fullRange = NSRange(location: 0, length: textStorage.length)
+            textStorage.beginEditing()
+            textStorage.addAttribute(.font, value: font, range: fullRange)
+            textStorage.addAttribute(.paragraphStyle, value: paragraphStyle, range: fullRange)
+            textStorage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
+            if isUnderline {
+                textStorage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: fullRange)
+            } else {
+                textStorage.removeAttribute(.underlineStyle, range: fullRange)
+            }
+            textStorage.endEditing()
+        }
 
         // Update margins if changed
         let targetInset = NSSize(width: margins.left, height: margins.top)
