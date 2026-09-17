@@ -46,6 +46,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showingAddVideoSheet: Bool = false
     @State private var newVideoURLInput: String = ""
     @State private var showFindReplace: Bool = false
+    @State private var showingSettingsSheet: Bool = false
 
     // New Source form states
     @State private var newSourceTitle: String = ""
@@ -117,7 +118,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Sleek Minimalist Top Navigation Bar
+            // 1. Sleek Minimalist Top Navigation Bar (Clean Document Header)
             HStack(spacing: 12) {
                 // Document Title & Page Status
                 HStack(spacing: 8) {
@@ -128,7 +129,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     TextField("Document Title", text: $documentTitle)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 160, maxWidth: 280)
+                        .frame(minWidth: 180, maxWidth: 360)
 
                     Text("• \(pageSize.rawValue)")
                         .font(.system(size: 11, weight: .medium))
@@ -136,84 +137,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 }
 
                 Spacer()
-
-                // File Operations, Quick Stats & Primary Actions
-                HStack(spacing: 8) {
-                    Text("\(wordCount) words")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.secondary)
-
-                    // Open Existing File (Cmd+O)
-                    Button {
-                        openDocument()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "folder")
-                            Text("Open")
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help("Open .letters, .docx, or .md (⌘O)")
-
-                    // Save Native .letters (Cmd+S)
-                    Button {
-                        saveDocumentAsLetters()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "tray.and.arrow.down.fill")
-                            Text("Save .letters")
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help("Save native lossless .letters package (⌘S)")
-
-                    // Command Palette Trigger
-                    Button {
-                        showCommandPalette = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "command")
-                            Text("K")
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Command Palette (⌘K)")
-
-                    // Export Menu (Word .docx, Vector PDF, Print, Markdown)
-                    Menu {
-                        Button(action: saveDocumentAsDocx) {
-                            Label("Microsoft Word (.docx)", systemImage: "doc.fill")
-                        }
-                        Button(action: exportDocumentAsPDF) {
-                            Label("Vector PDF Document (.pdf)", systemImage: "arrow.down.doc")
-                        }
-                        Button(action: printDocument) {
-                            Label("Print Document (⌘P)", systemImage: "printer")
-                        }
-                        Divider()
-                        Button(action: saveDocumentAsMarkdown) {
-                            Label("Markdown Document (.md)", systemImage: "doc.text")
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 10))
-                            Text("Export / Print")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                    }
-                    .menuStyle(.borderedButton)
-                    .controlSize(.small)
-                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -225,8 +148,50 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 alignment: .bottom
             )
 
-            // 2. Wide Main Workspace Canvas & Drawers
+            // 2. Wide Main Workspace Canvas with Attached Left Vertical Rail & Drawers
             HStack(spacing: 0) {
+                // Attached Left Vertical Studio Tool Rail
+                StudioLeftAttachedRail(
+                    activeTool: $activeTool,
+                    fontFamily: $fontFamily,
+                    fontSize: $fontSize,
+                    isBold: $isBold,
+                    isItalic: $isItalic,
+                    isUnderline: $isUnderline,
+                    textAlignment: $textAlignment,
+                    pageSize: $pageSize,
+                    marginPreset: $marginPreset,
+                    margins: $margins,
+                    showMarginGuides: $showMarginGuides,
+                    showCropMarks: $showCropMarks,
+                    showOutlineDrawer: $showOutlineDrawer,
+                    showFindReplace: $showFindReplace,
+                    onToggleBold: toggleBoldAction,
+                    onToggleItalic: toggleItalicAction,
+                    onToggleUnderline: toggleUnderlineAction,
+                    onSetAlignment: setAlignmentAction,
+                    onSetFontFamily: setFontFamilyAction,
+                    onSetFontSize: setFontSizeAction,
+                    onInsertTable: {
+                        handleToolAction(.table)
+                    },
+                    onInsertSection: {
+                        handleToolAction(.text)
+                    },
+                    onAddSource: {
+                        showingAddSourceSheet = true
+                    },
+                    onInsertImage: {
+                        insertImageAction()
+                    },
+                    onInsertVideo: {
+                        showingAddVideoSheet = true
+                    },
+                    onInsertPageBreak: {
+                        insertPageBreakAction()
+                    }
+                )
+
                 // Optional Sliding Left Outline / Pages Drawer
                 if showOutlineDrawer {
                     StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
@@ -465,52 +430,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
-                        // 4. Floating Studio HUD Capsule (Bottom-Center)
-                        FloatingStudioHUD(
-                            fontFamily: $fontFamily,
-                            fontSize: $fontSize,
-                            isBold: $isBold,
-                            isItalic: $isItalic,
-                            isUnderline: $isUnderline,
-                            textAlignment: $textAlignment,
-                            lineSpacing: $lineSpacing,
-                            pageSize: $pageSize,
-                            marginPreset: $marginPreset,
-                            margins: $margins,
-                            showMarginGuides: $showMarginGuides,
-                            showCropMarks: $showCropMarks,
+                        // 4. Floating Studio Bottom Bar (Stats, Citations, Scale, AI)
+                        StudioFloatingBottomBar(
+                            wordCount: wordCount,
+                            characterCount: characterCount,
+                            readingTimeMinutes: readingTimeMinutes,
+                            citationStyle: $activeCitationStyle,
                             zoomScale: $zoomScale,
                             showAIDrawer: $showAIDrawer,
-                            showOutlineDrawer: $showOutlineDrawer,
-                            onToggleBold: toggleBoldAction,
-                            onToggleItalic: toggleItalicAction,
-                            onToggleUnderline: toggleUnderlineAction,
-                            onSetAlignment: setAlignmentAction,
-                            onSetFontFamily: setFontFamilyAction,
-                            onSetFontSize: setFontSizeAction,
-                            onInsertTable: {
-                                handleToolAction(.table)
-                            },
-                            onInsertSection: {
-                                handleToolAction(.text)
-                            },
-                            onAddSource: {
-                                showingAddSourceSheet = true
-                            },
-                            onInsertImage: {
-                                insertImageAction()
-                            },
-                            onInsertVideo: {
-                                showingAddVideoSheet = true
-                            },
-                            onInsertPageBreak: {
-                                insertPageBreakAction()
-                            },
-                            onToggleFindReplace: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showFindReplace.toggle()
-                                }
-                            }
+                            onToast: { msg in showToast(msg) }
                         )
                         .padding(.bottom, 20)
 
@@ -632,6 +560,79 @@ Letters is a next-generation desktop publishing and document studio combining gr
         .sheet(isPresented: $showCommandPalette) {
             CommandPaletteView(isPresented: $showCommandPalette, commands: paletteCommands)
         }
+        .sheet(isPresented: $showingSettingsSheet) {
+            SettingsView(
+                isPresented: $showingSettingsSheet,
+                fontFamily: $fontFamily,
+                fontSize: $fontSize,
+                citationStyle: $activeCitationStyle,
+                pageSize: $pageSize,
+                marginPreset: $marginPreset,
+                showMarginGuides: $showMarginGuides,
+                showCropMarks: $showCropMarks,
+                onToast: { msg in showToast(msg) }
+            )
+        }
+        .modifier(EditorFileNotificationsModifier(
+            onNew: newDocumentAction,
+            onOpen: openDocument,
+            onSave: saveDocumentAsLetters,
+            onExportDocx: saveDocumentAsDocx,
+            onExportPDF: exportDocumentAsPDF,
+            onPrint: printDocument,
+            onSettings: { showingSettingsSheet = true }
+        ))
+        .modifier(EditorFormatNotificationsModifier(
+            onBold: toggleBoldAction,
+            onItalic: toggleItalicAction,
+            onUnderline: toggleUnderlineAction,
+            onAlignLeft: { setAlignmentAction(.leading) },
+            onAlignCenter: { setAlignmentAction(.center) },
+            onAlignRight: { setAlignmentAction(.trailing) },
+            onTable: { handleToolAction(.table) },
+            onImage: insertImageAction,
+            onVideo: { showingAddVideoSheet = true },
+            onCitation: { showingAddSourceSheet = true },
+            onPageBreak: insertPageBreakAction
+        ))
+        .modifier(EditorViewNotificationsModifier(
+            onFindReplace: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showFindReplace.toggle()
+                }
+            },
+            onZoomIn: {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = min(2.5, zoomScale + 0.15)
+                }
+                showToast("✓ Zoom: \(Int(zoomScale * 100))%")
+            },
+            onZoomOut: {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = max(0.4, zoomScale - 0.15)
+                }
+                showToast("✓ Zoom: \(Int(zoomScale * 100))%")
+            },
+            onZoomReset: {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = 1.0
+                }
+                showToast("✓ Zoom: 100%")
+            },
+            onOutline: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showOutlineDrawer.toggle()
+                }
+            },
+            onAIDrawer: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showAIDrawer.toggle()
+                }
+            },
+            onCommandPalette: {
+                showCommandPalette.toggle()
+            }
+        ))
         .onAppear {
             runLinter()
         }
@@ -646,6 +647,16 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     // MARK: - Actions
+    private func newDocumentAction() {
+        documentTitle = "Untitled Document"
+        rawText = "Start writing your document here..."
+        studioTables = []
+        studioImages = []
+        studioVideos = []
+        document.sources = [:]
+        showToast("✓ Created New Document")
+    }
+
     private func handleToolAction(_ tool: StudioTool) {
         switch tool {
         case .select:
@@ -1146,3 +1157,76 @@ struct CropMarkCorner: View {
         .stroke(Color.secondary.opacity(0.4), lineWidth: 0.75)
     }
 }
+
+// MARK: - Modular Notification Handlers
+struct EditorFileNotificationsModifier: ViewModifier {
+    let onNew: () -> Void
+    let onOpen: () -> Void
+    let onSave: () -> Void
+    let onExportDocx: () -> Void
+    let onExportPDF: () -> Void
+    let onPrint: () -> Void
+    let onSettings: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .lettersNewDocument)) { _ in onNew() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersOpenDocument)) { _ in onOpen() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersSaveDocument)) { _ in onSave() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersExportDocx)) { _ in onExportDocx() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersExportPDF)) { _ in onExportPDF() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersPrintDocument)) { _ in onPrint() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersOpenSettings)) { _ in onSettings() }
+    }
+}
+
+struct EditorFormatNotificationsModifier: ViewModifier {
+    let onBold: () -> Void
+    let onItalic: () -> Void
+    let onUnderline: () -> Void
+    let onAlignLeft: () -> Void
+    let onAlignCenter: () -> Void
+    let onAlignRight: () -> Void
+    let onTable: () -> Void
+    let onImage: () -> Void
+    let onVideo: () -> Void
+    let onCitation: () -> Void
+    let onPageBreak: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleBold)) { _ in onBold() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleItalic)) { _ in onItalic() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleUnderline)) { _ in onUnderline() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersAlignLeft)) { _ in onAlignLeft() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersAlignCenter)) { _ in onAlignCenter() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersAlignRight)) { _ in onAlignRight() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertTable)) { _ in onTable() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertImage)) { _ in onImage() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertVideo)) { _ in onVideo() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertCitation)) { _ in onCitation() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertPageBreak)) { _ in onPageBreak() }
+    }
+}
+
+struct EditorViewNotificationsModifier: ViewModifier {
+    let onFindReplace: () -> Void
+    let onZoomIn: () -> Void
+    let onZoomOut: () -> Void
+    let onZoomReset: () -> Void
+    let onOutline: () -> Void
+    let onAIDrawer: () -> Void
+    let onCommandPalette: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleFindReplace)) { _ in onFindReplace() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersZoomIn)) { _ in onZoomIn() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersZoomOut)) { _ in onZoomOut() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersZoomReset)) { _ in onZoomReset() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleOutline)) { _ in onOutline() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleAIDrawer)) { _ in onAIDrawer() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleCommandPalette)) { _ in onCommandPalette() }
+    }
+}
+
