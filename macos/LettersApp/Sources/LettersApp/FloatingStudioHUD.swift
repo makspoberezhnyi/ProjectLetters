@@ -29,6 +29,10 @@ public struct FloatingStudioHUD: View {
     var onInsertTable: () -> Void
     var onInsertSection: () -> Void
     var onAddSource: () -> Void
+    var onInsertImage: () -> Void
+    var onInsertVideo: () -> Void
+    var onInsertPageBreak: () -> Void
+    var onToggleFindReplace: () -> Void
 
     @State private var showingPageLayoutPopover: Bool = false
     @State private var showingInsertMenu: Bool = false
@@ -60,7 +64,11 @@ public struct FloatingStudioHUD: View {
         onSetFontSize: @escaping (CGFloat) -> Void,
         onInsertTable: @escaping () -> Void,
         onInsertSection: @escaping () -> Void,
-        onAddSource: @escaping () -> Void
+        onAddSource: @escaping () -> Void,
+        onInsertImage: @escaping () -> Void,
+        onInsertVideo: @escaping () -> Void,
+        onInsertPageBreak: @escaping () -> Void,
+        onToggleFindReplace: @escaping () -> Void
     ) {
         self._fontFamily = fontFamily
         self._fontSize = fontSize
@@ -86,6 +94,10 @@ public struct FloatingStudioHUD: View {
         self.onInsertTable = onInsertTable
         self.onInsertSection = onInsertSection
         self.onAddSource = onAddSource
+        self.onInsertImage = onInsertImage
+        self.onInsertVideo = onInsertVideo
+        self.onInsertPageBreak = onInsertPageBreak
+        self.onToggleFindReplace = onToggleFindReplace
     }
 
     public var body: some View {
@@ -190,7 +202,7 @@ public struct FloatingStudioHUD: View {
             Divider()
                 .frame(height: 18)
 
-            // Group 3: Insert Menu (+ Table, + Section, + Citation)
+            // Group 3: Insert Menu (+ Table, + Image, + Video, + Section, + Citation, + Page Break)
             Menu {
                 Button {
                     onInsertTable()
@@ -199,9 +211,29 @@ public struct FloatingStudioHUD: View {
                 }
 
                 Button {
+                    onInsertImage()
+                } label: {
+                    Label("Image / Figure Frame", systemImage: "photo")
+                }
+
+                Button {
+                    onInsertVideo()
+                } label: {
+                    Label("YouTube / Web Video", systemImage: "play.rectangle")
+                }
+
+                Divider()
+
+                Button {
                     onInsertSection()
                 } label: {
                     Label("New Text Section", systemImage: "text.quote")
+                }
+
+                Button {
+                    onInsertPageBreak()
+                } label: {
+                    Label("Page Break (Cmd+Return)", systemImage: "pagebreak")
                 }
 
                 Button {
@@ -225,7 +257,23 @@ public struct FloatingStudioHUD: View {
                 .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
             }
             .menuStyle(.borderlessButton)
-            .help("Insert Table, Section, or Citation")
+            .help("Insert Table, Image, Video, Section, Citation, or Page Break")
+
+            Divider()
+                .frame(height: 18)
+
+            // Find & Replace Trigger Button
+            Button {
+                onToggleFindReplace()
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.primary)
+                    .frame(width: 26, height: 24)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help("Find & Replace (Cmd+F)")
 
             Divider()
                 .frame(height: 18)

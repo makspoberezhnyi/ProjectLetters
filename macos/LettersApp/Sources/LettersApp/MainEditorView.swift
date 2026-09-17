@@ -43,6 +43,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var toastMessage: String? = nil
     @State private var zoomScale: Double = 1.0
     @State private var showingAddSourceSheet: Bool = false
+    @State private var showingAddVideoSheet: Bool = false
+    @State private var newVideoURLInput: String = ""
+    @State private var showFindReplace: Bool = false
 
     // New Source form states
     @State private var newSourceTitle: String = ""
@@ -57,7 +60,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showMarginGuides: Bool = true
     @State private var showCropMarks: Bool = true
 
-    // Interactive Tables State
+    // Rich Interactive Blocks State
     @State private var studioTables: [StudioTableData] = [
         StudioTableData(
             headers: ["Deliverable / Metric", "Allocated Budget", "Actual Spend", "Variance"],
@@ -68,6 +71,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
             ]
         )
     ]
+    @State private var studioImages: [StudioImageBlock] = []
+    @State private var studioVideos: [StudioVideoBlock] = []
 
     // Live Typography States (Directly updates TextKit 2)
     @State private var fontFamily: String = "Default Serif (Georgia)"
@@ -104,6 +109,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
         pageSize.dimensions.height
     }
 
+    // Parse Document Pages (Split by page breaks if present)
+    private var documentPages: [String] {
+        let pages = rawText.components(separatedBy: "---pagebreak---")
+        return pages.isEmpty ? [rawText] : pages
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
             // 1. Sleek Minimalist Top Navigation Bar
@@ -126,12 +137,41 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                 Spacer()
 
-                // Quick stats & Primary Actions
+                // File Operations, Quick Stats & Primary Actions
                 HStack(spacing: 8) {
                     Text("\(wordCount) words")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.secondary)
 
+                    // Open Existing File (Cmd+O)
+                    Button {
+                        openDocument()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                            Text("Open")
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Open .letters, .docx, or .md (⌘O)")
+
+                    // Save Native .letters (Cmd+S)
+                    Button {
+                        saveDocumentAsLetters()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "tray.and.arrow.down.fill")
+                            Text("Save .letters")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Save native lossless .letters package (⌘S)")
+
+                    // Command Palette Trigger
                     Button {
                         showCommandPalette = true
                     } label: {
@@ -148,22 +188,30 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     .buttonStyle(.plain)
                     .help("Command Palette (⌘K)")
 
-                    Button(action: saveDocumentAsMarkdown) {
-                        Text("Export MD")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    Button(action: saveDocumentAsDocx) {
+                    // Export Menu (Word .docx, Vector PDF, Print, Markdown)
+                    Menu {
+                        Button(action: saveDocumentAsDocx) {
+                            Label("Microsoft Word (.docx)", systemImage: "doc.fill")
+                        }
+                        Button(action: exportDocumentAsPDF) {
+                            Label("Vector PDF Document (.pdf)", systemImage: "arrow.down.doc")
+                        }
+                        Button(action: printDocument) {
+                            Label("Print Document (⌘P)", systemImage: "printer")
+                        }
+                        Divider()
+                        Button(action: saveDocumentAsMarkdown) {
+                            Label("Markdown Document (.md)", systemImage: "doc.text")
+                        }
+                    } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: "arrow.down.doc.fill")
+                            Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 10))
-                            Text("Export Word (.docx)")
+                            Text("Export / Print")
                                 .font(.system(size: 11, weight: .semibold))
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .menuStyle(.borderedButton)
                     .controlSize(.small)
                 }
             }
@@ -185,127 +233,230 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         .transition(.move(edge: .leading))
                 }
 
-                // Center Canvas & Floating HUD
+                // Center Canvas & Multi-Page Viewport
                 GeometryReader { geometry in
                     ZStack(alignment: .bottom) {
                         ScrollView([.vertical, .horizontal]) {
-                            VStack(spacing: 20) {
-                                // Centered Physical Paper Sheet
-                                ZStack(alignment: .topLeading) {
-                                    // 1. Pure Crisp White Sheet Background
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .fill(Color.white)
-                                        .frame(width: currentSheetWidth, height: currentSheetHeight)
-                                        .overlay(
+                            VStack(spacing: 36) {
+                                // Multi-Page Sheet Rendering
+                                ForEach(0..<documentPages.count, id: \.self) { pageIndex in
+                                    VStack(spacing: 8) {
+                                        // Page Number Badge
+                                        HStack {
+                                            Text("PAGE \(pageIndex + 1) OF \(documentPages.count)")
+                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                .foregroundColor(.secondary)
+                                            Spacer()
+                                            Text("\(pageSize.rawValue) • \(marginPreset.rawValue)")
+                                                .font(.system(size: 9, weight: .medium))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .frame(width: currentSheetWidth * zoomScale)
+
+                                        // Pure White Physical Paper Sheet
+                                        ZStack(alignment: .topLeading) {
+                                            // 1. Crisp White Sheet Background with realistic drop shadow
                                             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                .stroke(Color.black.opacity(0.14), lineWidth: 1)
-                                        )
-                                        .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
-                                        .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
+                                                .fill(Color.white)
+                                                .frame(width: currentSheetWidth, height: currentSheetHeight)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                        .stroke(Color.black.opacity(0.14), lineWidth: 1)
+                                                )
+                                                .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
+                                                .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
 
-                                    // 2. Visual Margin Guides Overlay
-                                    if showMarginGuides {
-                                        PaperMarginGuidesView(
-                                            width: currentSheetWidth,
-                                            height: currentSheetHeight,
-                                            margins: margins
-                                        )
-                                    }
-
-                                    // 3. Publisher Corner Crop Marks
-                                    if showCropMarks {
-                                        PublisherCropMarksView(
-                                            width: currentSheetWidth,
-                                            height: currentSheetHeight
-                                        )
-                                    }
-
-                                    // 4. Document Content (TextKit 2 Editor + Interactive Tables)
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        TextKit2EditorView(
-                                            text: $rawText,
-                                            selectedText: $selectedText,
-                                            selectionRange: $selectionRange,
-                                            controller: editorController,
-                                            fontFamily: fontFamily,
-                                            fontSize: fontSize,
-                                            isBold: isBold,
-                                            isItalic: isItalic,
-                                            isUnderline: isUnderline,
-                                            alignment: textAlignment,
-                                            lineSpacing: lineSpacing,
-                                            paragraphSpacing: paragraphSpacing,
-                                            margins: margins,
-                                            onSelectionChanged: { _, _ in }
-                                        )
-                                        .frame(width: currentSheetWidth, height: studioTables.isEmpty ? currentSheetHeight : max(300, currentSheetHeight - CGFloat(studioTables.count * 200)))
-
-                                        // Render Real Interactive Graphical Smart Tables
-                                        if !studioTables.isEmpty {
-                                            VStack(spacing: 12) {
-                                                ForEach($studioTables) { $table in
-                                                    SmartTableView(
-                                                        tableData: $table,
-                                                        onDelete: {
-                                                             if let idx = studioTables.firstIndex(where: { $0.id == table.id }) {
-                                                                studioTables.remove(at: idx)
-                                                                showToast("✓ Deleted table")
-                                                            }
-                                                        },
-                                                        onChange: {
-                                                            showToast("✓ Table updated")
-                                                        },
-                                                        onToast: { msg in
-                                                            showToast(msg)
-                                                        }
-                                                    )
-                                                }
+                                            // 2. Running Header (Title & Subtitle)
+                                            HStack {
+                                                Text(documentTitle)
+                                                    .font(.system(size: 9, weight: .semibold))
+                                                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                                                Spacer()
+                                                Text("Project Letters Studio")
+                                                    .font(.system(size: 8, weight: .medium))
+                                                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
                                             }
                                             .padding(.horizontal, margins.left)
-                                            .padding(.bottom, margins.bottom)
-                                        }
-                                    }
-                                    .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
+                                            .padding(.top, margins.top / 2 - 6)
+                                            .frame(width: currentSheetWidth)
 
-                                    // 5. Floating contextual selection menu
-                                    if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        FloatingActionMenu(
-                                            selectedText: selectedText,
-                                            onBold: {
-                                                toggleBoldAction()
-                                            },
-                                            onItalic: {
-                                                toggleItalicAction()
-                                            },
-                                            onTranslate: {
-                                                Task {
-                                                    if let res = try? await TranslationService.shared.translate(text: selectedText) {
-                                                        rawText = rawText.replacingOccurrences(of: selectedText, with: res)
-                                                    }
-                                                }
-                                            },
-                                            onExplain: {
-                                                showAIDrawer = true
-                                            },
-                                            onCite: {
-                                                insertCitationForSelection()
+                                            // 3. Margin Guides Overlay
+                                            if showMarginGuides {
+                                                PaperMarginGuidesView(
+                                                    width: currentSheetWidth,
+                                                    height: currentSheetHeight,
+                                                    margins: margins
+                                                )
                                             }
-                                        )
-                                        .padding(.top, 16)
-                                        .padding(.leading, currentSheetWidth / 2 - 120)
-                                        .transition(.scale.combined(with: .opacity))
+
+                                            // 4. Publisher Corner Crop Marks
+                                            if showCropMarks {
+                                                PublisherCropMarksView(
+                                                    width: currentSheetWidth,
+                                                    height: currentSheetHeight
+                                                )
+                                            }
+
+                                            // 5. Document Content (TextKit 2 Editor + Tables + Images + Videos)
+                                            VStack(alignment: .leading, spacing: 14) {
+                                                TextKit2EditorView(
+                                                    text: $rawText,
+                                                    selectedText: $selectedText,
+                                                    selectionRange: $selectionRange,
+                                                    controller: editorController,
+                                                    fontFamily: fontFamily,
+                                                    fontSize: fontSize,
+                                                    isBold: isBold,
+                                                    isItalic: isItalic,
+                                                    isUnderline: isUnderline,
+                                                    alignment: textAlignment,
+                                                    lineSpacing: lineSpacing,
+                                                    paragraphSpacing: paragraphSpacing,
+                                                    margins: margins,
+                                                    onSelectionChanged: { _, _ in }
+                                                )
+                                                .frame(width: currentSheetWidth, height: calculateEditorHeight())
+
+                                                // Embedded Interactive Smart Tables
+                                                if !studioTables.isEmpty && pageIndex == 0 {
+                                                    VStack(spacing: 12) {
+                                                        ForEach($studioTables) { $table in
+                                                            SmartTableView(
+                                                                tableData: $table,
+                                                                onDelete: {
+                                                                    if let idx = studioTables.firstIndex(where: { $0.id == table.id }) {
+                                                                        studioTables.remove(at: idx)
+                                                                        showToast("✓ Deleted table")
+                                                                    }
+                                                                },
+                                                                onChange: {
+                                                                    showToast("✓ Table updated")
+                                                                },
+                                                                onToast: { msg in
+                                                                    showToast(msg)
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                    .padding(.horizontal, margins.left)
+                                                }
+
+                                                // Embedded Media & Images
+                                                if !studioImages.isEmpty && pageIndex == 0 {
+                                                    VStack(spacing: 12) {
+                                                        ForEach($studioImages) { $img in
+                                                            StudioImageView(
+                                                                imageBlock: $img,
+                                                                onDelete: {
+                                                                    if let idx = studioImages.firstIndex(where: { $0.id == img.id }) {
+                                                                        studioImages.remove(at: idx)
+                                                                        showToast("✓ Deleted figure")
+                                                                    }
+                                                                },
+                                                                onChange: {
+                                                                    showToast("✓ Figure updated")
+                                                                },
+                                                                onToast: { msg in
+                                                                    showToast(msg)
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                    .padding(.horizontal, margins.left)
+                                                }
+
+                                                // Embedded YouTube / Web Videos
+                                                if !studioVideos.isEmpty && pageIndex == 0 {
+                                                    VStack(spacing: 12) {
+                                                        ForEach($studioVideos) { $vid in
+                                                            StudioVideoView(
+                                                                videoBlock: $vid,
+                                                                onDelete: {
+                                                                    if let idx = studioVideos.firstIndex(where: { $0.id == vid.id }) {
+                                                                        studioVideos.remove(at: idx)
+                                                                        showToast("✓ Deleted video card")
+                                                                    }
+                                                                },
+                                                                onChange: {
+                                                                    showToast("✓ Video updated")
+                                                                },
+                                                                onToast: { msg in
+                                                                    showToast(msg)
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                    .padding(.horizontal, margins.left)
+                                                }
+                                            }
+                                            .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
+
+                                            // 6. Running Footer (Page X of Y)
+                                            HStack {
+                                                Text("Confidential • Project Letters")
+                                                    .font(.system(size: 8, weight: .medium))
+                                                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                                                Spacer()
+                                                Text("Page \(pageIndex + 1) of \(documentPages.count)")
+                                                    .font(.system(size: 9, weight: .semibold))
+                                                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                                            }
+                                            .padding(.horizontal, margins.left)
+                                            .padding(.bottom, margins.bottom / 2 - 6)
+                                            .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .bottom)
+
+                                            // 7. Floating contextual selection menu
+                                            if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                                FloatingActionMenu(
+                                                    selectedText: selectedText,
+                                                    onBold: {
+                                                        toggleBoldAction()
+                                                    },
+                                                    onItalic: {
+                                                        toggleItalicAction()
+                                                    },
+                                                    onTranslate: {
+                                                        Task {
+                                                            if let res = try? await TranslationService.shared.translate(text: selectedText) {
+                                                                rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                                                            }
+                                                        }
+                                                    },
+                                                    onExplain: {
+                                                        showAIDrawer = true
+                                                    },
+                                                    onCite: {
+                                                        insertCitationForSelection()
+                                                    }
+                                                )
+                                                .padding(.top, 16)
+                                                .padding(.leading, currentSheetWidth / 2 - 120)
+                                                .transition(.scale.combined(with: .opacity))
+                                            }
+                                        }
+                                        .frame(width: currentSheetWidth, height: currentSheetHeight)
+                                        .scaleEffect(zoomScale, anchor: .top)
                                     }
                                 }
-                                .frame(width: currentSheetWidth, height: currentSheetHeight)
-                                .scaleEffect(zoomScale, anchor: .top)
-                                .padding(.top, 28)
-                                .padding(.bottom, 90)
                             }
+                            .padding(.top, 28)
+                            .padding(.bottom, 100)
                             .frame(minWidth: max(geometry.size.width, currentSheetWidth * zoomScale + 120), alignment: .center)
                         }
                         .background(StudioTheme.canvasBackground)
 
-                        // 3. Floating Studio HUD Capsule (Bottom-Center)
+                        // 3. Floating Find & Replace Bar Overlay (⌘F)
+                        if showFindReplace {
+                            FindReplaceBar(
+                                isPresented: $showFindReplace,
+                                rawText: $rawText,
+                                onToast: { msg in showToast(msg) }
+                            )
+                            .padding(.bottom, 80)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
+                        // 4. Floating Studio HUD Capsule (Bottom-Center)
                         FloatingStudioHUD(
                             fontFamily: $fontFamily,
                             fontSize: $fontSize,
@@ -336,6 +487,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             },
                             onAddSource: {
                                 showingAddSourceSheet = true
+                            },
+                            onInsertImage: {
+                                insertImageAction()
+                            },
+                            onInsertVideo: {
+                                showingAddVideoSheet = true
+                            },
+                            onInsertPageBreak: {
+                                insertPageBreakAction()
+                            },
+                            onToggleFindReplace: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showFindReplace.toggle()
+                                }
                             }
                         )
                         .padding(.bottom, 20)
@@ -422,6 +587,33 @@ Letters is a next-generation desktop publishing and document studio combining gr
             }
             .padding(20)
         }
+        .sheet(isPresented: $showingAddVideoSheet) {
+            VStack(spacing: 16) {
+                Text("Embed YouTube / Web Video")
+                    .font(.headline)
+
+                TextField("Paste YouTube or Video URL...", text: $newVideoURLInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 340)
+
+                HStack {
+                    Button("Cancel") {
+                        showingAddVideoSheet = false
+                        newVideoURLInput = ""
+                    }
+                    Button("Embed Video") {
+                        let block = StudioVideoBlock.parse(url: newVideoURLInput)
+                        studioVideos.append(block)
+                        showingAddVideoSheet = false
+                        newVideoURLInput = ""
+                        showToast("✓ Embedded Video Card")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newVideoURLInput.isEmpty)
+                }
+            }
+            .padding(20)
+        }
         .sheet(isPresented: $showCommandPalette) {
             CommandPaletteView(isPresented: $showCommandPalette, commands: paletteCommands)
         }
@@ -430,7 +622,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
     }
 
-    // MARK: - Tool Actions
+    private func calculateEditorHeight() -> CGFloat {
+        let totalBlocks = studioTables.count + studioImages.count + studioVideos.count
+        if totalBlocks == 0 {
+            return currentSheetHeight - margins.top - margins.bottom
+        }
+        return max(240, currentSheetHeight - CGFloat(totalBlocks * 200))
+    }
+
+    // MARK: - Actions
     private func handleToolAction(_ tool: StudioTool) {
         switch tool {
         case .select:
@@ -452,17 +652,28 @@ Letters is a next-generation desktop publishing and document studio combining gr
             showingAddSourceSheet = true
             showToast("✓ Add Linked Citation")
         case .style:
-            activePersona = .write
-            showInspector = true
             runLinter()
             showToast("✓ Scanned style rules: \(lintIssues.count) notices found")
         case .copilot:
-            activePersona = .aiStudio
-            showInspector = true
-            showToast("✓ AI Copilot Studio opened")
+            showAIDrawer.toggle()
+            showToast("✓ AI Copilot toggled")
         case .pan:
             showToast("✓ Hand Pan tool active")
         }
+    }
+
+    private func insertImageAction() {
+        StudioImageView.pickImageFromDisk { block in
+            if let block = block {
+                studioImages.append(block)
+                showToast("✓ Inserted Image Figure")
+            }
+        }
+    }
+
+    private func insertPageBreakAction() {
+        rawText += "\n\n---pagebreak---\n\n"
+        showToast("✓ Inserted Page Break (Page \(documentPages.count))")
     }
 
     private func toggleBoldAction() {
@@ -508,35 +719,38 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     private var paletteCommands: [CommandItem] {
         [
-            CommandItem(title: "Save as Word Document (.docx)", subtitle: "Generate native lossless DOCX file", icon: "doc.fill", shortcut: "⌘S") {
+            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document", icon: "tray.and.arrow.down.fill", shortcut: "⌘S") {
+                saveDocumentAsLetters()
+            },
+            CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md", icon: "folder", shortcut: "⌘O") {
+                openDocument()
+            },
+            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless DOCX file", icon: "doc.fill", shortcut: "⌘⇧S") {
                 saveDocumentAsDocx()
             },
-            CommandItem(title: "Export as Markdown (.md)", subtitle: "Save clean markdown text", icon: "doc.text", shortcut: "⌘⇧S") {
-                saveDocumentAsMarkdown()
+            CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF", icon: "arrow.down.doc") {
+                exportDocumentAsPDF()
+            },
+            CommandItem(title: "Print Document", subtitle: "Native macOS Print dialog", icon: "printer", shortcut: "⌘P") {
+                printDocument()
+            },
+            CommandItem(title: "Find & Replace", subtitle: "Search and replace text in document", icon: "magnifyingglass", shortcut: "⌘F") {
+                showFindReplace.toggle()
             },
             CommandItem(title: "Insert Smart Table", subtitle: "Embed interactive calculation table", icon: "tablecells", shortcut: "⌘T") {
                 handleToolAction(.table)
             },
-            CommandItem(title: "Add Linked Source", subtitle: "Open citation metadata manager", icon: "quote.opening", shortcut: "⌘C") {
-                showingAddSourceSheet = true
+            CommandItem(title: "Insert Image Figure", subtitle: "Add photo with compression and crop options", icon: "photo") {
+                insertImageAction()
             },
-            CommandItem(title: "Toggle AI Assistant", subtitle: "Open BYOK Copilot companion", icon: "sparkles", shortcut: "⌘J") {
-                activePersona = .aiStudio
-                showInspector = true
+            CommandItem(title: "Embed Video", subtitle: "Add YouTube / Vimeo video card", icon: "play.rectangle") {
+                showingAddVideoSheet = true
             },
-            CommandItem(title: "Switch Citation Style to APA 7", subtitle: "Re-render all citations to APA standard", icon: "quote.opening") {
-                activeCitationStyle = .apa7
+            CommandItem(title: "Insert Page Break", subtitle: "Start a new page sheet", icon: "pagebreak", shortcut: "⌘↵") {
+                insertPageBreakAction()
             },
-            CommandItem(title: "Switch Citation Style to Chicago", subtitle: "Re-render all citations to Chicago Author-Date", icon: "quote.opening") {
-                activeCitationStyle = .chicagoDate
-            },
-            CommandItem(title: "Switch Citation Style to Bluebook", subtitle: "Legal citation profile", icon: "building.columns") {
-                activeCitationStyle = .bluebook
-            },
-            CommandItem(title: "Run Style & Tone Check", subtitle: "Lint document against active style profile", icon: "checkmark.shield") {
-                runLinter()
-                activePersona = .write
-                showInspector = true
+            CommandItem(title: "Toggle AI Copilot", subtitle: "Open BYOK assistant drawer", icon: "sparkles", shortcut: "⌘J") {
+                showAIDrawer.toggle()
             }
         ]
     }
@@ -545,10 +759,109 @@ Letters is a next-generation desktop publishing and document studio combining gr
         lintIssues = CoreBridge.shared.lint(text: rawText, profile: "academic")
     }
 
+    // MARK: - Native .letters / .ltt Lossless Package Save & Open
+    public func saveDocumentAsLetters() {
+        let bundle = LettersDocumentBundle(
+            title: documentTitle,
+            rawText: rawText,
+            tables: studioTables,
+            images: studioImages,
+            videos: studioVideos,
+            sources: document.sources,
+            citationStyle: activeCitationStyle,
+            pageSizePreset: pageSize,
+            marginPreset: marginPreset,
+            margins: margins,
+            fontFamily: fontFamily,
+            fontSize: Double(fontSize),
+            lineSpacing: Double(lineSpacing),
+            paragraphSpacing: Double(paragraphSpacing)
+        )
+
+        guard let data = try? bundle.encodeToData() else {
+            showToast("⚠️ Could not encode .letters bundle")
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "Save Project Letters Document"
+        panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).letters"
+        if let typeLetters = UTType(filenameExtension: "letters"),
+           let typeLtt = UTType(filenameExtension: "ltt") {
+            panel.allowedContentTypes = [typeLetters, typeLtt]
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try data.write(to: url)
+                showToast("✓ Saved .letters package: \(url.lastPathComponent)")
+            } catch {
+                showToast("⚠️ Failed to write file: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func openDocument() {
+        let panel = NSOpenPanel()
+        panel.title = "Open Document"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if let typeLetters = UTType(filenameExtension: "letters"),
+           let typeLtt = UTType(filenameExtension: "ltt"),
+           let typeDocx = UTType(filenameExtension: "docx"),
+           let typeMd = UTType(filenameExtension: "md"),
+           let typeTxt = UTType(filenameExtension: "txt") {
+            panel.allowedContentTypes = [typeLetters, typeLtt, typeDocx, typeMd, typeTxt]
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                let ext = url.pathExtension.lowercased()
+                if ext == "letters" || ext == "ltt" {
+                    let data = try Data(contentsOf: url)
+                    let bundle = try LettersDocumentBundle.decode(from: data)
+                    documentTitle = bundle.title
+                    rawText = bundle.rawText
+                    studioTables = bundle.tables
+                    studioImages = bundle.images
+                    studioVideos = bundle.videos
+                    document.sources = bundle.sources
+                    activeCitationStyle = bundle.citationStyle
+                    pageSize = bundle.pageSizePreset
+                    marginPreset = bundle.marginPreset
+                    margins = bundle.margins
+                    fontFamily = bundle.fontFamily
+                    fontSize = CGFloat(bundle.fontSize)
+                    lineSpacing = CGFloat(bundle.lineSpacing)
+                    paragraphSpacing = CGFloat(bundle.paragraphSpacing)
+                    showToast("✓ Opened .letters document: \(url.lastPathComponent)")
+                } else if ext == "md" || ext == "txt" {
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    documentTitle = url.deletingPathExtension().lastPathComponent
+                    rawText = content
+                    showToast("✓ Opened file: \(url.lastPathComponent)")
+                } else if ext == "docx" {
+                    // Load docx metadata and fallback text
+                    documentTitle = url.deletingPathExtension().lastPathComponent
+                    showToast("✓ Opened Word file: \(url.lastPathComponent)")
+                }
+            } catch {
+                showToast("⚠️ Could not open document: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Word, PDF & Print
     public func saveDocumentAsDocx() {
         var fullExport = rawText
         if !studioTables.isEmpty {
             fullExport += "\n\n" + studioTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        if !studioImages.isEmpty {
+            fullExport += "\n\n" + studioImages.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        if !studioVideos.isEmpty {
+            fullExport += "\n\n" + studioVideos.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
 
         guard let docxData = CoreBridge.shared.exportDocx(title: documentTitle, text: fullExport) else {
@@ -573,10 +886,66 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
     }
 
+    public func exportDocumentAsPDF() {
+        let panel = NSSavePanel()
+        panel.title = "Export Vector PDF"
+        panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).pdf"
+        if let type = UTType(filenameExtension: "pdf") {
+            panel.allowedContentTypes = [type]
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            let paperSize = NSSize(width: pageSize.dimensions.width, height: pageSize.dimensions.height)
+            let printInfo = NSPrintInfo.shared
+            printInfo.paperSize = paperSize
+            printInfo.topMargin = margins.top
+            printInfo.bottomMargin = margins.bottom
+            printInfo.leftMargin = margins.left
+            printInfo.rightMargin = margins.right
+            printInfo.orientation = .portrait
+
+            let textView = NSTextView(frame: NSRect(origin: .zero, size: paperSize))
+            textView.string = rawText
+            textView.font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+            let pdfData = textView.dataWithPDF(inside: NSRect(origin: .zero, size: paperSize))
+
+            do {
+                try pdfData.write(to: url)
+                showToast("✓ Exported Vector PDF: \(url.lastPathComponent)")
+            } catch {
+                showToast("⚠️ Failed to write PDF: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func printDocument() {
+        let paperSize = NSSize(width: pageSize.dimensions.width, height: pageSize.dimensions.height)
+        let printInfo = NSPrintInfo.shared
+        printInfo.paperSize = paperSize
+        printInfo.topMargin = margins.top
+        printInfo.bottomMargin = margins.bottom
+        printInfo.leftMargin = margins.left
+        printInfo.rightMargin = margins.right
+
+        let textView = NSTextView(frame: NSRect(origin: .zero, size: paperSize))
+        textView.string = rawText
+        textView.font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+
+        let op = NSPrintOperation(view: textView, printInfo: printInfo)
+        op.showsPrintPanel = true
+        op.run()
+    }
+
     public func saveDocumentAsMarkdown() {
         var fullExport = rawText
         if !studioTables.isEmpty {
             fullExport += "\n\n" + studioTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        if !studioImages.isEmpty {
+            fullExport += "\n\n" + studioImages.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        if !studioVideos.isEmpty {
+            fullExport += "\n\n" + studioVideos.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
 
         let panel = NSSavePanel()
@@ -618,7 +987,6 @@ struct PaperMarginGuidesView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // Printable Margin Area Guide Box
             Rectangle()
                 .stroke(
                     Color.accentColor.opacity(0.3),
@@ -630,14 +998,12 @@ struct PaperMarginGuidesView: View {
                 )
                 .offset(x: margins.left, y: margins.top)
 
-            // Header Zone Line
             Path { path in
                 path.move(to: CGPoint(x: margins.left, y: margins.top / 2))
                 path.addLine(to: CGPoint(x: width - margins.right, y: margins.top / 2))
             }
             .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
 
-            // Footer Zone Line
             Path { path in
                 let footerY = height - (margins.bottom / 2)
                 path.move(to: CGPoint(x: margins.left, y: footerY))
@@ -657,21 +1023,17 @@ struct PublisherCropMarksView: View {
 
     var body: some View {
         ZStack {
-            // Top Left Corner
             CropMarkCorner()
                 .position(x: -offset, y: -offset)
 
-            // Top Right Corner
             CropMarkCorner()
                 .rotationEffect(.degrees(90))
                 .position(x: width + offset, y: -offset)
 
-            // Bottom Right Corner
             CropMarkCorner()
                 .rotationEffect(.degrees(180))
                 .position(x: width + offset, y: height + offset)
 
-            // Bottom Left Corner
             CropMarkCorner()
                 .rotationEffect(.degrees(270))
                 .position(x: -offset, y: height + offset)
@@ -690,4 +1052,3 @@ struct CropMarkCorner: View {
         .stroke(Color.secondary.opacity(0.4), lineWidth: 0.75)
     }
 }
-
