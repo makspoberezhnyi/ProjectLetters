@@ -14,11 +14,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hostingView = NSHostingView(rootView: contentView)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1120, height: 740),
+            contentRect: NSRect(x: 0, y: 0, width: 1380, height: 900),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        window.minSize = NSSize(width: 1080, height: 720)
         window.center()
         window.title = "Letters"
         window.titleVisibility = .visible

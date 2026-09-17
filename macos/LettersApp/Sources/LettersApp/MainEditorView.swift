@@ -41,7 +41,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showCommandPalette: Bool = false
     @State private var lintIssues: [StyleLintMatch] = []
     @State private var toastMessage: String? = nil
-    @State private var zoomScale: Double = 1.0
+    @State private var zoomScale: Double = 1.15
     @State private var showingAddSourceSheet: Bool = false
     @State private var showingAddVideoSheet: Bool = false
     @State private var newVideoURLInput: String = ""
@@ -751,6 +751,24 @@ Letters is a next-generation desktop publishing and document studio combining gr
             },
             CommandItem(title: "Toggle AI Copilot", subtitle: "Open BYOK assistant drawer", icon: "sparkles", shortcut: "⌘J") {
                 showAIDrawer.toggle()
+            },
+            CommandItem(title: "Zoom In (+)", subtitle: "Enlarge workspace canvas scale", icon: "plus.magnifyingglass", shortcut: "⌘+") {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = min(2.5, zoomScale + 0.15)
+                }
+                showToast("✓ Zoom: \(Int(zoomScale * 100))%")
+            },
+            CommandItem(title: "Zoom Out (-)", subtitle: "Reduce workspace canvas scale", icon: "minus.magnifyingglass", shortcut: "⌘-") {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = max(0.5, zoomScale - 0.15)
+                }
+                showToast("✓ Zoom: \(Int(zoomScale * 100))%")
+            },
+            CommandItem(title: "Reset Zoom (100%)", subtitle: "Set canvas scale to standard 100%", icon: "arrow.counterclockwise", shortcut: "⌘0") {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = 1.0
+                }
+                showToast("✓ Zoom: 100%")
             }
         ]
     }

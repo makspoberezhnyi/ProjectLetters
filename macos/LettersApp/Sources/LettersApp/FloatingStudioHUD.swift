@@ -339,35 +339,61 @@ public struct FloatingStudioHUD: View {
                         Toggle("Show Publisher Crop Marks", isOn: $showCropMarks)
                             .font(.system(size: 12))
                     }
-
-                    Divider()
-
-                    // Zoom Scale
-                    HStack {
-                        Text("Zoom")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Button("50%") { zoomScale = 0.5 }
-                            .buttonStyle(.bordered)
-                            .controlSize(.mini)
-                        Button("100%") { zoomScale = 1.0 }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.mini)
-                        Button("150%") { zoomScale = 1.5 }
-                            .buttonStyle(.bordered)
-                            .controlSize(.mini)
-                    }
                 }
-                .padding(14)
-                .frame(width: 260)
+                .padding(16)
+                .frame(width: 280)
             }
-            .help("Page Setup, Margins & Zoom")
 
             Divider()
                 .frame(height: 18)
 
-            // Group 5: AI Copilot Companion Trigger (Glow / Highlight)
+            // Group 5: Zoom & Canvas Scale Controls
+            HStack(spacing: 2) {
+                Button {
+                    zoomScale = max(0.5, zoomScale - 0.1)
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 18, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help("Zoom Out (⌘-)")
+
+                Menu {
+                    ForEach([0.5, 0.75, 0.9, 1.0, 1.15, 1.25, 1.5, 1.75, 2.0], id: \.self) { z in
+                        Button("\(Int(z * 100))%") {
+                            zoomScale = z
+                        }
+                    }
+                } label: {
+                    Text("\(Int(zoomScale * 100))%")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .frame(width: 38)
+                }
+                .menuStyle(.borderlessButton)
+                .help("Canvas Zoom Presets")
+
+                Button {
+                    zoomScale = min(3.0, zoomScale + 0.1)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 18, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help("Zoom In (⌘+)")
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+
+            Divider()
+                .frame(height: 18)
+
+            // Group 6: AI Copilot Companion Trigger (Glow / Highlight)
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     showAIDrawer.toggle()
