@@ -471,15 +471,12 @@ public struct TextKit2EditorView: NSViewRepresentable {
             layoutManager.allowsNonContiguousLayout = true
         }
 
-        context.coordinator.isInitializing = true
+        context.coordinator.isUpdatingProgrammatically = true
         textView.string = text
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
         controller?.textView = textView
-
-        DispatchQueue.main.async {
-            context.coordinator.isInitializing = false
-        }
+        context.coordinator.isUpdatingProgrammatically = false
 
         return textView
     }
@@ -490,57 +487,49 @@ public struct TextKit2EditorView: NSViewRepresentable {
             context.coordinator.textView = textView
         }
 
-        // Update text if changed externally
-        if textView.string != text && !context.coordinator.isInitializing {
-            context.coordinator.isInitializing = true
+        // Only update text when changed externally from SwiftUI/File loading
+        if textView.string != text {
+            context.coordinator.isUpdatingProgrammatically = true
             let selected = textView.selectedRange()
             textView.string = text
             if selected.location + selected.length <= (text as NSString).length {
                 textView.setSelectedRange(selected)
             }
-            DispatchQueue.main.async {
-                context.coordinator.isInitializing = false
-            }
+            context.coordinator.isUpdatingProgrammatically = false
         }
     }
 
     public class Coordinator: NSObject, NSTextViewDelegate {
         var parent: TextKit2EditorView
         weak var textView: NSTextView?
-        var isInitializing = false
+        var isUpdatingProgrammatically = false
 
         init(_ parent: TextKit2EditorView) {
             self.parent = parent
         }
 
         public func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView, !isInitializing else { return }
+            guard let textView = notification.object as? NSTextView, !isUpdatingProgrammatically else { return }
             let string = textView.string
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                if self.parent.text != string {
-                    self.parent.text = string
-                }
+            if self.parent.text != string {
+                self.parent.text = string
             }
         }
 
         public func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView, !isInitializing else { return }
+            guard let textView = notification.object as? NSTextView, !isUpdatingProgrammatically else { return }
             let range = textView.selectedRange()
             let nsString = textView.string as NSString
             let sub = range.length > 0 && range.location + range.length <= nsString.length ? nsString.substring(with: range) : ""
             let attrs = parent.controller?.currentSelectionAttributes() ?? EditorSelectionAttributes()
 
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                if self.parent.selectionRange != range {
-                    self.parent.selectionRange = range
-                }
-                if self.parent.selectedText != sub {
-                    self.parent.selectedText = sub
-                }
-                self.parent.onSelectionChanged?(range, sub, attrs)
+            if self.parent.selectionRange != range {
+                self.parent.selectionRange = range
             }
+            if self.parent.selectedText != sub {
+                self.parent.selectedText = sub
+            }
+            self.parent.onSelectionChanged?(range, sub, attrs)
         }
     }
 }

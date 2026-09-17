@@ -1202,21 +1202,19 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
         VStack(alignment: .leading, spacing: 14) {
             ForEach(segments) { segment in
-                switch segment.type {
-                case .text(let chunkText, let range):
+                switch segment {
+                case .text(let segId, let textIdx, let initialChunk):
+                    let currentChunk = getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
+                    let displayChunk = currentChunk.isEmpty && !initialChunk.isEmpty ? initialChunk : currentChunk
+                    let minH: CGFloat = segments.count == 1 ? max(200, currentSheetHeight - margins.top - margins.bottom - 40) : calculateEditorHeight(for: displayChunk)
+
                     TextKit2EditorView(
                         text: Binding(
                             get: {
-                                if range.location + range.length <= (rawText as NSString).length {
-                                    return (rawText as NSString).substring(with: range)
-                                }
-                                return chunkText
+                                getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
                             },
                             set: { newVal in
-                                if range.location + range.length <= (rawText as NSString).length {
-                                    let ns = rawText as NSString
-                                    rawText = ns.replacingCharacters(in: range, with: newVal)
-                                }
+                                setTextChunk(pageIndex: pageIndex, textIndex: textIdx, newText: newVal)
                             }
                         ),
                         selectedText: $selectedText,
@@ -1237,12 +1235,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             self.isUnderline = attrs.isUnderline
                             self.fontFamily = attrs.fontFamily
                             self.fontSize = attrs.fontSize
-                            self.textAlignment = attrs.alignment
                         }
                     )
-                    .frame(width: printableWidth, height: calculateEditorHeight(for: chunkText))
+                    .frame(width: printableWidth)
+                    .frame(minHeight: minH, alignment: .topLeading)
 
-                case .table(let tableId):
+                case .table(let segId, let tableId):
                     if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
                         SmartTableView(
                             tableData: $studioTables[idx],
@@ -1262,7 +1260,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                     }
 
-                case .image(let imageId):
+                case .image(let segId, let imageId):
                     if let idx = studioImages.firstIndex(where: { $0.id == imageId }) {
                         StudioImageView(
                             imageBlock: $studioImages[idx],
@@ -1281,7 +1279,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                     }
 
-                case .video(let videoId):
+                case .video(let segId, let videoId):
                     if let idx = studioVideos.firstIndex(where: { $0.id == videoId }) {
                         StudioVideoView(
                             videoBlock: $studioVideos[idx],
@@ -1300,7 +1298,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                     }
 
-                case .bibliography:
+                case .bibliography(let segId):
                     DynamicBibliographyView(
                         sources: document.sources,
                         activeStyle: $activeCitationStyle,
@@ -1313,7 +1311,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         }
                     )
 
-                case .tableOfContents:
+                case .tableOfContents(let segId):
                     DynamicTOCView(
                         rawText: rawText,
                         onDelete: {
@@ -1427,32 +1425,113 @@ Letters is a next-generation desktop publishing and document studio combining gr
         .transition(.scale.combined(with: .opacity))
     }
 
+    private func extractTextChunks(from pageContent: String) -> [String] {
+        let pattern = #"(?:^|\n)?\[\[(?:table|image|video|bibliography|toc)(?::[a-zA-Z0-9\-]+)?\]\](?:\n)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return [pageContent]
+        }
+        let ns = pageContent as NSString
+        let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: ns.length))
+        if matches.isEmpty {
+            return [pageContent]
+        }
+        var chunks: [String] = []
+        var lastLoc = 0
+        for match in matches {
+            let len = match.range.location - lastLoc
+            chunks.append(ns.substring(with: NSRange(location: lastLoc, length: max(0, len))))
+            lastLoc = match.range.location + match.range.length
+        }
+        if lastLoc <= ns.length {
+            chunks.append(ns.substring(with: NSRange(location: lastLoc, length: ns.length - lastLoc)))
+        }
+        return chunks
+    }
+
+    private func replaceTextChunk(in pageContent: String, textIndex: Int, with newText: String) -> String {
+        let pattern = #"(?:^|\n)?\[\[(?:table|image|video|bibliography|toc)(?::[a-zA-Z0-9\-]+)?\]\](?:\n)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return newText
+        }
+        let ns = pageContent as NSString
+        let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: ns.length))
+        if matches.isEmpty {
+            return newText
+        }
+
+        var result = ""
+        var lastLoc = 0
+        var currentTextIdx = 0
+
+        for match in matches {
+            let chunk = ns.substring(with: NSRange(location: lastLoc, length: max(0, match.range.location - lastLoc)))
+            let marker = ns.substring(with: match.range)
+            if currentTextIdx == textIndex {
+                result += newText
+            } else {
+                result += chunk
+            }
+            result += marker
+            currentTextIdx += 1
+            lastLoc = match.range.location + match.range.length
+        }
+
+        if lastLoc <= ns.length {
+            let tail = ns.substring(with: NSRange(location: lastLoc, length: ns.length - lastLoc))
+            if currentTextIdx == textIndex {
+                result += newText
+            } else {
+                result += tail
+            }
+        }
+
+        return result
+    }
+
+    private func getTextChunk(pageIndex: Int, textIndex: Int) -> String {
+        let pages = documentPages
+        guard pageIndex < pages.count else { return "" }
+        let pageContent = pages[pageIndex]
+        let chunks = extractTextChunks(from: pageContent)
+        guard textIndex < chunks.count else { return "" }
+        return chunks[textIndex]
+    }
+
+    private func setTextChunk(pageIndex: Int, textIndex: Int, newText: String) {
+        var pages = rawText.components(separatedBy: "---pagebreak---")
+        if pages.isEmpty { pages = [""] }
+        guard pageIndex < pages.count else { return }
+        let pageContent = pages[pageIndex]
+        let updatedPage = replaceTextChunk(in: pageContent, textIndex: textIndex, with: newText)
+        pages[pageIndex] = updatedPage
+        rawText = pages.joined(separator: "---pagebreak---")
+    }
+
     private func parseCanvasSegments(for pageContent: String, pageIndex: Int = 0) -> [DocumentCanvasSegment] {
         let pattern = #"(?:^|\n)?\[\[(table|image|video|bibliography|toc)(?::([a-zA-Z0-9\-]+))?\]\](?:\n)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return [DocumentCanvasSegment(id: "p\(pageIndex)-text-0", type: .text(pageContent, NSRange(location: 0, length: (pageContent as NSString).length)))]
+            return [DocumentCanvasSegment.text(id: "p\(pageIndex)-text-0", textIndex: 0, initialContent: pageContent)]
         }
 
         let nsContent = pageContent as NSString
         let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: nsContent.length))
 
         if matches.isEmpty {
-            return [DocumentCanvasSegment(id: "p\(pageIndex)-text-0", type: .text(pageContent, NSRange(location: 0, length: nsContent.length)))]
+            return [DocumentCanvasSegment.text(id: "p\(pageIndex)-text-0", textIndex: 0, initialContent: pageContent)]
         }
 
         var segments: [DocumentCanvasSegment] = []
         var lastLocation = 0
-        var segCount = 0
+        var textIdx = 0
+        var blockIdx = 0
 
         for match in matches {
             let matchRange = match.range
             if matchRange.location > lastLocation {
                 let textRange = NSRange(location: lastLocation, length: matchRange.location - lastLocation)
                 let chunkText = nsContent.substring(with: textRange)
-                if !chunkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || segments.isEmpty {
-                    segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-text-\(segCount)", type: .text(chunkText, textRange)))
-                    segCount += 1
-                }
+                segments.append(DocumentCanvasSegment.text(id: "p\(pageIndex)-text-\(textIdx)", textIndex: textIdx, initialContent: chunkText))
+                textIdx += 1
             }
 
             if match.numberOfRanges >= 2 {
@@ -1460,37 +1539,37 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 let idStr = (match.numberOfRanges >= 3 && match.range(at: 2).location != NSNotFound) ? nsContent.substring(with: match.range(at: 2)) : ""
 
                 if kind == "bibliography" {
-                    segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-bib-\(segCount)", type: .bibliography))
-                    segCount += 1
+                    segments.append(DocumentCanvasSegment.bibliography(id: "p\(pageIndex)-bib-\(blockIdx)"))
+                    blockIdx += 1
                 } else if kind == "toc" {
-                    segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-toc-\(segCount)", type: .tableOfContents))
-                    segCount += 1
+                    segments.append(DocumentCanvasSegment.tableOfContents(id: "p\(pageIndex)-toc-\(blockIdx)"))
+                    blockIdx += 1
                 } else if kind == "table" {
                     if let uuid = UUID(uuidString: idStr), studioTables.contains(where: { $0.id == uuid }) {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-table-\(uuid.uuidString)", type: .table(uuid)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.table(id: "p\(pageIndex)-table-\(uuid.uuidString)", tableId: uuid))
+                        blockIdx += 1
                     } else if idStr.lowercased() == "budget", let firstTable = studioTables.first {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-table-\(firstTable.id.uuidString)", type: .table(firstTable.id)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.table(id: "p\(pageIndex)-table-\(firstTable.id.uuidString)", tableId: firstTable.id))
+                        blockIdx += 1
                     } else if let found = studioTables.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-table-\(found.id.uuidString)", type: .table(found.id)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.table(id: "p\(pageIndex)-table-\(found.id.uuidString)", tableId: found.id))
+                        blockIdx += 1
                     }
                 } else if kind == "image" {
                     if let uuid = UUID(uuidString: idStr), studioImages.contains(where: { $0.id == uuid }) {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-image-\(uuid.uuidString)", type: .image(uuid)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.image(id: "p\(pageIndex)-image-\(uuid.uuidString)", imageId: uuid))
+                        blockIdx += 1
                     } else if let found = studioImages.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-image-\(found.id.uuidString)", type: .image(found.id)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.image(id: "p\(pageIndex)-image-\(found.id.uuidString)", imageId: found.id))
+                        blockIdx += 1
                     }
                 } else if kind == "video" {
                     if let uuid = UUID(uuidString: idStr), studioVideos.contains(where: { $0.id == uuid }) {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-video-\(uuid.uuidString)", type: .video(uuid)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.video(id: "p\(pageIndex)-video-\(uuid.uuidString)", videoId: uuid))
+                        blockIdx += 1
                     } else if let found = studioVideos.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
-                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-video-\(found.id.uuidString)", type: .video(found.id)))
-                        segCount += 1
+                        segments.append(DocumentCanvasSegment.video(id: "p\(pageIndex)-video-\(found.id.uuidString)", videoId: found.id))
+                        blockIdx += 1
                     }
                 }
             }
@@ -1501,9 +1580,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         if lastLocation < nsContent.length {
             let textRange = NSRange(location: lastLocation, length: nsContent.length - lastLocation)
             let chunkText = nsContent.substring(with: textRange)
-            if !chunkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-text-\(segCount)", type: .text(chunkText, textRange)))
-            }
+            segments.append(DocumentCanvasSegment.text(id: "p\(pageIndex)-text-\(textIdx)", textIndex: textIdx, initialContent: chunkText))
         }
 
         return segments
@@ -1511,21 +1588,23 @@ Letters is a next-generation desktop publishing and document studio combining gr
 }
 
 // MARK: - Document Canvas Segment Model
-public struct DocumentCanvasSegment: Identifiable {
-    public enum SegmentType {
-        case text(String, NSRange)
-        case table(UUID)
-        case image(UUID)
-        case video(UUID)
-        case bibliography
-        case tableOfContents
-    }
-    public let id: String
-    public let type: SegmentType
+public enum DocumentCanvasSegment: Identifiable {
+    case text(id: String, textIndex: Int, initialContent: String)
+    case table(id: String, tableId: UUID)
+    case image(id: String, imageId: UUID)
+    case video(id: String, videoId: UUID)
+    case bibliography(id: String)
+    case tableOfContents(id: String)
 
-    public init(id: String, type: SegmentType) {
-        self.id = id
-        self.type = type
+    public var id: String {
+        switch self {
+        case .text(let id, _, _): return id
+        case .table(let id, _): return id
+        case .image(let id, _): return id
+        case .video(let id, _): return id
+        case .bibliography(let id): return id
+        case .tableOfContents(let id): return id
+        }
     }
 }
 
