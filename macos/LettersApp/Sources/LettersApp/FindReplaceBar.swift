@@ -10,6 +10,8 @@ public struct FindReplaceBar: View {
     @State private var currentMatchIndex: Int = 0
     @State private var matchRanges: [Range<String.Index>] = []
     @State private var isCaseSensitive: Bool = false
+    @State private var isRegex: Bool = false
+    @State private var regexErrorMessage: String? = nil
 
     public init(
         isPresented: Binding<Bool>,
@@ -35,7 +37,7 @@ public struct FindReplaceBar: View {
 
                 TextField("Find in document...", text: $findQuery)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, design: isRegex ? .monospaced : .default))
                     .onSubmit {
                         findNext()
                     }
@@ -43,7 +45,43 @@ public struct FindReplaceBar: View {
                         recalculateMatches()
                     }
 
-                if !findQuery.isEmpty {
+                // Mode Toggles: Match Case & Regular Expressions
+                HStack(spacing: 3) {
+                    Button {
+                        isCaseSensitive.toggle()
+                        recalculateMatches()
+                    } label: {
+                        Text("Aa")
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(width: 22, height: 18)
+                            .background(isCaseSensitive ? Color.accentColor.opacity(0.2) : Color.clear)
+                            .foregroundColor(isCaseSensitive ? .accentColor : .secondary)
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Match Case (Case Sensitive)")
+
+                    Button {
+                        isRegex.toggle()
+                        recalculateMatches()
+                    } label: {
+                        Text(".*")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .frame(width: 22, height: 18)
+                            .background(isRegex ? Color.accentColor.opacity(0.2) : Color.clear)
+                            .foregroundColor(isRegex ? .accentColor : .secondary)
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Use Regular Expressions (Regex with $1, $2 capture groups)")
+                }
+
+                if let err = regexErrorMessage {
+                    Text("Regex error")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.red)
+                        .help(err)
+                } else if !findQuery.isEmpty {
                     Text(matchCount > 0 ? "\(currentMatchIndex + 1) of \(matchCount)" : "No matches")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(matchCount > 0 ? .secondary : .red)
@@ -88,20 +126,20 @@ public struct FindReplaceBar: View {
                     .foregroundColor(.secondary)
                     .font(.system(size: 12))
 
-                TextField("Replace with...", text: $replaceQuery)
+                TextField(isRegex ? "Replace (supports $1, $2, $0)..." : "Replace with...", text: $replaceQuery)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, design: isRegex ? .monospaced : .default))
 
                 Spacer()
 
-                // 1. Single Replace (replaces current specific match only)
+                // 1. Single Replace
                 Button("Replace") {
                     replaceCurrentMatch()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(matchCount == 0)
-                .help("Replace current matching instance")
+                .disabled(matchCount == 0 || regexErrorMessage != nil)
+                .help(isRegex ? "Replace active match with capture group expansion" : "Replace current matching instance")
 
                 // 2. Replace All
                 Button("Replace All") {
@@ -109,12 +147,12 @@ public struct FindReplaceBar: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(matchCount == 0)
-                .help("Replace all matching instances in document")
+                .disabled(matchCount == 0 || regexErrorMessage != nil)
+                .help(isRegex ? "Replace all matches expanding $1, $2 across document" : "Replace all matching instances in document")
             }
         }
         .padding(10)
-        .frame(width: 380)
+        .frame(width: 440)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -129,23 +167,53 @@ public struct FindReplaceBar: View {
     private func recalculateMatches() {
         guard !findQuery.isEmpty else {
             matchRanges = []
+            regexErrorMessage = nil
             currentMatchIndex = 0
             return
         }
 
-        var ranges: [Range<String.Index>] = []
-        var searchStart = rawText.startIndex
-        let options: String.CompareOptions = isCaseSensitive ? [] : [.caseInsensitive]
+        if isRegex {
+            do {
+                var regexOptions: NSRegularExpression.Options = []
+                if !isCaseSensitive {
+                    regexOptions.insert(.caseInsensitive)
+                }
+                let regex = try NSRegularExpression(pattern: findQuery, options: regexOptions)
+                regexErrorMessage = nil
 
-        while searchStart < rawText.endIndex,
-              let range = rawText.range(of: findQuery, options: options, range: searchStart..<rawText.endIndex) {
-            ranges.append(range)
-            searchStart = range.upperBound
-        }
+                let nsStr = rawText as NSString
+                let nsMatches = regex.matches(in: rawText, options: [], range: NSRange(location: 0, length: nsStr.length))
+                var swiftRanges: [Range<String.Index>] = []
+                for match in nsMatches {
+                    if let r = Range(match.range, in: rawText) {
+                        swiftRanges.append(r)
+                    }
+                }
+                matchRanges = swiftRanges
+                if currentMatchIndex >= swiftRanges.count {
+                    currentMatchIndex = 0
+                }
+            } catch {
+                matchRanges = []
+                regexErrorMessage = error.localizedDescription
+                currentMatchIndex = 0
+            }
+        } else {
+            regexErrorMessage = nil
+            var ranges: [Range<String.Index>] = []
+            var searchStart = rawText.startIndex
+            let options: String.CompareOptions = isCaseSensitive ? [] : [.caseInsensitive]
 
-        matchRanges = ranges
-        if currentMatchIndex >= ranges.count {
-            currentMatchIndex = 0
+            while searchStart < rawText.endIndex,
+                  let range = rawText.range(of: findQuery, options: options, range: searchStart..<rawText.endIndex) {
+                ranges.append(range)
+                searchStart = range.upperBound
+            }
+
+            matchRanges = ranges
+            if currentMatchIndex >= ranges.count {
+                currentMatchIndex = 0
+            }
         }
     }
 
@@ -161,18 +229,65 @@ public struct FindReplaceBar: View {
 
     private func replaceCurrentMatch() {
         guard matchCount > 0, matchRanges.indices.contains(currentMatchIndex) else { return }
-        let targetRange = matchRanges[currentMatchIndex]
-        rawText.replaceSubrange(targetRange, with: replaceQuery)
-        onToast?("✓ Replaced instance (\(currentMatchIndex + 1)/\(matchCount))")
-        recalculateMatches()
+
+        if isRegex {
+            do {
+                var regexOptions: NSRegularExpression.Options = []
+                if !isCaseSensitive {
+                    regexOptions.insert(.caseInsensitive)
+                }
+                let regex = try NSRegularExpression(pattern: findQuery, options: regexOptions)
+                let nsStr = rawText as NSString
+                let nsMatches = regex.matches(in: rawText, options: [], range: NSRange(location: 0, length: nsStr.length))
+                if nsMatches.indices.contains(currentMatchIndex) {
+                    let match = nsMatches[currentMatchIndex]
+                    let replacement = regex.replacementString(for: match, in: rawText, offset: 0, template: replaceQuery)
+                    if let swiftRange = Range(match.range, in: rawText) {
+                        rawText.replaceSubrange(swiftRange, with: replacement)
+                        onToast?("✓ Regex replaced instance (\(currentMatchIndex + 1)/\(matchCount))")
+                        recalculateMatches()
+                    }
+                }
+            } catch {
+                regexErrorMessage = error.localizedDescription
+            }
+        } else {
+            let targetRange = matchRanges[currentMatchIndex]
+            rawText.replaceSubrange(targetRange, with: replaceQuery)
+            onToast?("✓ Replaced instance (\(currentMatchIndex + 1)/\(matchCount))")
+            recalculateMatches()
+        }
     }
 
     private func replaceAllMatches() {
         guard !findQuery.isEmpty else { return }
         let count = matchCount
-        let options: String.CompareOptions = isCaseSensitive ? [] : [.caseInsensitive]
-        rawText = rawText.replacingOccurrences(of: findQuery, with: replaceQuery, options: options)
-        onToast?("✓ Replaced all \(count) occurrences")
-        recalculateMatches()
+
+        if isRegex {
+            do {
+                var regexOptions: NSRegularExpression.Options = []
+                if !isCaseSensitive {
+                    regexOptions.insert(.caseInsensitive)
+                }
+                let regex = try NSRegularExpression(pattern: findQuery, options: regexOptions)
+                let nsStr = rawText as NSString
+                let replaced = regex.stringByReplacingMatches(
+                    in: rawText,
+                    options: [],
+                    range: NSRange(location: 0, length: nsStr.length),
+                    withTemplate: replaceQuery
+                )
+                rawText = replaced
+                onToast?("✓ Regex replaced all \(count) occurrences")
+                recalculateMatches()
+            } catch {
+                regexErrorMessage = error.localizedDescription
+            }
+        } else {
+            let options: String.CompareOptions = isCaseSensitive ? [] : [.caseInsensitive]
+            rawText = rawText.replacingOccurrences(of: findQuery, with: replaceQuery, options: options)
+            onToast?("✓ Replaced all \(count) occurrences")
+            recalculateMatches()
+        }
     }
 }

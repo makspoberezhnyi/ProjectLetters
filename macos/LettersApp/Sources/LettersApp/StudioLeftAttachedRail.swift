@@ -31,9 +31,15 @@ public struct StudioLeftAttachedRail: View {
     var onInsertImage: () -> Void
     var onInsertVideo: () -> Void
     var onInsertPageBreak: () -> Void
+    var onInsertTOC: () -> Void
+    var onInsertBibliography: () -> Void
+    var onToggleStrikethrough: () -> Void
+    var onInsertBulletList: () -> Void
+    var onInsertNumberedList: () -> Void
 
     @State private var showingFontMenu: Bool = false
     @State private var showingPageLayoutPopover: Bool = false
+    @State private var showingTypographyPopover: Bool = false
 
     public init(
         activeTool: Binding<StudioTool>,
@@ -61,7 +67,12 @@ public struct StudioLeftAttachedRail: View {
         onAddSource: @escaping () -> Void,
         onInsertImage: @escaping () -> Void,
         onInsertVideo: @escaping () -> Void,
-        onInsertPageBreak: @escaping () -> Void
+        onInsertPageBreak: @escaping () -> Void,
+        onInsertTOC: @escaping () -> Void,
+        onInsertBibliography: @escaping () -> Void,
+        onToggleStrikethrough: @escaping () -> Void,
+        onInsertBulletList: @escaping () -> Void,
+        onInsertNumberedList: @escaping () -> Void
     ) {
         self._activeTool = activeTool
         self._fontFamily = fontFamily
@@ -89,6 +100,11 @@ public struct StudioLeftAttachedRail: View {
         self.onInsertImage = onInsertImage
         self.onInsertVideo = onInsertVideo
         self.onInsertPageBreak = onInsertPageBreak
+        self.onInsertTOC = onInsertTOC
+        self.onInsertBibliography = onInsertBibliography
+        self.onToggleStrikethrough = onToggleStrikethrough
+        self.onInsertBulletList = onInsertBulletList
+        self.onInsertNumberedList = onInsertNumberedList
     }
 
     public var body: some View {
@@ -113,6 +129,10 @@ public struct StudioLeftAttachedRail: View {
                     onInsertSection()
                 }
 
+                RailIconButton(icon: "list.bullet.indent", isActive: false, shortcut: "Insert Table of Contents") {
+                    onInsertTOC()
+                }
+
                 RailIconButton(icon: "tablecells", isActive: false, shortcut: "Insert Smart Table (⌘T)") {
                     onInsertTable()
                 }
@@ -127,6 +147,10 @@ public struct StudioLeftAttachedRail: View {
 
                 RailIconButton(icon: "quote.bubble", isActive: false, shortcut: "Add Citation (⌥⌘C)") {
                     onAddSource()
+                }
+
+                RailIconButton(icon: "books.vertical", isActive: false, shortcut: "Insert Bibliography / Works Cited") {
+                    onInsertBibliography()
                 }
 
                 RailIconButton(icon: "pagebreak", isActive: false, shortcut: "Insert Page Break (⌘↵)") {
@@ -211,6 +235,68 @@ public struct StudioLeftAttachedRail: View {
                 }
                 .menuStyle(.borderlessButton)
                 .help("Text Alignment")
+
+                // Advanced Typography & Lists Popover
+                Button {
+                    showingTypographyPopover.toggle()
+                } label: {
+                    Image(systemName: "character.cursor.ibeam")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(showingTypographyPopover ? .accentColor : .primary)
+                        .frame(width: 32, height: 28)
+                        .background(showingTypographyPopover ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .help("Advanced Typography & Lists")
+                .popover(isPresented: $showingTypographyPopover, arrowEdge: .trailing) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Fine Typography & Lists")
+                            .font(.system(size: 13, weight: .bold))
+
+                        Divider()
+
+                        // Strikethrough
+                        Button {
+                            onToggleStrikethrough()
+                        } label: {
+                            HStack {
+                                Image(systemName: "strikethrough")
+                                Text("Strikethrough")
+                                Spacer()
+                            }
+                            .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+
+                        // Bullet List
+                        Button {
+                            onInsertBulletList()
+                        } label: {
+                            HStack {
+                                Image(systemName: "list.bullet")
+                                Text("Bullet List (•)")
+                                Spacer()
+                            }
+                            .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+
+                        // Numbered List
+                        Button {
+                            onInsertNumberedList()
+                        } label: {
+                            HStack {
+                                Image(systemName: "list.number")
+                                Text("Numbered List (1.)")
+                                Spacer()
+                            }
+                            .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(14)
+                    .frame(width: 200)
+                }
             }
 
             Divider()

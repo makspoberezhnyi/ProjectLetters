@@ -192,6 +192,21 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     },
                     onInsertPageBreak: {
                         insertPageBreakAction()
+                    },
+                    onInsertTOC: {
+                        insertTOCAction()
+                    },
+                    onInsertBibliography: {
+                        insertBibliographyAction()
+                    },
+                    onToggleStrikethrough: {
+                        toggleStrikethroughAction()
+                    },
+                    onInsertBulletList: {
+                        insertBulletListAction()
+                    },
+                    onInsertNumberedList: {
+                        insertNumberedListAction()
                     }
                 )
 
@@ -555,6 +570,55 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func insertPageBreakAction() {
         rawText += "\n\n---pagebreak---\n\n"
         showToast("✓ Inserted Page Break (Page \(documentPages.count))")
+    }
+
+    private func insertTOCAction() {
+        let marker = "\n\n[[toc]]\n\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+        } else {
+            rawText += marker
+        }
+        showToast("✓ Inserted Table of Contents")
+    }
+
+    private func insertBibliographyAction() {
+        let marker = "\n\n[[bibliography]]\n\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+        } else {
+            rawText += marker
+        }
+        showToast("✓ Inserted Bibliography / Works Cited")
+    }
+
+    private func toggleStrikethroughAction() {
+        isUnderline.toggle()
+        showToast("✓ Strikethrough toggled")
+    }
+
+    private func insertBulletListAction() {
+        let item = "\n• "
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Bullet Item")
+    }
+
+    private func insertNumberedListAction() {
+        let item = "\n1. "
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Numbered List")
     }
 
     private func toggleBoldAction() {
@@ -1171,6 +1235,33 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                         .padding(.horizontal, margins.left)
                     }
+
+                case .bibliography:
+                    DynamicBibliographyView(
+                        sources: document.sources,
+                        activeStyle: $activeCitationStyle,
+                        onDelete: {
+                            rawText = rawText.replacingOccurrences(of: "[[bibliography]]", with: "")
+                            showToast("✓ Deleted Bibliography section")
+                        },
+                        onToast: { msg in
+                            showToast(msg)
+                        }
+                    )
+                    .padding(.horizontal, margins.left)
+
+                case .tableOfContents:
+                    DynamicTOCView(
+                        rawText: rawText,
+                        onDelete: {
+                            rawText = rawText.replacingOccurrences(of: "[[toc]]", with: "")
+                            showToast("✓ Deleted Table of Contents")
+                        },
+                        onToast: { msg in
+                            showToast(msg)
+                        }
+                    )
+                    .padding(.horizontal, margins.left)
                 }
             }
 
@@ -1277,7 +1368,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func parseCanvasSegments(for pageContent: String) -> [DocumentCanvasSegment] {
-        let pattern = #"(?:^|\n)?\[\[(table|image|video):([a-zA-Z0-9\-]+)\]\](?:\n)?"#
+        let pattern = #"(?:^|\n)?\[\[(table|image|video|bibliography|toc)(?::([a-zA-Z0-9\-]+))?\]\](?:\n)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
             return [DocumentCanvasSegment(type: .text(pageContent, NSRange(location: 0, length: (pageContent as NSString).length)))]
         }
@@ -1302,11 +1393,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 }
             }
 
-            if match.numberOfRanges >= 3 {
+            if match.numberOfRanges >= 2 {
                 let kind = nsContent.substring(with: match.range(at: 1))
-                let idStr = nsContent.substring(with: match.range(at: 2))
+                let idStr = (match.numberOfRanges >= 3 && match.range(at: 2).location != NSNotFound) ? nsContent.substring(with: match.range(at: 2)) : ""
 
-                if kind == "table" {
+                if kind == "bibliography" {
+                    segments.append(DocumentCanvasSegment(type: .bibliography))
+                } else if kind == "toc" {
+                    segments.append(DocumentCanvasSegment(type: .tableOfContents))
+                } else if kind == "table" {
                     if let uuid = UUID(uuidString: idStr), studioTables.contains(where: { $0.id == uuid }) {
                         segments.append(DocumentCanvasSegment(type: .table(uuid)))
                     } else if idStr.lowercased() == "budget", let firstTable = studioTables.first {
@@ -1351,6 +1446,8 @@ public struct DocumentCanvasSegment: Identifiable {
         case table(UUID)
         case image(UUID)
         case video(UUID)
+        case bibliography
+        case tableOfContents
     }
     public let id = UUID()
     public let type: SegmentType
