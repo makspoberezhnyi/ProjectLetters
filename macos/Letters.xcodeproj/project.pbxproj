@@ -26,6 +26,18 @@
 		2797CE91D0BF594387A581B7 /* SourceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */; };
 		9905AB804FAE57FBAE0ACB07 /* AssistantSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */; };
 		527C1756F23258CFBD781EAA /* DocumentOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */; };
+		B10000012C12345600000001 /* AppCommandCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012C12345600000001 /* AppCommandCenter.swift */; };
+		B10000022C12345600000002 /* DynamicBibliographyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12345600000002 /* DynamicBibliographyView.swift */; };
+		B10000032C12345600000003 /* DynamicTOCView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000032C12345600000003 /* DynamicTOCView.swift */; };
+		B10000042C12345600000004 /* FindReplaceBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000042C12345600000004 /* FindReplaceBar.swift */; };
+		B10000052C12345600000005 /* FloatingStudioHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000052C12345600000005 /* FloatingStudioHUD.swift */; };
+		B10000062C12345600000006 /* LettersDocumentBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000062C12345600000006 /* LettersDocumentBundle.swift */; };
+		B10000072C12345600000007 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000072C12345600000007 /* SettingsView.swift */; };
+		B10000082C12345600000008 /* SmartTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000082C12345600000008 /* SmartTableView.swift */; };
+		B10000092C12345600000009 /* StudioFloatingBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000092C12345600000009 /* StudioFloatingBottomBar.swift */; };
+		B100000A2C1234560000000A /* StudioImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000A2C1234560000000A /* StudioImageView.swift */; };
+		B100000B2C1234560000000B /* StudioLeftAttachedRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */; };
+		B100000C2C1234560000000C /* StudioVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000C2C1234560000000C /* StudioVideoView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +62,18 @@
 		E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SourceManagerView.swift"; sourceTree = "<group>"; };
 		9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/AssistantSidebarView.swift"; sourceTree = "<group>"; };
 		DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DocumentOutlineView.swift"; sourceTree = "<group>"; };
+		A10000012C12345600000001 /* AppCommandCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/AppCommandCenter.swift"; sourceTree = "<group>"; };
+		A10000022C12345600000002 /* DynamicBibliographyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DynamicBibliographyView.swift"; sourceTree = "<group>"; };
+		A10000032C12345600000003 /* DynamicTOCView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DynamicTOCView.swift"; sourceTree = "<group>"; };
+		A10000042C12345600000004 /* FindReplaceBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/FindReplaceBar.swift"; sourceTree = "<group>"; };
+		A10000052C12345600000005 /* FloatingStudioHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/FloatingStudioHUD.swift"; sourceTree = "<group>"; };
+		A10000062C12345600000006 /* LettersDocumentBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/LettersDocumentBundle.swift"; sourceTree = "<group>"; };
+		A10000072C12345600000007 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SettingsView.swift"; sourceTree = "<group>"; };
+		A10000082C12345600000008 /* SmartTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SmartTableView.swift"; sourceTree = "<group>"; };
+		A10000092C12345600000009 /* StudioFloatingBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift"; sourceTree = "<group>"; };
+		A100000A2C1234560000000A /* StudioImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioImageView.swift"; sourceTree = "<group>"; };
+		A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift"; sourceTree = "<group>"; };
+		A100000C2C1234560000000C /* StudioVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioVideoView.swift"; sourceTree = "<group>"; };
 		CC59F701E35B58EA91D6096B /* Letters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Letters.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -89,6 +113,18 @@
 				E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */,
 				9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */,
 				DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */,
+				A10000012C12345600000001 /* AppCommandCenter.swift */,
+				A10000022C12345600000002 /* DynamicBibliographyView.swift */,
+				A10000032C12345600000003 /* DynamicTOCView.swift */,
+				A10000042C12345600000004 /* FindReplaceBar.swift */,
+				A10000052C12345600000005 /* FloatingStudioHUD.swift */,
+				A10000062C12345600000006 /* LettersDocumentBundle.swift */,
+				A10000072C12345600000007 /* SettingsView.swift */,
+				A10000082C12345600000008 /* SmartTableView.swift */,
+				A10000092C12345600000009 /* StudioFloatingBottomBar.swift */,
+				A100000A2C1234560000000A /* StudioImageView.swift */,
+				A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */,
+				A100000C2C1234560000000C /* StudioVideoView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -170,6 +206,18 @@
 				2797CE91D0BF594387A581B7 /* SourceManagerView.swift in Sources */,
 				9905AB804FAE57FBAE0ACB07 /* AssistantSidebarView.swift in Sources */,
 				527C1756F23258CFBD781EAA /* DocumentOutlineView.swift in Sources */,
+				B10000012C12345600000001 /* AppCommandCenter.swift in Sources */,
+				B10000022C12345600000002 /* DynamicBibliographyView.swift in Sources */,
+				B10000032C12345600000003 /* DynamicTOCView.swift in Sources */,
+				B10000042C12345600000004 /* FindReplaceBar.swift in Sources */,
+				B10000052C12345600000005 /* FloatingStudioHUD.swift in Sources */,
+				B10000062C12345600000006 /* LettersDocumentBundle.swift in Sources */,
+				B10000072C12345600000007 /* SettingsView.swift in Sources */,
+				B10000082C12345600000008 /* SmartTableView.swift in Sources */,
+				B10000092C12345600000009 /* StudioFloatingBottomBar.swift in Sources */,
+				B100000A2C1234560000000A /* StudioImageView.swift in Sources */,
+				B100000B2C1234560000000B /* StudioLeftAttachedRail.swift in Sources */,
+				B100000C2C1234560000000C /* StudioVideoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
