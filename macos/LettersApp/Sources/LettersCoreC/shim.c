@@ -31,6 +31,13 @@ __attribute__((weak)) char *letters_render_citation(const char *source_json, con
     return res;
 }
 
+__attribute__((weak)) uint8_t *letters_export_docx_from_markdown(const char *title, const char *text, size_t *out_len) {
+    (void)title;
+    (void)text;
+    if (out_len) *out_len = 0;
+    return NULL;
+}
+
 __attribute__((weak)) uint8_t *letters_export_docx_from_json(const char *doc_json, size_t *out_len) {
     (void)doc_json;
     if (out_len) *out_len = 0;

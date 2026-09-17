@@ -101,4 +101,14 @@ mod tests {
         assert!(plain.contains("Executive Summary"));
         assert!(plain.contains("Letters is a modern native document processor."));
     }
+
+    #[test]
+    fn test_markdown_to_docx() {
+        let md = "# Project Letters\nThis is a **bold** paragraph with *italic* text.\n* Bullet item 1\n* Bullet item 2\n1. Numbered item 1";
+        let doc = Document::from_markdown_or_text("Test Doc", md);
+        assert_eq!(doc.blocks.len(), 5);
+
+        let bytes = DocxEngine::export_docx(&doc).expect("Export markdown doc to docx");
+        assert!(!bytes.is_empty());
+    }
 }

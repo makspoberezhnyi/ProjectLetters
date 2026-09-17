@@ -92,6 +92,45 @@ pub unsafe extern "C" fn letters_render_citation(
     rust_to_c_str(rendered)
 }
 
+/// Export a document given its Markdown text directly to DOCX bytes, returns pointer and length
+#[no_mangle]
+pub unsafe extern "C" fn letters_export_docx_from_markdown(
+    title: *const c_char,
+    text: *const c_char,
+    out_len: *mut usize,
+) -> *mut u8 {
+    let title_str = c_str_to_rust(title).unwrap_or("Untitled Document");
+    let text_str = match c_str_to_rust(text) {
+        Some(s) => s,
+        None => {
+            if !out_len.is_null() {
+                *out_len = 0;
+            }
+            return std::ptr::null_mut();
+        }
+    };
+
+    let doc = Document::from_markdown_or_text(title_str, text_str);
+
+    match DocxEngine::export_docx(&doc) {
+        Ok(bytes) => {
+            if !out_len.is_null() {
+                *out_len = bytes.len();
+            }
+            let mut boxed = bytes.into_boxed_slice();
+            let ptr = boxed.as_mut_ptr();
+            std::mem::forget(boxed);
+            ptr
+        }
+        Err(_) => {
+            if !out_len.is_null() {
+                *out_len = 0;
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
 /// Export a document given its JSON structure to DOCX bytes, returns pointer and length
 #[no_mangle]
 pub unsafe extern "C" fn letters_export_docx_from_json(

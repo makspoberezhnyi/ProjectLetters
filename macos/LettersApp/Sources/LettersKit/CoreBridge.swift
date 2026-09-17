@@ -11,6 +11,7 @@ public final class CoreBridge: @unchecked Sendable {
     private typealias LintTextFn = @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
     private typealias RenderCitationFn = @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
     private typealias ExportDocxFn = @convention(c) (UnsafePointer<CChar>?, UnsafeMutablePointer<Int>?) -> UnsafeMutablePointer<UInt8>?
+    private typealias ExportDocxFromMdFn = @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutablePointer<Int>?) -> UnsafeMutablePointer<UInt8>?
 
     private var dylibHandle: UnsafeMutableRawPointer?
     private var freeString: FreeStringFn?
@@ -18,6 +19,7 @@ public final class CoreBridge: @unchecked Sendable {
     private var lintTextFn: LintTextFn?
     private var renderCitationFn: RenderCitationFn?
     private var exportDocxFn: ExportDocxFn?
+    private var exportDocxFromMdFn: ExportDocxFromMdFn?
 
     private init() {
         loadDynamicLibrary()
@@ -42,6 +44,7 @@ public final class CoreBridge: @unchecked Sendable {
                     self.lintTextFn = unsafeBitCast(dlsym(handle, "letters_lint_text"), to: LintTextFn?.self)
                     self.renderCitationFn = unsafeBitCast(dlsym(handle, "letters_render_citation"), to: RenderCitationFn?.self)
                     self.exportDocxFn = unsafeBitCast(dlsym(handle, "letters_export_docx_from_json"), to: ExportDocxFn?.self)
+                    self.exportDocxFromMdFn = unsafeBitCast(dlsym(handle, "letters_export_docx_from_markdown"), to: ExportDocxFromMdFn?.self)
                     break
                 }
             }
@@ -96,6 +99,26 @@ public final class CoreBridge: @unchecked Sendable {
         guard let res else { return "[Citation]" }
         defer { letters_free_string(res) }
         return String(cString: res)
+    }
+
+    public func exportDocx(title: String = "Untitled Document", text: String) -> Data? {
+        if let fn = exportDocxFromMdFn, let free = freeBytes {
+            var len: Int = 0
+            let resPtr = title.withCString { pTitle in
+                text.withCString { pText in
+                    fn(pTitle, pText, &len)
+                }
+            }
+            guard let ptr = resPtr, len > 0 else { return nil }
+            defer { free(ptr, len) }
+            return Data(bytes: ptr, count: len)
+        }
+
+        var len: Int = 0
+        let res = letters_export_docx_from_markdown(title, text, &len)
+        guard let res, len > 0 else { return nil }
+        defer { letters_free_bytes(res, len) }
+        return Data(bytes: res, count: len)
     }
 
     public func exportDocx(document: DocumentModel) -> Data? {

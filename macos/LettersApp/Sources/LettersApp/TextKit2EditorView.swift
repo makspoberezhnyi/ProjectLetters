@@ -37,16 +37,25 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.isRichText = true
         textView.allowsUndo = true
         textView.isContinuousSpellCheckingEnabled = true
+        textView.isGrammarCheckingEnabled = true
+        textView.isAutomaticQuoteSubstitutionEnabled = true
+        textView.isAutomaticDashSubstitutionEnabled = true
+        
+        // Professional typography
         textView.font = NSFont.systemFont(ofSize: 15, weight: .regular)
-        textView.textColor = NSColor.textColor
+        textView.textColor = NSColor.labelColor
         textView.backgroundColor = .clear
         textView.drawsBackground = false
 
-        // Margin insets for a page-like canvas
-        textView.textContainerInset = NSSize(width: 48, height: 48)
+        // Document page margins
+        textView.textContainerInset = NSSize(width: 64, height: 64)
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
+
+        if let layoutManager = textView.layoutManager {
+            layoutManager.allowsNonContiguousLayout = true
+        }
 
         context.coordinator.isInitializing = true
         textView.string = text
