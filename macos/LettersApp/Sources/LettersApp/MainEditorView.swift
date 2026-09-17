@@ -79,6 +79,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var lineSpacing: CGFloat = 1.15
     @State private var paragraphSpacing: CGFloat = 12.0
 
+    @State private var showAIDrawer: Bool = false
+    @State private var showOutlineDrawer: Bool = false
+
     public init() {}
 
     private var wordCount: Int {
@@ -103,89 +106,91 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Top Studio Persona & Live Formatting Ribbon
-            StudioTopBar(
-                activePersona: $activePersona,
-                fontFamily: $fontFamily,
-                fontSize: $fontSize,
-                isBold: $isBold,
-                isItalic: $isItalic,
-                isUnderline: $isUnderline,
-                alignment: $textAlignment,
-                lineSpacing: $lineSpacing,
-                onSelectPersona: { persona in
-                    activePersona = persona
-                    showInspector = true
-                    showToast("✓ Switched to \(persona.rawValue) mode")
-                },
-                onToggleBold: {
-                    toggleBoldAction()
-                },
-                onToggleItalic: {
-                    toggleItalicAction()
-                },
-                onToggleUnderline: {
-                    toggleUnderlineAction()
-                },
-                onSetAlignment: { align in
-                    setAlignmentAction(align)
-                },
-                onSetFontFamily: { font in
-                    setFontFamilyAction(font)
-                },
-                onSetFontSize: { size in
-                    setFontSizeAction(size)
-                },
-                onExportDocx: saveDocumentAsDocx,
-                onSaveMarkdown: saveDocumentAsMarkdown,
-                onToggleInspector: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showInspector.toggle()
-                    }
+            // 1. Sleek Minimalist Top Navigation Bar
+            HStack(spacing: 12) {
+                // Document Title & Page Status
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.fill")
+                        .foregroundColor(.accentColor)
+                        .font(.system(size: 14))
+
+                    TextField("Document Title", text: $documentTitle)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(minWidth: 160, maxWidth: 280)
+
+                    Text("• \(pageSize.rawValue)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
+
+                Spacer()
+
+                // Quick stats & Primary Actions
+                HStack(spacing: 8) {
+                    Text("\(wordCount) words")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+
+                    Button {
+                        showCommandPalette = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "command")
+                            Text("K")
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Command Palette (⌘K)")
+
+                    Button(action: saveDocumentAsMarkdown) {
+                        Text("Export MD")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button(action: saveDocumentAsDocx) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.down.doc.fill")
+                                .font(.system(size: 10))
+                            Text("Export Word (.docx)")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(StudioTheme.panelBackground)
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(StudioTheme.border),
+                alignment: .bottom
             )
 
-            // 2. Main Studio Workspace Layout
+            // 2. Wide Main Workspace Canvas & Drawers
             HStack(spacing: 0) {
-                // Left Pro Tool Rail (Affinity / Figma Style)
-                StudioToolRail(activeTool: $activeTool) { clickedTool in
-                    handleToolAction(clickedTool)
+                // Optional Sliding Left Outline / Pages Drawer
+                if showOutlineDrawer {
+                    StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
+                        .transition(.move(edge: .leading))
                 }
 
-                // Left Pages / Spreads & Outline Navigator
-                StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
-
-                // Center Studio Canvas & Paper Sheet (Centered in the monitor)
+                // Center Canvas & Floating HUD
                 GeometryReader { geometry in
                     ZStack(alignment: .bottom) {
                         ScrollView([.vertical, .horizontal]) {
                             VStack(spacing: 20) {
-                                // Document Sheet Title Header (Clean and de-duplicated)
-                                HStack {
-                                    TextField("Document Title", text: $documentTitle)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 18, weight: .bold))
-                                        .foregroundColor(.primary)
-
-                                    Spacer()
-
-                                    HStack(spacing: 8) {
-                                        Text("\(pageSize.rawValue) • \(pageSize.subtitle)")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(.secondary)
-
-                                        Text("•")
-                                            .foregroundColor(.secondary.opacity(0.5))
-
-                                        Text("Margins: \(marginPreset.rawValue)")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .frame(width: currentSheetWidth * zoomScale)
-                                .padding(.top, 24)
-
-                                // Authentic Physical Paper Sheet (Pure White `#FFFFFF` with realistic multi-layer depth)
+                                // Centered Physical Paper Sheet
                                 ZStack(alignment: .topLeading) {
                                     // 1. Pure Crisp White Sheet Background
                                     RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -195,11 +200,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                             RoundedRectangle(cornerRadius: 4, style: .continuous)
                                                 .stroke(Color.black.opacity(0.14), lineWidth: 1)
                                         )
-                                        // Realistic physical studio shadows
                                         .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
                                         .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
 
-                                    // 2. Visual Margin Guides Overlay (Affinity / Pages Publisher Style)
+                                    // 2. Visual Margin Guides Overlay
                                     if showMarginGuides {
                                         PaperMarginGuidesView(
                                             width: currentSheetWidth,
@@ -243,7 +247,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                     SmartTableView(
                                                         tableData: $table,
                                                         onDelete: {
-                                                            if let idx = studioTables.firstIndex(where: { $0.id == table.id }) {
+                                                             if let idx = studioTables.firstIndex(where: { $0.id == table.id }) {
                                                                 studioTables.remove(at: idx)
                                                                 showToast("✓ Deleted table")
                                                             }
@@ -278,8 +282,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                 }
                                             },
                                             onExplain: {
-                                                activePersona = .aiStudio
-                                                showInspector = true
+                                                showAIDrawer = true
                                             },
                                             onCite: {
                                                 insertCitationForSelection()
@@ -292,11 +295,47 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 }
                                 .frame(width: currentSheetWidth, height: currentSheetHeight)
                                 .scaleEffect(zoomScale, anchor: .top)
-                                .padding(.bottom, 60)
+                                .padding(.top, 28)
+                                .padding(.bottom, 90)
                             }
                             .frame(minWidth: max(geometry.size.width, currentSheetWidth * zoomScale + 120), alignment: .center)
                         }
                         .background(StudioTheme.canvasBackground)
+
+                        // 3. Floating Studio HUD Capsule (Bottom-Center)
+                        FloatingStudioHUD(
+                            fontFamily: $fontFamily,
+                            fontSize: $fontSize,
+                            isBold: $isBold,
+                            isItalic: $isItalic,
+                            isUnderline: $isUnderline,
+                            textAlignment: $textAlignment,
+                            lineSpacing: $lineSpacing,
+                            pageSize: $pageSize,
+                            marginPreset: $marginPreset,
+                            margins: $margins,
+                            showMarginGuides: $showMarginGuides,
+                            showCropMarks: $showCropMarks,
+                            zoomScale: $zoomScale,
+                            showAIDrawer: $showAIDrawer,
+                            showOutlineDrawer: $showOutlineDrawer,
+                            onToggleBold: toggleBoldAction,
+                            onToggleItalic: toggleItalicAction,
+                            onToggleUnderline: toggleUnderlineAction,
+                            onSetAlignment: setAlignmentAction,
+                            onSetFontFamily: setFontFamilyAction,
+                            onSetFontSize: setFontSizeAction,
+                            onInsertTable: {
+                                handleToolAction(.table)
+                            },
+                            onInsertSection: {
+                                handleToolAction(.text)
+                            },
+                            onAddSource: {
+                                showingAddSourceSheet = true
+                            }
+                        )
+                        .padding(.bottom, 20)
 
                         // Floating Toast Notification
                         if let msg = toastMessage {
@@ -314,46 +353,23 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                     .stroke(Color.green.opacity(0.3), lineWidth: 1)
                             )
                             .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
-                            .padding(.bottom, 24)
+                            .padding(.bottom, 72)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
                 }
 
-                // Right Studio Inspector (Accordion Style)
-                if showInspector {
-                    StudioInspectorView(
-                        activePersona: $activePersona,
+                // Optional Sliding Right AI Copilot Companion Drawer
+                if showAIDrawer {
+                    AssistantSidebarView(
                         rawText: $rawText,
                         selectedText: $selectedText,
-                        sources: $document.sources,
-                        activeCitationStyle: $activeCitationStyle,
-                        lintIssues: $lintIssues,
-                        lineSpacing: $lineSpacing,
-                        paragraphSpacing: $paragraphSpacing,
-                        pageSize: $pageSize,
-                        marginPreset: $marginPreset,
-                        margins: $margins,
-                        showMarginGuides: $showMarginGuides,
-                        showCropMarks: $showCropMarks,
-                        currentDocumentContext: { rawText },
-                        onRunLinter: runLinter,
-                        onAddSource: { showingAddSourceSheet = true },
-                        onToast: { msg in showToast(msg) }
+                        onToast: { msg in showToast(msg) },
+                        currentDocumentContext: { rawText }
                     )
                     .transition(.move(edge: .trailing))
                 }
             }
-
-            // 3. Bottom Studio Status & Zoom Bar
-            StudioBottomBar(
-                selectedPage: $selectedPage,
-                totalPages: 2,
-                wordCount: wordCount,
-                characterCount: characterCount,
-                readingTime: readingTimeMinutes,
-                zoomLevel: $zoomScale
-            )
         }
         .sheet(isPresented: $showingAddSourceSheet) {
             VStack(spacing: 16) {
