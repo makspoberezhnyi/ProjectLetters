@@ -12,6 +12,11 @@ public struct StudioFloatingBottomBar: View {
     @Binding var showAIDrawer: Bool
     var onToast: ((String) -> Void)?
 
+    @State private var isCitationHovered: Bool = false
+    @State private var isZoomMinusHovered: Bool = false
+    @State private var isZoomPlusHovered: Bool = false
+    @State private var isAIHovered: Bool = false
+
     public init(
         wordCount: Int,
         characterCount: Int,
@@ -87,11 +92,19 @@ public struct StudioFloatingBottomBar: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.primary)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isCitationHovered ? StudioTheme.hoverHighlight : Color.primary.opacity(0.04))
+                )
             }
             .menuStyle(.borderlessButton)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isCitationHovered = hovering
+                }
+            }
             .help("Citation Standard Format")
 
             Divider()
@@ -107,9 +120,18 @@ public struct StudioFloatingBottomBar: View {
                     Image(systemName: "minus")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
-                        .frame(width: 18, height: 22)
+                        .frame(width: 20, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(isZoomMinusHovered ? StudioTheme.hoverHighlight : Color.clear)
+                        )
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        isZoomMinusHovered = hovering
+                    }
+                }
                 .help("Zoom Out (⌘-)")
 
                 Menu {
@@ -137,9 +159,18 @@ public struct StudioFloatingBottomBar: View {
                     Image(systemName: "plus")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
-                        .frame(width: 18, height: 22)
+                        .frame(width: 20, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(isZoomPlusHovered ? StudioTheme.hoverHighlight : Color.clear)
+                        )
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        isZoomPlusHovered = hovering
+                    }
+                }
                 .help("Zoom In (⌘+)")
             }
             .padding(.horizontal, 4)
@@ -167,23 +198,29 @@ public struct StudioFloatingBottomBar: View {
                 .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(showAIDrawer ? Color.purple.opacity(0.2) : Color.purple.opacity(0.1))
+                        .fill(showAIDrawer ? Color.purple.opacity(0.22) : (isAIHovered ? Color.purple.opacity(0.15) : Color.purple.opacity(0.08)))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color.purple.opacity(showAIDrawer ? 0.6 : 0.25), lineWidth: 1)
                 )
+                .scaleEffect(isAIHovered ? 1.03 : 1.0)
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) {
+                    isAIHovered = hovering
+                }
+            }
             .help("Toggle AI Copilot Companion (⌘J)")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
                 .stroke(Color.primary.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
+        .shadow(color: StudioTheme.hudShadowColor, radius: 16, x: 0, y: 8)
     }
 }

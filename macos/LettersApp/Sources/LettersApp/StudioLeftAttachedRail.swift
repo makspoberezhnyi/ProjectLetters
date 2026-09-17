@@ -392,15 +392,30 @@ struct RailIconButton: View {
     let shortcut: String
     let action: () -> Void
 
+    @State private var isHovered: Bool = false
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: isActive ? .bold : .medium))
-                .foregroundColor(isActive ? .accentColor : .primary)
+                .font(.system(size: 13, weight: isActive ? .semibold : .regular))
+                .foregroundColor(isActive ? .accentColor : (isHovered ? .primary : .secondary))
                 .frame(width: 32, height: 28)
-                .background(isActive ? Color.accentColor.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? StudioTheme.activeHighlight : (isHovered ? StudioTheme.hoverHighlight : Color.clear))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(isActive ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+                )
+                .scaleEffect(isHovered ? 1.04 : 1.0)
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) {
+                isHovered = hovering
+            }
+        }
         .help(shortcut)
     }
 }
