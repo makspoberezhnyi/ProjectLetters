@@ -254,6 +254,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                         },
                                                         onChange: {
                                                             showToast("✓ Table updated")
+                                                        },
+                                                        onToast: { msg in
+                                                            showToast(msg)
                                                         }
                                                     )
                                                 }

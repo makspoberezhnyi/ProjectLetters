@@ -1,11 +1,15 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID = UUID()
+    public var title: String = "Interactive Smart Table"
     public var headers: [String]
     public var rows: [[String]]
 
     public init(
+        title: String = "Interactive Smart Table",
         headers: [String] = ["Item / Metric", "Q1 Actual", "Q2 Actual", "Total"],
         rows: [[String]] = [
             ["Core Platform", "$1,200", "$2,400", "$3,600"],
@@ -13,6 +17,7 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
             ["Enterprise Studio", "$2,500", "$5,000", "$7,500"]
         ]
     ) {
+        self.title = title
         self.headers = headers
         self.rows = rows
     }
@@ -24,6 +29,77 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
             md += "| " + row.joined(separator: " | ") + " |\n"
         }
         return md
+    }
+
+    public func toCSV() -> String {
+        var csv = headers.map { escapeCSV($0) }.joined(separator: ",") + "\n"
+        for row in rows {
+            csv += row.map { escapeCSV($0) }.joined(separator: ",") + "\n"
+        }
+        return csv
+    }
+
+    public func toTSV() -> String {
+        var tsv = headers.joined(separator: "\t") + "\n"
+        for row in rows {
+            tsv += row.joined(separator: "\t") + "\n"
+        }
+        return tsv
+    }
+
+    private func escapeCSV(_ str: String) -> String {
+        if str.contains(",") || str.contains("\"") || str.contains("\n") {
+            return "\"\(str.replacingOccurrences(of: "\"", with: "\"\""))\""
+        }
+        return str
+    }
+
+    public static func fromCSV(_ text: String) -> StudioTableData? {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard !lines.isEmpty else { return nil }
+
+        let parseLine: (String) -> [String] = { line in
+            line.components(separatedBy: ",").map {
+                $0.trimmingCharacters(in: CharacterSet(charactersIn: "\" \t"))
+            }
+        }
+
+        let headers = parseLine(lines[0])
+        var dataRows: [[String]] = []
+        for i in 1..<lines.count {
+            dataRows.append(parseLine(lines[i]))
+        }
+
+        return StudioTableData(
+            headers: headers,
+            rows: dataRows.isEmpty ? [Array(repeating: "$0", count: headers.count)] : dataRows
+        )
+    }
+
+    public static func fromTSV(_ text: String) -> StudioTableData? {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard !lines.isEmpty else { return nil }
+
+        let parseLine: (String) -> [String] = { line in
+            line.components(separatedBy: "\t").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+
+        let headers = parseLine(lines[0])
+        var dataRows: [[String]] = []
+        for i in 1..<lines.count {
+            dataRows.append(parseLine(lines[i]))
+        }
+
+        return StudioTableData(
+            headers: headers,
+            rows: dataRows.isEmpty ? [Array(repeating: "$0", count: headers.count)] : dataRows
+        )
     }
 
     public static func fromMarkdown(_ text: String) -> StudioTableData? {
@@ -58,15 +134,20 @@ public struct SmartTableView: View {
     @Binding var tableData: StudioTableData
     var onDelete: (() -> Void)? = nil
     var onChange: (() -> Void)? = nil
+    var onToast: ((String) -> Void)? = nil
+
+    @State private var showingImportMenu: Bool = false
 
     public init(
         tableData: Binding<StudioTableData>,
         onDelete: (() -> Void)? = nil,
-        onChange: (() -> Void)? = nil
+        onChange: (() -> Void)? = nil,
+        onToast: ((String) -> Void)? = nil
     ) {
         self._tableData = tableData
         self.onDelete = onDelete
         self.onChange = onChange
+        self.onToast = onToast
     }
 
     public var body: some View {
@@ -77,7 +158,7 @@ public struct SmartTableView: View {
                     Image(systemName: "tablecells.fill")
                         .foregroundColor(.blue)
                         .font(.system(size: 12))
-                    Text("Interactive Table")
+                    Text(tableData.title)
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.15))
                 }
@@ -86,6 +167,49 @@ public struct SmartTableView: View {
 
                 // Table Actions
                 HStack(spacing: 4) {
+                    // 1. Copy for Excel / Sheets
+                    Button {
+                        copyTableForExcel()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "doc.on.doc")
+                            Text("Copy for Excel")
+                        }
+                        .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help("Copy table formatted for Microsoft Excel & Google Sheets")
+
+                    // 2. Export as CSV
+                    Button {
+                        exportTableAsCSV()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.doc")
+                            Text("Export CSV")
+                        }
+                        .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help("Export as .csv file")
+
+                    // 3. Paste from Excel
+                    Button {
+                        pasteFromExcel()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.up.doc")
+                            Text("Paste Excel")
+                        }
+                        .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help("Paste spreadsheet data copied from Excel or Numbers")
+
+                    // 4. Add Row / Column
                     Button {
                         addRow()
                     } label: {
@@ -99,23 +223,25 @@ public struct SmartTableView: View {
                     Button {
                         addColumn()
                     } label: {
-                        Label("Column", systemImage: "plus")
+                        Label("Col", systemImage: "plus")
                             .font(.system(size: 10, weight: .semibold))
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                     .help("Add new column")
 
+                    // 5. Auto Sum Formula
                     Button {
                         recalculateTotals()
                     } label: {
                         Label("Auto Sum", systemImage: "function")
                             .font(.system(size: 10, weight: .semibold))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
                     .help("Automatically compute sum for Total column")
 
+                    // 6. Delete
                     if let onDelete = onDelete {
                         Button(role: .destructive, action: onDelete) {
                             Image(systemName: "trash")
@@ -187,12 +313,12 @@ public struct SmartTableView: View {
                                     }
                                     return ""
                                 },
-                                set: {
+                                set: { newVal in
                                     if tableData.rows.indices.contains(rowIdx) {
                                         while tableData.rows[rowIdx].count <= colIdx {
                                             tableData.rows[rowIdx].append("")
                                         }
-                                        tableData.rows[rowIdx][colIdx] = $0
+                                        tableData.rows[rowIdx][colIdx] = evaluateFormulaInput(newVal)
                                         onChange?()
                                     }
                                 }
@@ -244,6 +370,22 @@ public struct SmartTableView: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: - Formula Evaluation
+    private func evaluateFormulaInput(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("=") else { return text }
+
+        let expr = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+        // Evaluate arithmetic expression like =1200+2400 or =150*1.2
+        let sanitized = expr.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "")
+        let mathExpr = NSExpression(format: sanitized)
+        if let result = mathExpr.expressionValue(with: nil, context: nil) as? NSNumber {
+            return "$\(result.intValue)"
+        }
+        return text
+    }
+
+    // MARK: - Actions
     private func addRow() {
         let newRow = Array(repeating: "$0", count: tableData.headers.count)
         tableData.rows.append(newRow)
@@ -291,5 +433,46 @@ public struct SmartTableView: View {
             }
         }
         onChange?()
+    }
+
+    private func copyTableForExcel() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(tableData.toTSV(), forType: .string)
+        onToast?("✓ Copied table to clipboard for Excel / Sheets")
+    }
+
+    private func pasteFromExcel() {
+        guard let clipboard = NSPasteboard.general.string(forType: .string), !clipboard.isEmpty else {
+            onToast?("⚠️ Clipboard is empty")
+            return
+        }
+
+        if let parsed = StudioTableData.fromTSV(clipboard) ?? StudioTableData.fromCSV(clipboard) {
+            tableData.headers = parsed.headers
+            tableData.rows = parsed.rows
+            onChange?()
+            onToast?("✓ Imported table from Excel clipboard")
+        } else {
+            onToast?("⚠️ Could not parse spreadsheet data")
+        }
+    }
+
+    private func exportTableAsCSV() {
+        let panel = NSSavePanel()
+        panel.title = "Export Table as CSV"
+        panel.nameFieldStringValue = "Table_Export.csv"
+        if let type = UTType(filenameExtension: "csv") {
+            panel.allowedContentTypes = [type]
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try tableData.toCSV().write(to: url, atomically: true, encoding: .utf8)
+                onToast?("✓ Exported CSV to \(url.lastPathComponent)")
+            } catch {
+                onToast?("⚠️ Failed to export CSV: \(error.localizedDescription)")
+            }
+        }
     }
 }
