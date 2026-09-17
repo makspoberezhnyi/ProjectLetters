@@ -33,8 +33,12 @@ public extension Notification.Name {
 }
 
 @MainActor
-public final class AppCommandCenter: NSObject {
+public final class AppCommandCenter: NSObject, NSMenuItemValidation {
     public static let shared = AppCommandCenter()
+
+    public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        return true
+    }
 
     public static func buildMainMenu() -> NSMenu {
         let mainMenu = NSMenu(title: "MainMenu")
@@ -135,7 +139,7 @@ public final class AppCommandCenter: NSObject {
         // 6. View Menu
         let viewMenuItem = NSMenuItem()
         let viewMenu = NSMenu(title: "View")
-        addMenuItem(to: viewMenu, title: "Zoom In", notification: .lettersZoomIn, keyEquivalent: "+")
+        addMenuItem(to: viewMenu, title: "Zoom In", notification: .lettersZoomIn, keyEquivalent: "=")
         addMenuItem(to: viewMenu, title: "Zoom Out", notification: .lettersZoomOut, keyEquivalent: "-")
         addMenuItem(to: viewMenu, title: "Actual Size (100%)", notification: .lettersZoomReset, keyEquivalent: "0")
         viewMenu.addItem(NSMenuItem.separator())

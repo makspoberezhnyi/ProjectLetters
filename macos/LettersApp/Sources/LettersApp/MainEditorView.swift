@@ -453,6 +453,67 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 showCommandPalette.toggle()
             }
         ))
+        .background(
+            Group {
+                Button(action: toggleBoldAction) { EmptyView() }
+                    .keyboardShortcut("b", modifiers: [.command])
+                Button(action: toggleItalicAction) { EmptyView() }
+                    .keyboardShortcut("i", modifiers: [.command])
+                Button(action: toggleUnderlineAction) { EmptyView() }
+                    .keyboardShortcut("u", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showFindReplace.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("f", modifiers: [.command])
+                Button(action: { showCommandPalette.toggle() }) { EmptyView() }
+                    .keyboardShortcut("k", modifiers: [.command])
+                Button(action: { handleToolAction(.table) }) { EmptyView() }
+                    .keyboardShortcut("t", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showAIDrawer.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("j", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showOutlineDrawer.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("1", modifiers: [.command, .option])
+                Button(action: saveDocumentAsLetters) { EmptyView() }
+                    .keyboardShortcut("s", modifiers: [.command])
+                Button(action: newDocumentAction) { EmptyView() }
+                    .keyboardShortcut("n", modifiers: [.command])
+                Button(action: openDocument) { EmptyView() }
+                    .keyboardShortcut("o", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        zoomScale = min(2.5, zoomScale + 0.15)
+                    }
+                    showToast("✓ Zoom: \(Int(zoomScale * 100))%")
+                }) { EmptyView() }
+                    .keyboardShortcut("=", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        zoomScale = max(0.4, zoomScale - 0.15)
+                    }
+                    showToast("✓ Zoom: \(Int(zoomScale * 100))%")
+                }) { EmptyView() }
+                    .keyboardShortcut("-", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        zoomScale = 1.0
+                    }
+                    showToast("✓ Zoom: 100%")
+                }) { EmptyView() }
+                    .keyboardShortcut("0", modifiers: [.command])
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
         .onAppear {
             runLinter()
         }
@@ -1131,7 +1192,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @ViewBuilder
     private func documentCanvasContent(pageIndex: Int) -> some View {
         let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : rawText
-        let segments = parseCanvasSegments(for: pageStr)
+        let segments = parseCanvasSegments(for: pageStr, pageIndex: pageIndex)
 
         VStack(alignment: .leading, spacing: 14) {
             ForEach(segments) { segment in
@@ -1367,21 +1428,22 @@ Letters is a next-generation desktop publishing and document studio combining gr
         .transition(.scale.combined(with: .opacity))
     }
 
-    private func parseCanvasSegments(for pageContent: String) -> [DocumentCanvasSegment] {
+    private func parseCanvasSegments(for pageContent: String, pageIndex: Int = 0) -> [DocumentCanvasSegment] {
         let pattern = #"(?:^|\n)?\[\[(table|image|video|bibliography|toc)(?::([a-zA-Z0-9\-]+))?\]\](?:\n)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return [DocumentCanvasSegment(type: .text(pageContent, NSRange(location: 0, length: (pageContent as NSString).length)))]
+            return [DocumentCanvasSegment(id: "p\(pageIndex)-text-0", type: .text(pageContent, NSRange(location: 0, length: (pageContent as NSString).length)))]
         }
 
         let nsContent = pageContent as NSString
         let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: nsContent.length))
 
         if matches.isEmpty {
-            return [DocumentCanvasSegment(type: .text(pageContent, NSRange(location: 0, length: nsContent.length)))]
+            return [DocumentCanvasSegment(id: "p\(pageIndex)-text-0", type: .text(pageContent, NSRange(location: 0, length: nsContent.length)))]
         }
 
         var segments: [DocumentCanvasSegment] = []
         var lastLocation = 0
+        var segCount = 0
 
         for match in matches {
             let matchRange = match.range
@@ -1389,7 +1451,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 let textRange = NSRange(location: lastLocation, length: matchRange.location - lastLocation)
                 let chunkText = nsContent.substring(with: textRange)
                 if !chunkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || segments.isEmpty {
-                    segments.append(DocumentCanvasSegment(type: .text(chunkText, textRange)))
+                    segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-text-\(segCount)", type: .text(chunkText, textRange)))
+                    segCount += 1
                 }
             }
 
@@ -1398,28 +1461,37 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 let idStr = (match.numberOfRanges >= 3 && match.range(at: 2).location != NSNotFound) ? nsContent.substring(with: match.range(at: 2)) : ""
 
                 if kind == "bibliography" {
-                    segments.append(DocumentCanvasSegment(type: .bibliography))
+                    segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-bib-\(segCount)", type: .bibliography))
+                    segCount += 1
                 } else if kind == "toc" {
-                    segments.append(DocumentCanvasSegment(type: .tableOfContents))
+                    segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-toc-\(segCount)", type: .tableOfContents))
+                    segCount += 1
                 } else if kind == "table" {
                     if let uuid = UUID(uuidString: idStr), studioTables.contains(where: { $0.id == uuid }) {
-                        segments.append(DocumentCanvasSegment(type: .table(uuid)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-table-\(uuid.uuidString)", type: .table(uuid)))
+                        segCount += 1
                     } else if idStr.lowercased() == "budget", let firstTable = studioTables.first {
-                        segments.append(DocumentCanvasSegment(type: .table(firstTable.id)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-table-\(firstTable.id.uuidString)", type: .table(firstTable.id)))
+                        segCount += 1
                     } else if let found = studioTables.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
-                        segments.append(DocumentCanvasSegment(type: .table(found.id)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-table-\(found.id.uuidString)", type: .table(found.id)))
+                        segCount += 1
                     }
                 } else if kind == "image" {
                     if let uuid = UUID(uuidString: idStr), studioImages.contains(where: { $0.id == uuid }) {
-                        segments.append(DocumentCanvasSegment(type: .image(uuid)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-image-\(uuid.uuidString)", type: .image(uuid)))
+                        segCount += 1
                     } else if let found = studioImages.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
-                        segments.append(DocumentCanvasSegment(type: .image(found.id)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-image-\(found.id.uuidString)", type: .image(found.id)))
+                        segCount += 1
                     }
                 } else if kind == "video" {
                     if let uuid = UUID(uuidString: idStr), studioVideos.contains(where: { $0.id == uuid }) {
-                        segments.append(DocumentCanvasSegment(type: .video(uuid)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-video-\(uuid.uuidString)", type: .video(uuid)))
+                        segCount += 1
                     } else if let found = studioVideos.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
-                        segments.append(DocumentCanvasSegment(type: .video(found.id)))
+                        segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-video-\(found.id.uuidString)", type: .video(found.id)))
+                        segCount += 1
                     }
                 }
             }
@@ -1431,7 +1503,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             let textRange = NSRange(location: lastLocation, length: nsContent.length - lastLocation)
             let chunkText = nsContent.substring(with: textRange)
             if !chunkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                segments.append(DocumentCanvasSegment(type: .text(chunkText, textRange)))
+                segments.append(DocumentCanvasSegment(id: "p\(pageIndex)-text-\(segCount)", type: .text(chunkText, textRange)))
             }
         }
 
@@ -1449,10 +1521,11 @@ public struct DocumentCanvasSegment: Identifiable {
         case bibliography
         case tableOfContents
     }
-    public let id = UUID()
+    public let id: String
     public let type: SegmentType
 
-    public init(type: SegmentType) {
+    public init(id: String, type: SegmentType) {
+        self.id = id
         self.type = type
     }
 }

@@ -348,6 +348,28 @@ public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: 
     return font
 }
 
+public class StudioTextView: NSTextView {
+    public weak var actionController: EditorActionController?
+
+    public override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok {
+            actionController?.textView = self
+        }
+        return ok
+    }
+
+    public override func mouseDown(with event: NSEvent) {
+        actionController?.textView = self
+        super.mouseDown(with: event)
+    }
+
+    public override func keyDown(with event: NSEvent) {
+        actionController?.textView = self
+        super.keyDown(with: event)
+    }
+}
+
 public struct TextKit2EditorView: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectedText: String
@@ -407,13 +429,16 @@ public struct TextKit2EditorView: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
 
-        let textView = NSTextView()
+        let textView = StudioTextView()
+        textView.actionController = controller
         textView.isRichText = true
         textView.allowsUndo = true
         textView.isContinuousSpellCheckingEnabled = true
         textView.isGrammarCheckingEnabled = true
         textView.isAutomaticQuoteSubstitutionEnabled = true
         textView.isAutomaticDashSubstitutionEnabled = true
+        textView.isSelectable = true
+        textView.isEditable = true
 
         let font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = NSMutableParagraphStyle()
@@ -466,8 +491,11 @@ public struct TextKit2EditorView: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView else { return }
-        controller?.textView = textView
+        guard let textView = nsView.documentView as? StudioTextView else { return }
+        textView.actionController = controller
+        if context.coordinator.textView == nil {
+            context.coordinator.textView = textView
+        }
 
         // Update margins if changed
         let targetInset = NSSize(width: margins.left, height: margins.top)
