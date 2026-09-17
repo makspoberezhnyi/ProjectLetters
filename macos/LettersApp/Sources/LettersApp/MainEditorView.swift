@@ -56,6 +56,18 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showMarginGuides: Bool = true
     @State private var showCropMarks: Bool = true
 
+    // Interactive Tables State
+    @State private var studioTables: [StudioTableData] = [
+        StudioTableData(
+            headers: ["Deliverable / Metric", "Allocated Budget", "Actual Spend", "Variance"],
+            rows: [
+                ["Native TextKit 2 Engine", "$15,000", "$14,200", "+$800"],
+                ["Headless Rust Core", "$12,000", "$12,000", "$0"],
+                ["AI Copilot Gateway", "$8,500", "$7,900", "+$600"]
+            ]
+        )
+    ]
+
     // Live Typography States (Directly updates TextKit 2)
     @State private var fontFamily: String = "Default Serif (Georgia)"
     @State private var fontSize: CGFloat = 15.0
@@ -142,140 +154,167 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 // Left Pages / Spreads & Outline Navigator
                 StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
 
-                // Center Studio Canvas & Paper Sheet
-                ZStack(alignment: .bottom) {
-                    ScrollView([.vertical, .horizontal]) {
-                        VStack(spacing: 16) {
-                            // Document Sheet Title Header (Clean and de-duplicated)
-                            HStack {
-                                TextField("Document Title", text: $documentTitle)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.primary)
+                // Center Studio Canvas & Paper Sheet (Centered in the monitor)
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottom) {
+                        ScrollView([.vertical, .horizontal]) {
+                            VStack(spacing: 20) {
+                                // Document Sheet Title Header (Clean and de-duplicated)
+                                HStack {
+                                    TextField("Document Title", text: $documentTitle)
+                                        .textFieldStyle(.plain)
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(.primary)
 
-                                Spacer()
+                                    Spacer()
 
-                                HStack(spacing: 8) {
-                                    Text("\(pageSize.rawValue) • \(pageSize.subtitle)")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 8) {
+                                        Text("\(pageSize.rawValue) • \(pageSize.subtitle)")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.secondary)
 
-                                    Text("•")
-                                        .foregroundColor(.secondary.opacity(0.5))
+                                        Text("•")
+                                            .foregroundColor(.secondary.opacity(0.5))
 
-                                    Text("Margins: \(marginPreset.rawValue)")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.secondary)
+                                        Text("Margins: \(marginPreset.rawValue)")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
-                            }
-                            .frame(width: currentSheetWidth * zoomScale)
-                            .padding(.top, 20)
+                                .frame(width: currentSheetWidth * zoomScale)
+                                .padding(.top, 24)
 
-                            // Graphic Studio Paper Sheet Canvas
-                            ZStack(alignment: .topLeading) {
-                                // Background Paper Sheet
-                                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .fill(StudioTheme.paperBackground)
-                                    .frame(width: currentSheetWidth, height: currentSheetHeight)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                            .stroke(StudioTheme.border.opacity(0.8), lineWidth: 1)
-                                    )
-                                    // High fidelity drop shadows
-                                    .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-                                    .shadow(color: Color.black.opacity(0.12), radius: 24, x: 0, y: 10)
+                                // Authentic Physical Paper Sheet (Pure White `#FFFFFF` with realistic multi-layer depth)
+                                ZStack(alignment: .topLeading) {
+                                    // 1. Pure Crisp White Sheet Background
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(Color.white)
+                                        .frame(width: currentSheetWidth, height: currentSheetHeight)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                .stroke(Color.black.opacity(0.14), lineWidth: 1)
+                                        )
+                                        // Realistic physical studio shadows
+                                        .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
+                                        .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
 
-                                // Visual Margin Guides Overlay (Affinity/Pages Publisher Style)
-                                if showMarginGuides {
-                                    PaperMarginGuidesView(
-                                        width: currentSheetWidth,
-                                        height: currentSheetHeight,
-                                        margins: margins
-                                    )
-                                }
+                                    // 2. Visual Margin Guides Overlay (Affinity / Pages Publisher Style)
+                                    if showMarginGuides {
+                                        PaperMarginGuidesView(
+                                            width: currentSheetWidth,
+                                            height: currentSheetHeight,
+                                            margins: margins
+                                        )
+                                    }
 
-                                // Publisher Corner Crop Marks
-                                if showCropMarks {
-                                    PublisherCropMarksView(
-                                        width: currentSheetWidth,
-                                        height: currentSheetHeight
-                                    )
-                                }
+                                    // 3. Publisher Corner Crop Marks
+                                    if showCropMarks {
+                                        PublisherCropMarksView(
+                                            width: currentSheetWidth,
+                                            height: currentSheetHeight
+                                        )
+                                    }
 
-                                // Native TextKit 2 Text Engine
-                                TextKit2EditorView(
-                                    text: $rawText,
-                                    selectedText: $selectedText,
-                                    selectionRange: $selectionRange,
-                                    fontFamily: fontFamily,
-                                    fontSize: fontSize,
-                                    isBold: isBold,
-                                    isItalic: isItalic,
-                                    isUnderline: isUnderline,
-                                    alignment: textAlignment,
-                                    lineSpacing: lineSpacing,
-                                    paragraphSpacing: paragraphSpacing,
-                                    margins: margins,
-                                    onSelectionChanged: { _, _ in }
-                                )
-                                .frame(width: currentSheetWidth, height: currentSheetHeight)
+                                    // 4. Document Content (TextKit 2 Editor + Interactive Tables)
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        TextKit2EditorView(
+                                            text: $rawText,
+                                            selectedText: $selectedText,
+                                            selectionRange: $selectionRange,
+                                            fontFamily: fontFamily,
+                                            fontSize: fontSize,
+                                            isBold: isBold,
+                                            isItalic: isItalic,
+                                            isUnderline: isUnderline,
+                                            alignment: textAlignment,
+                                            lineSpacing: lineSpacing,
+                                            paragraphSpacing: paragraphSpacing,
+                                            margins: margins,
+                                            onSelectionChanged: { _, _ in }
+                                        )
+                                        .frame(width: currentSheetWidth, height: studioTables.isEmpty ? currentSheetHeight : max(300, currentSheetHeight - CGFloat(studioTables.count * 200)))
 
-                                // Floating contextual selection menu
-                                if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    FloatingActionMenu(
-                                        selectedText: selectedText,
-                                        onBold: {
-                                            rawText = rawText.replacingOccurrences(of: selectedText, with: "**\(selectedText)**")
-                                        },
-                                        onItalic: {
-                                            rawText = rawText.replacingOccurrences(of: selectedText, with: "*\(selectedText)*")
-                                        },
-                                        onTranslate: {
-                                            Task {
-                                                if let res = try? await TranslationService.shared.translate(text: selectedText) {
-                                                    rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                                        // Render Real Interactive Graphical Smart Tables
+                                        if !studioTables.isEmpty {
+                                            VStack(spacing: 12) {
+                                                ForEach($studioTables) { $table in
+                                                    SmartTableView(
+                                                        tableData: $table,
+                                                        onDelete: {
+                                                            if let idx = studioTables.firstIndex(where: { $0.id == table.id }) {
+                                                                studioTables.remove(at: idx)
+                                                                showToast("✓ Deleted table")
+                                                            }
+                                                        },
+                                                        onChange: {
+                                                            showToast("✓ Table updated")
+                                                        }
+                                                    )
                                                 }
                                             }
-                                        },
-                                        onExplain: {
-                                            activePersona = .aiStudio
-                                            showInspector = true
-                                        },
-                                        onCite: {
-                                            insertCitationForSelection()
+                                            .padding(.horizontal, margins.left)
+                                            .padding(.bottom, margins.bottom)
                                         }
-                                    )
-                                    .padding(.top, 16)
-                                    .padding(.leading, currentSheetWidth / 2 - 120)
-                                    .transition(.scale.combined(with: .opacity))
-                                }
-                            }
-                            .frame(width: currentSheetWidth, height: currentSheetHeight)
-                            .scaleEffect(zoomScale, anchor: .top)
-                            .padding(.bottom, 60)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .background(StudioTheme.canvasBackground)
+                                    }
+                                    .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
 
-                    // Floating Toast Notification
-                    if let msg = toastMessage {
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text(msg)
-                                .font(.subheadline.bold())
+                                    // 5. Floating contextual selection menu
+                                    if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        FloatingActionMenu(
+                                            selectedText: selectedText,
+                                            onBold: {
+                                                toggleBoldAction()
+                                            },
+                                            onItalic: {
+                                                toggleItalicAction()
+                                            },
+                                            onTranslate: {
+                                                Task {
+                                                    if let res = try? await TranslationService.shared.translate(text: selectedText) {
+                                                        rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                                                    }
+                                                }
+                                            },
+                                            onExplain: {
+                                                activePersona = .aiStudio
+                                                showInspector = true
+                                            },
+                                            onCite: {
+                                                insertCitationForSelection()
+                                            }
+                                        )
+                                        .padding(.top, 16)
+                                        .padding(.leading, currentSheetWidth / 2 - 120)
+                                        .transition(.scale.combined(with: .opacity))
+                                    }
+                                }
+                                .frame(width: currentSheetWidth, height: currentSheetHeight)
+                                .scaleEffect(zoomScale, anchor: .top)
+                                .padding(.bottom, 60)
+                            }
+                            .frame(minWidth: max(geometry.size.width, currentSheetWidth * zoomScale + 120), alignment: .center)
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .background(StudioTheme.canvasBackground)
+
+                        // Floating Toast Notification
+                        if let msg = toastMessage {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text(msg)
+                                    .font(.subheadline.bold())
+                            }
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 10)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
+                            .padding(.bottom, 24)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
                 }
 
@@ -379,8 +418,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
             rawText += "\n\n## New Section Heading\nType section body text here..."
             showToast("✓ Inserted Text Section")
         case .table:
-            rawText += "\n\n| Item / Metric | Q1 Actual | Q2 Actual | Total |\n| :--- | :--- | :--- | :--- |\n| Core Platform | $1,200 | $2,400 | $3,600 |\n| AI Copilot | $800 | $1,600 | $2,400 |\n"
-            showToast("✓ Inserted Smart Table")
+            let newTable = StudioTableData(
+                headers: ["Item / Metric", "Q1 Actual", "Q2 Actual", "Total"],
+                rows: [
+                    ["Core Platform", "$1,200", "$2,400", "$3,600"],
+                    ["AI Copilot", "$800", "$1,600", "$2,400"]
+                ]
+            )
+            studioTables.append(newTable)
+            showToast("✓ Added Interactive Smart Table")
         case .citation:
             showingAddSourceSheet = true
             showToast("✓ Add Linked Citation")
@@ -509,7 +555,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     public func saveDocumentAsDocx() {
-        guard let docxData = CoreBridge.shared.exportDocx(title: documentTitle, text: rawText) else {
+        var fullExport = rawText
+        if !studioTables.isEmpty {
+            fullExport += "\n\n" + studioTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+
+        guard let docxData = CoreBridge.shared.exportDocx(title: documentTitle, text: fullExport) else {
             showToast("⚠️ Could not generate DOCX")
             return
         }
@@ -532,6 +583,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     public func saveDocumentAsMarkdown() {
+        var fullExport = rawText
+        if !studioTables.isEmpty {
+            fullExport += "\n\n" + studioTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+
         let panel = NSSavePanel()
         panel.title = "Save Markdown"
         panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).md"
@@ -541,7 +597,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try rawText.write(to: url, atomically: true, encoding: .utf8)
+                try fullExport.write(to: url, atomically: true, encoding: .utf8)
                 showToast("✓ Saved \(url.lastPathComponent)")
             } catch {
                 showToast("⚠️ Failed to write file: \(error.localizedDescription)")

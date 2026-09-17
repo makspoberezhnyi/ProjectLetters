@@ -71,15 +71,17 @@ public struct TextKit2EditorView: NSViewRepresentable {
         let font = resolveFont(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = resolveParagraphStyle(alignment: alignment, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
         
+        let textColor = NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
         textView.font = font
-        textView.textColor = NSColor.labelColor
+        textView.textColor = textColor
+        textView.insertionPointColor = NSColor.systemBlue
         textView.backgroundColor = .clear
         textView.drawsBackground = false
         textView.defaultParagraphStyle = paragraphStyle
         
         let typingAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: textColor,
             .paragraphStyle: paragraphStyle
         ]
         textView.typingAttributes = typingAttrs
@@ -111,18 +113,20 @@ public struct TextKit2EditorView: NSViewRepresentable {
     public func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
         
+        let textColor = NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
         let font = resolveFont(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = resolveParagraphStyle(alignment: alignment, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
 
         var typingAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: textColor,
             .paragraphStyle: paragraphStyle
         ]
         if isUnderline {
             typingAttrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
         }
         textView.typingAttributes = typingAttrs
+        textView.insertionPointColor = NSColor.systemBlue
 
         // Update default font and paragraph style
         if textView.font != font {
@@ -136,7 +140,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
             textStorage.beginEditing()
             textStorage.addAttribute(.font, value: font, range: fullRange)
             textStorage.addAttribute(.paragraphStyle, value: paragraphStyle, range: fullRange)
-            textStorage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
+            textStorage.addAttribute(.foregroundColor, value: textColor, range: fullRange)
             if isUnderline {
                 textStorage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: fullRange)
             } else {
