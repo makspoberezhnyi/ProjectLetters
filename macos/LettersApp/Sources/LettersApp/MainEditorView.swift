@@ -64,11 +64,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
     // Rich Interactive Blocks State
     @State private var studioTables: [StudioTableData] = [
         StudioTableData(
-            headers: ["Deliverable / Metric", "Allocated Budget", "Actual Spend", "Variance"],
+            title: "Project Budget & Resource Allocation",
+            headers: ["Deliverable / Metric", "Allocated", "Actual Spend", "Variance"],
             rows: [
-                ["Native TextKit 2 Engine", "$15,000", "$14,200", "+$800"],
-                ["Headless Rust Core", "$12,000", "$12,000", "$0"],
-                ["AI Copilot Gateway", "$8,500", "$7,900", "+$600"]
+                ["Native TextKit 2 Engine", "15000", "14200", "=A1-B1"],
+                ["Headless Rust Core", "12000", "12000", "=A2-B2"],
+                ["AI Copilot Gateway", "8500", "7900", "=A3-B3"]
             ]
         )
     ]
@@ -678,14 +679,16 @@ Letters is a next-generation desktop publishing and document studio combining gr
             showToast("✓ Inserted Text Section")
         case .table:
             let newTable = StudioTableData(
-                headers: ["Item / Metric", "Q1 Actual", "Q2 Actual", "Total"],
+                title: "Data Table",
+                headers: ["Item", "Quantity", "Unit Price", "Total"],
                 rows: [
-                    ["Core Platform", "$1,200", "$2,400", "$3,600"],
-                    ["AI Copilot", "$800", "$1,600", "$2,400"]
+                    ["Item 1", "10", "25", "=A1*B1"],
+                    ["Item 2", "5", "50", "=A2*B2"],
+                    ["Summary", "=SUM(A1:A2)", "", "=SUM(D1:D2)"]
                 ]
             )
             studioTables.append(newTable)
-            showToast("✓ Added Interactive Smart Table")
+            showToast("✓ Added Table with cell formula support")
         case .citation:
             showingAddSourceSheet = true
             showToast("✓ Add Linked Citation")
