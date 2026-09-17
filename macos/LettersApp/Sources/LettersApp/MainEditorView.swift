@@ -29,6 +29,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
 3. Dynamic Smart Tables & Formulas
 • Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
+
+[[table:budget]]
 """
 
     @State private var activeTool: StudioTool = .select
@@ -206,224 +208,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             VStack(spacing: 36) {
                                 // Multi-Page Sheet Rendering
                                 ForEach(0..<documentPages.count, id: \.self) { pageIndex in
-                                    VStack(spacing: 8) {
-                                        // Page Number Badge
-                                        HStack {
-                                            Text("PAGE \(pageIndex + 1) OF \(documentPages.count)")
-                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Text("\(pageSize.rawValue) • \(marginPreset.rawValue)")
-                                                .font(.system(size: 9, weight: .medium))
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .frame(width: currentSheetWidth * zoomScale)
-
-                                        // Pure White Physical Paper Sheet
-                                        ZStack(alignment: .topLeading) {
-                                            // 1. Crisp White Sheet Background with realistic drop shadow
-                                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                .fill(Color.white)
-                                                .frame(width: currentSheetWidth, height: currentSheetHeight)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                        .stroke(Color.black.opacity(0.14), lineWidth: 1)
-                                                )
-                                                .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
-                                                .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
-
-                                            // 2. Running Header (Title & Subtitle)
-                                            HStack {
-                                                Text(documentTitle)
-                                                    .font(.system(size: 9, weight: .semibold))
-                                                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
-                                                Spacer()
-                                                Text("Project Letters Studio")
-                                                    .font(.system(size: 8, weight: .medium))
-                                                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                                            }
-                                            .padding(.horizontal, margins.left)
-                                            .padding(.top, margins.top / 2 - 6)
-                                            .frame(width: currentSheetWidth)
-
-                                            // 3. Margin Guides Overlay
-                                            if showMarginGuides {
-                                                PaperMarginGuidesView(
-                                                    width: currentSheetWidth,
-                                                    height: currentSheetHeight,
-                                                    margins: margins
-                                                )
-                                            }
-
-                                            // 4. Publisher Corner Crop Marks
-                                            if showCropMarks {
-                                                PublisherCropMarksView(
-                                                    width: currentSheetWidth,
-                                                    height: currentSheetHeight
-                                                )
-                                            }
-
-                                            // 5. Document Content (TextKit 2 Editor + Tables + Images + Videos)
-                                            VStack(alignment: .leading, spacing: 14) {
-                                                TextKit2EditorView(
-                                                    text: $rawText,
-                                                    selectedText: $selectedText,
-                                                    selectionRange: $selectionRange,
-                                                    controller: editorController,
-                                                    fontFamily: fontFamily,
-                                                    fontSize: fontSize,
-                                                    isBold: isBold,
-                                                    isItalic: isItalic,
-                                                    isUnderline: isUnderline,
-                                                    alignment: textAlignment,
-                                                    lineSpacing: lineSpacing,
-                                                    paragraphSpacing: paragraphSpacing,
-                                                    margins: margins,
-                                                    onSelectionChanged: { _, _, attrs in
-                                                        self.isBold = attrs.isBold
-                                                        self.isItalic = attrs.isItalic
-                                                        self.isUnderline = attrs.isUnderline
-                                                        self.fontFamily = attrs.fontFamily
-                                                        self.fontSize = attrs.fontSize
-                                                        self.textAlignment = attrs.alignment
-                                                    }
-                                                )
-                                                .frame(width: currentSheetWidth, height: calculateEditorHeight())
-
-                                                // Embedded Interactive Smart Tables
-                                                if !studioTables.isEmpty && pageIndex == 0 {
-                                                    VStack(spacing: 12) {
-                                                        ForEach($studioTables) { $table in
-                                                            SmartTableView(
-                                                                tableData: $table,
-                                                                onDelete: {
-                                                                    if let idx = studioTables.firstIndex(where: { $0.id == table.id }) {
-                                                                        studioTables.remove(at: idx)
-                                                                        showToast("✓ Deleted table")
-                                                                    }
-                                                                },
-                                                                onChange: {
-                                                                    showToast("✓ Table updated")
-                                                                },
-                                                                onToast: { msg in
-                                                                    showToast(msg)
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                    .padding(.horizontal, margins.left)
-                                                }
-
-                                                // Embedded Media & Images
-                                                if !studioImages.isEmpty && pageIndex == 0 {
-                                                    VStack(spacing: 12) {
-                                                        ForEach($studioImages) { $img in
-                                                            StudioImageView(
-                                                                imageBlock: $img,
-                                                                onDelete: {
-                                                                    if let idx = studioImages.firstIndex(where: { $0.id == img.id }) {
-                                                                        studioImages.remove(at: idx)
-                                                                        showToast("✓ Deleted figure")
-                                                                    }
-                                                                },
-                                                                onChange: {
-                                                                    showToast("✓ Figure updated")
-                                                                },
-                                                                onToast: { msg in
-                                                                    showToast(msg)
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                    .padding(.horizontal, margins.left)
-                                                }
-
-                                                // Embedded YouTube / Web Videos
-                                                if !studioVideos.isEmpty && pageIndex == 0 {
-                                                    VStack(spacing: 12) {
-                                                        ForEach($studioVideos) { $vid in
-                                                            StudioVideoView(
-                                                                videoBlock: $vid,
-                                                                onDelete: {
-                                                                    if let idx = studioVideos.firstIndex(where: { $0.id == vid.id }) {
-                                                                        studioVideos.remove(at: idx)
-                                                                        showToast("✓ Deleted video card")
-                                                                    }
-                                                                },
-                                                                onChange: {
-                                                                    showToast("✓ Video updated")
-                                                                },
-                                                                onToast: { msg in
-                                                                    showToast(msg)
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                    .padding(.horizontal, margins.left)
-                                                }
-                                            }
-                                            .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
-
-                                            // 6. Running Footer (Page X of Y)
-                                            HStack {
-                                                Text("Confidential • Project Letters")
-                                                    .font(.system(size: 8, weight: .medium))
-                                                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                                                Spacer()
-                                                Text("Page \(pageIndex + 1) of \(documentPages.count)")
-                                                    .font(.system(size: 9, weight: .semibold))
-                                                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
-                                            }
-                                            .padding(.horizontal, margins.left)
-                                            .padding(.bottom, margins.bottom / 2 - 6)
-                                            .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .bottom)
-
-                                            // 7. Floating contextual selection menu
-                                            if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                                FloatingActionMenu(
-                                                    selectedText: selectedText,
-                                                    onBold: {
-                                                        toggleBoldAction()
-                                                    },
-                                                    onItalic: {
-                                                        toggleItalicAction()
-                                                    },
-                                                    onPolish: {
-                                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                                            showAIDrawer = true
-                                                        }
-                                                        showToast("✨ AI Copilot opened for polish")
-                                                    },
-                                                    onTranslate: {
-                                                        Task {
-                                                            if let res = try? await TranslationService.shared.translate(text: selectedText) {
-                                                                if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-                                                                    let ns = rawText as NSString
-                                                                    rawText = ns.replacingCharacters(in: selectionRange, with: res)
-                                                                } else {
-                                                                    rawText = rawText.replacingOccurrences(of: selectedText, with: res)
-                                                                }
-                                                            }
-                                                        }
-                                                    },
-                                                    onExplain: {
-                                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                                            showAIDrawer = true
-                                                        }
-                                                        showToast("✨ AI Copilot explaining selection")
-                                                    },
-                                                    onCite: {
-                                                        insertCitationForSelection()
-                                                    }
-                                                )
-                                                .padding(.top, 16)
-                                                .padding(.leading, currentSheetWidth / 2 - 120)
-                                                .transition(.scale.combined(with: .opacity))
-                                            }
-                                        }
-                                        .frame(width: currentSheetWidth, height: currentSheetHeight)
-                                        .scaleEffect(zoomScale, anchor: .top)
-                                    }
+                                    documentPageSheet(pageIndex: pageIndex)
                                 }
                             }
                             .padding(.top, 28)
@@ -560,6 +345,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     Button("Embed Video") {
                         let block = StudioVideoBlock.parse(url: newVideoURLInput)
                         studioVideos.append(block)
+                        let marker = "\n\n[[video:\(block.id.uuidString)]]\n\n"
+                        if selectionRange.location <= (rawText as NSString).length {
+                            let ns = rawText as NSString
+                            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                        } else {
+                            rawText += marker
+                        }
                         showingAddVideoSheet = false
                         newVideoURLInput = ""
                         showToast("✓ Embedded Video Card")
@@ -651,12 +443,46 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
     }
 
-    private func calculateEditorHeight() -> CGFloat {
-        let totalBlocks = studioTables.count + studioImages.count + studioVideos.count
-        if totalBlocks == 0 {
-            return currentSheetHeight - margins.top - margins.bottom
+    private func calculateEditorHeight(for textContent: String) -> CGFloat {
+        let font = NSFont(name: fontFamily, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = lineSpacing * 4.0
+        paragraphStyle.paragraphSpacing = paragraphSpacing
+        let availableWidth = max(100, currentSheetWidth - margins.left - margins.right)
+        let attrStr = NSAttributedString(
+            string: textContent.isEmpty ? " " : textContent,
+            attributes: [
+                .font: font,
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+        let rect = attrStr.boundingRect(
+            with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        return max(40, ceil(rect.height) + 28)
+    }
+
+    private var unreferencedTableIndices: [Int] {
+        studioTables.indices.filter { idx in
+            let idStr = studioTables[idx].id.uuidString
+            let hasBudgetMarker = (idx == 0 && rawText.contains("[[table:budget]]"))
+            return !rawText.contains("[[table:\(idStr)]]") && !hasBudgetMarker
         }
-        return max(240, currentSheetHeight - CGFloat(totalBlocks * 200))
+    }
+
+    private var unreferencedImageIndices: [Int] {
+        studioImages.indices.filter { idx in
+            let idStr = studioImages[idx].id.uuidString
+            return !rawText.contains("[[image:\(idStr)]]")
+        }
+    }
+
+    private var unreferencedVideoIndices: [Int] {
+        studioVideos.indices.filter { idx in
+            let idStr = studioVideos[idx].id.uuidString
+            return !rawText.contains("[[video:\(idStr)]]")
+        }
     }
 
     // MARK: - Actions
@@ -688,6 +514,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 ]
             )
             studioTables.append(newTable)
+            let marker = "\n\n[[table:\(newTable.id.uuidString)]]\n\n"
+            if selectionRange.location <= (rawText as NSString).length {
+                let ns = rawText as NSString
+                rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+            } else {
+                rawText += marker
+            }
             showToast("✓ Added Table with cell formula support")
         case .citation:
             showingAddSourceSheet = true
@@ -707,6 +540,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
         StudioImageView.pickImageFromDisk { block in
             if let block = block {
                 studioImages.append(block)
+                let marker = "\n\n[[image:\(block.id.uuidString)]]\n\n"
+                if selectionRange.location <= (rawText as NSString).length {
+                    let ns = rawText as NSString
+                    rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                } else {
+                    rawText += marker
+                }
                 showToast("✓ Inserted Image Figure")
             }
         }
@@ -1135,6 +975,388 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 }
             }
         }
+    }
+
+    // MARK: - Document Page Sheet & Inline Segments
+    @ViewBuilder
+    private func documentPageSheet(pageIndex: Int) -> some View {
+        VStack(spacing: 8) {
+            // Page Number Badge
+            HStack {
+                Text("PAGE \(pageIndex + 1) OF \(documentPages.count)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(pageSize.rawValue) • \(marginPreset.rawValue)")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .frame(width: currentSheetWidth * zoomScale)
+
+            // Pure White Physical Paper Sheet
+            ZStack(alignment: .topLeading) {
+                // 1. Crisp White Sheet Background with realistic drop shadow
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.white)
+                    .frame(width: currentSheetWidth, height: currentSheetHeight)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(Color.black.opacity(0.14), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
+
+                // 2. Running Header (Title & Subtitle)
+                HStack {
+                    Text(documentTitle)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                    Spacer()
+                    Text("Project Letters Studio")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                }
+                .padding(.horizontal, margins.left)
+                .padding(.top, margins.top / 2 - 6)
+                .frame(width: currentSheetWidth)
+
+                // 3. Margin Guides Overlay
+                if showMarginGuides {
+                    PaperMarginGuidesView(
+                        width: currentSheetWidth,
+                        height: currentSheetHeight,
+                        margins: margins
+                    )
+                }
+
+                // 4. Publisher Corner Crop Marks
+                if showCropMarks {
+                    PublisherCropMarksView(
+                        width: currentSheetWidth,
+                        height: currentSheetHeight
+                    )
+                }
+
+                // 5. Document Content (Dynamic In-Flow TextKit 2 Segments + Tables + Media)
+                documentCanvasContent(pageIndex: pageIndex)
+
+                // 6. Running Footer (Page X of Y)
+                HStack {
+                    Text("Confidential • Project Letters")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                    Spacer()
+                    Text("Page \(pageIndex + 1) of \(documentPages.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                }
+                .padding(.horizontal, margins.left)
+                .padding(.bottom, margins.bottom / 2 - 6)
+                .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .bottom)
+
+                // 7. Floating contextual selection menu
+                if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    floatingSelectionActionMenu
+                }
+            }
+            .frame(width: currentSheetWidth, height: currentSheetHeight)
+            .scaleEffect(zoomScale, anchor: .top)
+        }
+    }
+
+    @ViewBuilder
+    private func documentCanvasContent(pageIndex: Int) -> some View {
+        let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : rawText
+        let segments = parseCanvasSegments(for: pageStr)
+
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(segments) { segment in
+                switch segment.type {
+                case .text(let chunkText, let range):
+                    TextKit2EditorView(
+                        text: Binding(
+                            get: {
+                                if range.location + range.length <= (rawText as NSString).length {
+                                    return (rawText as NSString).substring(with: range)
+                                }
+                                return chunkText
+                            },
+                            set: { newVal in
+                                if range.location + range.length <= (rawText as NSString).length {
+                                    let ns = rawText as NSString
+                                    rawText = ns.replacingCharacters(in: range, with: newVal)
+                                }
+                            }
+                        ),
+                        selectedText: $selectedText,
+                        selectionRange: $selectionRange,
+                        controller: editorController,
+                        fontFamily: fontFamily,
+                        fontSize: fontSize,
+                        isBold: isBold,
+                        isItalic: isItalic,
+                        isUnderline: isUnderline,
+                        alignment: textAlignment,
+                        lineSpacing: lineSpacing,
+                        paragraphSpacing: paragraphSpacing,
+                        margins: PageMargins(top: 6, bottom: 6, left: margins.left, right: margins.right),
+                        onSelectionChanged: { _, _, attrs in
+                            self.isBold = attrs.isBold
+                            self.isItalic = attrs.isItalic
+                            self.isUnderline = attrs.isUnderline
+                            self.fontFamily = attrs.fontFamily
+                            self.fontSize = attrs.fontSize
+                            self.textAlignment = attrs.alignment
+                        }
+                    )
+                    .frame(width: currentSheetWidth, height: calculateEditorHeight(for: chunkText))
+
+                case .table(let tableId):
+                    if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
+                        SmartTableView(
+                            tableData: $studioTables[idx],
+                            onDelete: {
+                                let idStr = studioTables[idx].id.uuidString
+                                studioTables.remove(at: idx)
+                                rawText = rawText.replacingOccurrences(of: "[[table:\(idStr)]]", with: "")
+                                rawText = rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
+                                showToast("✓ Deleted table")
+                            },
+                            onChange: {
+                                showToast("✓ Table updated")
+                            },
+                            onToast: { msg in
+                                showToast(msg)
+                            }
+                        )
+                        .padding(.horizontal, margins.left)
+                    }
+
+                case .image(let imageId):
+                    if let idx = studioImages.firstIndex(where: { $0.id == imageId }) {
+                        StudioImageView(
+                            imageBlock: $studioImages[idx],
+                            onDelete: {
+                                let idStr = studioImages[idx].id.uuidString
+                                studioImages.remove(at: idx)
+                                rawText = rawText.replacingOccurrences(of: "[[image:\(idStr)]]", with: "")
+                                showToast("✓ Deleted figure")
+                            },
+                            onChange: {
+                                showToast("✓ Figure updated")
+                            },
+                            onToast: { msg in
+                                showToast(msg)
+                            }
+                        )
+                        .padding(.horizontal, margins.left)
+                    }
+
+                case .video(let videoId):
+                    if let idx = studioVideos.firstIndex(where: { $0.id == videoId }) {
+                        StudioVideoView(
+                            videoBlock: $studioVideos[idx],
+                            onDelete: {
+                                let idStr = studioVideos[idx].id.uuidString
+                                studioVideos.remove(at: idx)
+                                rawText = rawText.replacingOccurrences(of: "[[video:\(idStr)]]", with: "")
+                                showToast("✓ Deleted video card")
+                            },
+                            onChange: {
+                                showToast("✓ Video updated")
+                            },
+                            onToast: { msg in
+                                showToast(msg)
+                            }
+                        )
+                        .padding(.horizontal, margins.left)
+                    }
+                }
+            }
+
+            // Unreferenced Tables (placed naturally below if no inline marker)
+            if pageIndex == 0 {
+                ForEach(unreferencedTableIndices, id: \.self) { idx in
+                    SmartTableView(
+                        tableData: $studioTables[idx],
+                        onDelete: {
+                            studioTables.remove(at: idx)
+                            showToast("✓ Deleted table")
+                        },
+                        onChange: {
+                            showToast("✓ Table updated")
+                        },
+                        onToast: { msg in
+                            showToast(msg)
+                        }
+                    )
+                    .padding(.horizontal, margins.left)
+                }
+
+                // Unreferenced Images
+                ForEach(unreferencedImageIndices, id: \.self) { idx in
+                    StudioImageView(
+                        imageBlock: $studioImages[idx],
+                        onDelete: {
+                            studioImages.remove(at: idx)
+                            showToast("✓ Deleted figure")
+                        },
+                        onChange: {
+                            showToast("✓ Figure updated")
+                        },
+                        onToast: { msg in
+                            showToast(msg)
+                        }
+                    )
+                    .padding(.horizontal, margins.left)
+                }
+
+                // Unreferenced Videos
+                ForEach(unreferencedVideoIndices, id: \.self) { idx in
+                    StudioVideoView(
+                        videoBlock: $studioVideos[idx],
+                        onDelete: {
+                            studioVideos.remove(at: idx)
+                            showToast("✓ Deleted video card")
+                        },
+                        onChange: {
+                            showToast("✓ Video updated")
+                        },
+                        onToast: { msg in
+                            showToast(msg)
+                        }
+                    )
+                    .padding(.horizontal, margins.left)
+                }
+            }
+        }
+        .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var floatingSelectionActionMenu: some View {
+        FloatingActionMenu(
+            selectedText: selectedText,
+            onBold: {
+                toggleBoldAction()
+            },
+            onItalic: {
+                toggleItalicAction()
+            },
+            onPolish: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showAIDrawer = true
+                }
+                showToast("✨ AI Copilot opened for polish")
+            },
+            onTranslate: {
+                Task {
+                    if let res = try? await TranslationService.shared.translate(text: selectedText) {
+                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
+                            let ns = rawText as NSString
+                            rawText = ns.replacingCharacters(in: selectionRange, with: res)
+                        } else {
+                            rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                        }
+                    }
+                }
+            },
+            onExplain: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showAIDrawer = true
+                }
+                showToast("✨ AI Copilot explaining selection")
+            },
+            onCite: {
+                insertCitationForSelection()
+            }
+        )
+        .padding(.top, 16)
+        .padding(.leading, currentSheetWidth / 2 - 120)
+        .transition(.scale.combined(with: .opacity))
+    }
+
+    private func parseCanvasSegments(for pageContent: String) -> [DocumentCanvasSegment] {
+        let pattern = #"(?:^|\n)?\[\[(table|image|video):([a-zA-Z0-9\-]+)\]\](?:\n)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return [DocumentCanvasSegment(type: .text(pageContent, NSRange(location: 0, length: (pageContent as NSString).length)))]
+        }
+
+        let nsContent = pageContent as NSString
+        let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: nsContent.length))
+
+        if matches.isEmpty {
+            return [DocumentCanvasSegment(type: .text(pageContent, NSRange(location: 0, length: nsContent.length)))]
+        }
+
+        var segments: [DocumentCanvasSegment] = []
+        var lastLocation = 0
+
+        for match in matches {
+            let matchRange = match.range
+            if matchRange.location > lastLocation {
+                let textRange = NSRange(location: lastLocation, length: matchRange.location - lastLocation)
+                let chunkText = nsContent.substring(with: textRange)
+                if !chunkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || segments.isEmpty {
+                    segments.append(DocumentCanvasSegment(type: .text(chunkText, textRange)))
+                }
+            }
+
+            if match.numberOfRanges >= 3 {
+                let kind = nsContent.substring(with: match.range(at: 1))
+                let idStr = nsContent.substring(with: match.range(at: 2))
+
+                if kind == "table" {
+                    if let uuid = UUID(uuidString: idStr), studioTables.contains(where: { $0.id == uuid }) {
+                        segments.append(DocumentCanvasSegment(type: .table(uuid)))
+                    } else if idStr.lowercased() == "budget", let firstTable = studioTables.first {
+                        segments.append(DocumentCanvasSegment(type: .table(firstTable.id)))
+                    } else if let found = studioTables.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
+                        segments.append(DocumentCanvasSegment(type: .table(found.id)))
+                    }
+                } else if kind == "image" {
+                    if let uuid = UUID(uuidString: idStr), studioImages.contains(where: { $0.id == uuid }) {
+                        segments.append(DocumentCanvasSegment(type: .image(uuid)))
+                    } else if let found = studioImages.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
+                        segments.append(DocumentCanvasSegment(type: .image(found.id)))
+                    }
+                } else if kind == "video" {
+                    if let uuid = UUID(uuidString: idStr), studioVideos.contains(where: { $0.id == uuid }) {
+                        segments.append(DocumentCanvasSegment(type: .video(uuid)))
+                    } else if let found = studioVideos.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
+                        segments.append(DocumentCanvasSegment(type: .video(found.id)))
+                    }
+                }
+            }
+
+            lastLocation = matchRange.location + matchRange.length
+        }
+
+        if lastLocation < nsContent.length {
+            let textRange = NSRange(location: lastLocation, length: nsContent.length - lastLocation)
+            let chunkText = nsContent.substring(with: textRange)
+            if !chunkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                segments.append(DocumentCanvasSegment(type: .text(chunkText, textRange)))
+            }
+        }
+
+        return segments
+    }
+}
+
+// MARK: - Document Canvas Segment Model
+public struct DocumentCanvasSegment: Identifiable {
+    public enum SegmentType {
+        case text(String, NSRange)
+        case table(UUID)
+        case image(UUID)
+        case video(UUID)
+    }
+    public let id = UUID()
+    public let type: SegmentType
+
+    public init(type: SegmentType) {
+        self.type = type
     }
 }
 
