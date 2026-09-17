@@ -12,6 +12,12 @@
 		D041FA244F1350128A4C8082 /* CoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */; };
 		DEB669D5CB1D560F91DA95B7 /* AIGateway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02636281821E5ED19CA49946 /* AIGateway.swift */; };
 		9C92B015C3195CFA9596670E /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F512B921A195EAF9AB6DC3C /* TranslationService.swift */; };
+		202C1C778D7250B3A815FD2D /* StudioTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBA0ECCD3275D5B883542FF /* StudioTheme.swift */; };
+		41496EF24606542380766F86 /* StudioToolRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7ADC3CCADB522F88209C40 /* StudioToolRail.swift */; };
+		9DDC067F42F750E1A68A5695 /* StudioTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1CB6EA4E7A5554832A4732 /* StudioTopBar.swift */; };
+		9BF79FE3F16D5F2DBAAA6489 /* StudioPagesNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396E0474EAAA5E3EAD98E80C /* StudioPagesNavigator.swift */; };
+		F8866289B7F5542592222697 /* StudioBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C8FDA838535C3D95C8A362 /* StudioBottomBar.swift */; };
+		64105B9F56F35970B66E359F /* StudioInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A6BF0122D559A69CE7F411 /* StudioInspectorView.swift */; };
 		35B29CF4029A5F0885027A11 /* LettersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801953898BED5339AC886A7C /* LettersApp.swift */; };
 		508986EF36BE5E039535191F /* MainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F06682BCC855F218E0B2296 /* MainEditorView.swift */; };
 		0C8D87CE5EE75687A8B7361F /* TextKit2EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */; };
@@ -30,6 +36,12 @@
 		2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/CoreBridge.swift"; sourceTree = "<group>"; };
 		02636281821E5ED19CA49946 /* AIGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/AIGateway.swift"; sourceTree = "<group>"; };
 		8F512B921A195EAF9AB6DC3C /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/TranslationService.swift"; sourceTree = "<group>"; };
+		6CBA0ECCD3275D5B883542FF /* StudioTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioTheme.swift"; sourceTree = "<group>"; };
+		9E7ADC3CCADB522F88209C40 /* StudioToolRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioToolRail.swift"; sourceTree = "<group>"; };
+		1C1CB6EA4E7A5554832A4732 /* StudioTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioTopBar.swift"; sourceTree = "<group>"; };
+		396E0474EAAA5E3EAD98E80C /* StudioPagesNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioPagesNavigator.swift"; sourceTree = "<group>"; };
+		D8C8FDA838535C3D95C8A362 /* StudioBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioBottomBar.swift"; sourceTree = "<group>"; };
+		17A6BF0122D559A69CE7F411 /* StudioInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioInspectorView.swift"; sourceTree = "<group>"; };
 		801953898BED5339AC886A7C /* LettersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/LettersApp.swift"; sourceTree = "<group>"; };
 		6F06682BCC855F218E0B2296 /* MainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/MainEditorView.swift"; sourceTree = "<group>"; };
 		2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/TextKit2EditorView.swift"; sourceTree = "<group>"; };
@@ -63,6 +75,12 @@
 				2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */,
 				02636281821E5ED19CA49946 /* AIGateway.swift */,
 				8F512B921A195EAF9AB6DC3C /* TranslationService.swift */,
+				6CBA0ECCD3275D5B883542FF /* StudioTheme.swift */,
+				9E7ADC3CCADB522F88209C40 /* StudioToolRail.swift */,
+				1C1CB6EA4E7A5554832A4732 /* StudioTopBar.swift */,
+				396E0474EAAA5E3EAD98E80C /* StudioPagesNavigator.swift */,
+				D8C8FDA838535C3D95C8A362 /* StudioBottomBar.swift */,
+				17A6BF0122D559A69CE7F411 /* StudioInspectorView.swift */,
 				801953898BED5339AC886A7C /* LettersApp.swift */,
 				6F06682BCC855F218E0B2296 /* MainEditorView.swift */,
 				2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */,
@@ -138,6 +156,12 @@
 				D041FA244F1350128A4C8082 /* CoreBridge.swift in Sources */,
 				DEB669D5CB1D560F91DA95B7 /* AIGateway.swift in Sources */,
 				9C92B015C3195CFA9596670E /* TranslationService.swift in Sources */,
+				202C1C778D7250B3A815FD2D /* StudioTheme.swift in Sources */,
+				41496EF24606542380766F86 /* StudioToolRail.swift in Sources */,
+				9DDC067F42F750E1A68A5695 /* StudioTopBar.swift in Sources */,
+				9BF79FE3F16D5F2DBAAA6489 /* StudioPagesNavigator.swift in Sources */,
+				F8866289B7F5542592222697 /* StudioBottomBar.swift in Sources */,
+				64105B9F56F35970B66E359F /* StudioInspectorView.swift in Sources */,
 				35B29CF4029A5F0885027A11 /* LettersApp.swift in Sources */,
 				508986EF36BE5E039535191F /* MainEditorView.swift in Sources */,
 				0C8D87CE5EE75687A8B7361F /* TextKit2EditorView.swift in Sources */,

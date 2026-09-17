@@ -6,54 +6,51 @@ import LettersKit
 #endif
 
 public struct MainEditorView: View {
-    @State private var documentTitle: String = "Untitled Document"
+    @State private var documentTitle: String = "Letters Product Specification"
     @State private var document = DocumentModel(
-        title: "Executive Summary & Research Report",
-        blocks: [
-            .heading(level: .heading1, runs: [TextRun(text: "Executive Summary", bold: true)]),
-            .paragraph(runs: [
-                TextRun(text: "Letters is a high-performance document processor combining native DOCX fidelity, linked source management, and dynamic style verification.")
-            ], alignment: "left"),
-            .heading(level: .heading2, runs: [TextRun(text: "Key Capabilities", bold: true)]),
-            .bulletItem(runs: [TextRun(text: "Headless Rust Core for lossless OpenXML parsing")], indentLevel: 0),
-            .bulletItem(runs: [TextRun(text: "Native TextKit 2 viewport rendering for massive documents")], indentLevel: 0),
-            .bulletItem(runs: [TextRun(text: "Universal BYOK AI gateway with streaming assistant")], indentLevel: 0)
-        ]
+        title: "Letters Product Specification",
+        blocks: []
     )
 
     @State private var rawText: String = """
-# Executive Summary
-Letters is a high-performance document processor combining native DOCX fidelity, linked source management, and dynamic style verification.
+# Letters: Modern Document Studio
 
-## 1. Core Architecture
-* **Headless Rust Core:** Beneath the UI runs a headless Rust engine for lossless OpenXML (.docx) generation.
-* **TextKit 2 Viewport Rendering:** Ensures smooth scrolling and rendering on massive 100+ page documents.
-* **Universal BYOK AI Gateway:** Connect personal API keys for Claude, GPT-4o, and Gemini with macOS Keychain security.
+Letters is a next-generation desktop publishing and document studio combining graphic design precision with native Word (.docx) fidelity.
 
-## 2. Linked Citations & Style Profiles
-* Citations store raw fields (authors, year, DOI, publisher) rather than flat text.
-* Switching between APA 7, MLA 9, Chicago, and Bluebook is a real-time re-render, never a rewrite.
+## 1. Core Architecture & Native Engine
+* **SwiftUI & TextKit 2 Viewport:** Ultra-smooth layout and scrolling on massive 100+ page documents.
+* **Headless Rust Core:** Lossless OpenXML (.docx) packaging and parsing with zero formatting degradation.
+* **Universal BYOK AI Gateway:** Direct cloud streaming with Anthropic Claude, OpenAI GPT-4o, and Google Gemini.
 
-## 3. Dynamic Smart Tables
-* Tables support formulas (=A1 + B1) and inline variable referencing throughout the text.
+## 2. Linked Sources & Dynamic Style Rules
+* Citations store structured bibliographic metadata rather than flat static text.
+* Real-time re-rendering across APA 7, MLA 9, Chicago, and Bluebook legal standards.
+
+## 3. Dynamic Smart Tables & Formulas
+* Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
 """
 
-    @State private var selectedBlockIndex: Int? = 0
+    @State private var activeTool: StudioTool = .text
+    @State private var activePersona: StudioPersona = .write
+    @State private var selectedPage: Int = 1
     @State private var selectedText: String = ""
     @State private var selectionRange: NSRange = NSRange(location: 0, length: 0)
     @State private var showInspector: Bool = true
-    @State private var activeInspectorTab: InspectorTab = .assistant
     @State private var activeCitationStyle: CitationStyle = .apa7
     @State private var showCommandPalette: Bool = false
     @State private var lintIssues: [StyleLintMatch] = []
     @State private var toastMessage: String? = nil
-    @State private var zoomScale: CGFloat = 1.0
+    @State private var zoomScale: Double = 1.0
 
-    enum InspectorTab: String, CaseIterable {
-        case assistant = "Copilot"
-        case sources = "Sources"
-        case linter = "Style Lint"
-    }
+    // Typography States
+    @State private var fontFamily: String = "Default Serif (Georgia)"
+    @State private var fontSize: CGFloat = 15.0
+    @State private var isBold: Bool = false
+    @State private var isItalic: Bool = false
+    @State private var isUnderline: Bool = false
+    @State private var textAlignment: TextAlignment = .leading
+    @State private var lineSpacing: CGFloat = 1.15
+    @State private var paragraphSpacing: CGFloat = 12.0
 
     public init() {}
 
@@ -70,45 +67,55 @@ Letters is a high-performance document processor combining native DOCX fidelity,
     }
 
     public var body: some View {
-        NavigationSplitView {
-            DocumentOutlineView(document: $document, selectedBlockIndex: $selectedBlockIndex)
-                .frame(minWidth: 200, idealWidth: 220)
-        } detail: {
-            HSplitView {
-                // Workspace Canvas
+        VStack(spacing: 0) {
+            // 1. Top Studio Persona & Formatting Ribbon
+            StudioTopBar(
+                activePersona: $activePersona,
+                fontFamily: $fontFamily,
+                fontSize: $fontSize,
+                isBold: $isBold,
+                isItalic: $isItalic,
+                isUnderline: $isUnderline,
+                alignment: $textAlignment,
+                lineSpacing: $lineSpacing,
+                onExportDocx: saveDocumentAsDocx,
+                onSaveMarkdown: saveDocumentAsMarkdown,
+                onToggleInspector: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showInspector.toggle()
+                    }
+                }
+            )
+
+            // 2. Main Studio Workspace Layout
+            HStack(spacing: 0) {
+                // Left Pro Tool Rail (Affinity / Figma Style)
+                StudioToolRail(activeTool: $activeTool)
+
+                // Left Pages / Spreads & Outline Navigator
+                StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
+
+                // Center Studio Canvas & Paper Sheet
                 ZStack(alignment: .bottom) {
                     ScrollView([.vertical, .horizontal]) {
-                        VStack(spacing: 24) {
-                            // Top Document Title Header
+                        VStack(spacing: 20) {
+                            // Document Sheet Title
                             HStack {
                                 TextField("Document Title", text: $documentTitle)
                                     .textFieldStyle(.plain)
-                                    .font(.system(size: 20, weight: .bold, design: .default))
+                                    .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.primary)
-                                    .frame(maxWidth: 500)
 
                                 Spacer()
 
-                                HStack(spacing: 8) {
-                                    Button(action: saveDocumentAsDocx) {
-                                        Label("Save as Word (.docx)", systemImage: "arrow.down.doc.fill")
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .controlSize(.small)
-
-                                    Button(action: saveDocumentAsMarkdown) {
-                                        Label("Save Markdown", systemImage: "doc.text")
-                                            .font(.system(size: 12))
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
+                                Text("US Letter • 8.5 × 11 in")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.secondary)
                             }
-                            .frame(width: 816)
-                            .padding(.top, 28)
+                            .frame(width: 816 * zoomScale)
+                            .padding(.top, 24)
 
-                            // Realistic Paper Sheet Canvas
+                            // Graphic Studio Paper Sheet
                             ZStack(alignment: .top) {
                                 TextKit2EditorView(
                                     text: $rawText,
@@ -118,17 +125,18 @@ Letters is a high-performance document processor combining native DOCX fidelity,
                                 )
                                 .frame(width: 816)
                                 .frame(minHeight: 1056)
-                                .background(Color(NSColor.textBackgroundColor))
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .background(StudioTheme.paperBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(StudioTheme.border, lineWidth: 1)
                                 )
-                                // Multi-layered realistic paper drop shadow
-                                .shadow(color: Color.black.opacity(0.04), radius: 3, x: 0, y: 1)
-                                .shadow(color: Color.black.opacity(0.08), radius: 24, x: 0, y: 12)
+                                // Multi-layered depth shadow
+                                .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+                                .shadow(color: Color.black.opacity(0.12), radius: 28, x: 0, y: 14)
+                                .scaleEffect(zoomScale, anchor: .top)
 
-                                // Floating selection contextual menu
+                                // Floating contextual selection menu
                                 if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     FloatingActionMenu(
                                         selectedText: selectedText,
@@ -146,11 +154,11 @@ Letters is a high-performance document processor combining native DOCX fidelity,
                                             }
                                         },
                                         onExplain: {
-                                            activeInspectorTab = .assistant
+                                            activePersona = .aiStudio
                                             showInspector = true
                                         },
                                         onCite: {
-                                            activeInspectorTab = .sources
+                                            activePersona = .citations
                                             showInspector = true
                                         }
                                     )
@@ -158,54 +166,11 @@ Letters is a high-performance document processor combining native DOCX fidelity,
                                     .transition(.scale.combined(with: .opacity))
                                 }
                             }
-                            .padding(.bottom, 64)
+                            .padding(.bottom, 60)
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .background(Color(NSColor.underPageBackgroundColor))
-
-                    // Bottom Studio Status Bar Pill
-                    HStack(spacing: 16) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "text.alignleft")
-                                .font(.caption2)
-                            Text("\(wordCount) words")
-                                .font(.caption.monospacedDigit())
-                        }
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "character.cursor.ibeam")
-                                .font(.caption2)
-                            Text("\(characterCount) chars")
-                                .font(.caption.monospacedDigit())
-                        }
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "clock")
-                                .font(.caption2)
-                            Text("~\(readingTimeMinutes) min read")
-                                .font(.caption)
-                        }
-
-                        Divider()
-                            .frame(height: 12)
-
-                        HStack(spacing: 4) {
-                            Image(systemName: "quote.opening")
-                                .font(.caption2)
-                            Text(activeCitationStyle.displayName)
-                                .font(.caption.bold())
-                        }
-                    }
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(
-                        Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 4)
-                    .padding(.bottom, 16)
+                    .background(StudioTheme.canvasBackground)
 
                     // Floating Toast Notification
                     if let msg = toastMessage {
@@ -217,104 +182,41 @@ Letters is a high-performance document processor combining native DOCX fidelity,
                         }
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .stroke(Color.green.opacity(0.3), lineWidth: 1)
                         )
-                        .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 8)
-                        .padding(.bottom, 64)
+                        .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
+                        .padding(.bottom, 24)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .frame(minWidth: 500)
 
-                // Right Inspector (AI Assistant / Sources / Style Linter)
+                // Right Studio Inspector (Accordion Style)
                 if showInspector {
-                    VStack(spacing: 0) {
-                        Picker("Tab", selection: $activeInspectorTab) {
-                            ForEach(InspectorTab.allCases, id: \.self) { tab in
-                                Text(tab.rawValue).tag(tab)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(10)
-
-                        Divider()
-
-                        switch activeInspectorTab {
-                        case .assistant:
-                            AssistantSidebarView {
-                                rawText
-                            }
-                        case .sources:
-                            SourceManagerView(sources: $document.sources, activeStyle: $activeCitationStyle)
-                        case .linter:
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text("Style & Tone Warnings (\(lintIssues.count))")
-                                        .font(.caption.bold())
-                                    Spacer()
-                                    Button("Check") {
-                                        runLinter()
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                                .padding(12)
-
-                                Divider()
-
-                                List(lintIssues) { issue in
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack {
-                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                .foregroundColor(.orange)
-                                                .font(.caption)
-                                            Text(issue.ruleId)
-                                                .font(.caption.bold())
-                                        }
-                                        Text(issue.message)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        if let sugg = issue.suggestion {
-                                            Text("Suggestion: \(sugg)")
-                                                .font(.caption2)
-                                                .foregroundColor(.accentColor)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                        }
-                    }
-                    .frame(minWidth: 280, idealWidth: 320, maxWidth: 400)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    StudioInspectorView(
+                        sources: $document.sources,
+                        activeCitationStyle: $activeCitationStyle,
+                        lintIssues: $lintIssues,
+                        lineSpacing: $lineSpacing,
+                        paragraphSpacing: $paragraphSpacing,
+                        currentDocumentContext: { rawText },
+                        onRunLinter: runLinter
+                    )
+                    .transition(.move(edge: .trailing))
                 }
             }
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: saveDocumentAsDocx) {
-                    Label("Save as DOCX", systemImage: "arrow.down.doc.fill")
-                }
-                .help("Save Native Word .docx (Cmd+S)")
-                .keyboardShortcut("s", modifiers: .command)
 
-                Button {
-                    showCommandPalette.toggle()
-                } label: {
-                    Label("Command Palette", systemImage: "command")
-                }
-                .help("Command Palette (Cmd+K)")
-
-                Button {
-                    showInspector.toggle()
-                } label: {
-                    Label("Toggle Inspector", systemImage: "sidebar.right")
-                }
-                .help("Toggle AI & Citations Sidebar")
-            }
+            // 3. Bottom Studio Status & Zoom Bar
+            StudioBottomBar(
+                selectedPage: $selectedPage,
+                totalPages: 2,
+                wordCount: wordCount,
+                characterCount: characterCount,
+                readingTime: readingTimeMinutes,
+                zoomLevel: $zoomScale
+            )
         }
         .sheet(isPresented: $showCommandPalette) {
             CommandPaletteView(isPresented: $showCommandPalette, commands: paletteCommands)
@@ -333,7 +235,7 @@ Letters is a high-performance document processor combining native DOCX fidelity,
                 saveDocumentAsMarkdown()
             },
             CommandItem(title: "Toggle AI Assistant", subtitle: "Open BYOK Copilot companion", icon: "sparkles", shortcut: "⌘J") {
-                activeInspectorTab = .assistant
+                activePersona = .aiStudio
                 showInspector = true
             },
             CommandItem(title: "Switch Citation Style to APA 7", subtitle: "Re-render all citations to APA standard", icon: "quote.opening") {
@@ -347,7 +249,7 @@ Letters is a high-performance document processor combining native DOCX fidelity,
             },
             CommandItem(title: "Run Style & Tone Check", subtitle: "Lint document against active style profile", icon: "checkmark.shield") {
                 runLinter()
-                activeInspectorTab = .linter
+                activePersona = .write
                 showInspector = true
             }
         ]

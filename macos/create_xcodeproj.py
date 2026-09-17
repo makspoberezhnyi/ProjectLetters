@@ -15,7 +15,13 @@ files = [
     ("AIGateway", "LettersApp/Sources/LettersKit/AIGateway.swift", "sourcecode.swift", "Sources"),
     ("TranslationService", "LettersApp/Sources/LettersKit/TranslationService.swift", "sourcecode.swift", "Sources"),
     
-    # LettersApp
+    # LettersApp (Studio UI)
+    ("StudioTheme", "LettersApp/Sources/LettersApp/StudioTheme.swift", "sourcecode.swift", "Sources"),
+    ("StudioToolRail", "LettersApp/Sources/LettersApp/StudioToolRail.swift", "sourcecode.swift", "Sources"),
+    ("StudioTopBar", "LettersApp/Sources/LettersApp/StudioTopBar.swift", "sourcecode.swift", "Sources"),
+    ("StudioPagesNavigator", "LettersApp/Sources/LettersApp/StudioPagesNavigator.swift", "sourcecode.swift", "Sources"),
+    ("StudioBottomBar", "LettersApp/Sources/LettersApp/StudioBottomBar.swift", "sourcecode.swift", "Sources"),
+    ("StudioInspectorView", "LettersApp/Sources/LettersApp/StudioInspectorView.swift", "sourcecode.swift", "Sources"),
     ("LettersApp_swift", "LettersApp/Sources/LettersApp/LettersApp.swift", "sourcecode.swift", "Sources"),
     ("MainEditorView", "LettersApp/Sources/LettersApp/MainEditorView.swift", "sourcecode.swift", "Sources"),
     ("TextKit2EditorView", "LettersApp/Sources/LettersApp/TextKit2EditorView.swift", "sourcecode.swift", "Sources"),
@@ -285,4 +291,4 @@ pbxproj = f"""// !$*UTF8*$!
 out_path = "/Users/mpob/Developer/projectletters/macos/Letters.xcodeproj/project.pbxproj"
 with open(out_path, "w") as f:
     f.write(pbxproj)
-print("Successfully generated project.pbxproj at:", out_path)
+print("Successfully regenerated project.pbxproj at:", out_path)
