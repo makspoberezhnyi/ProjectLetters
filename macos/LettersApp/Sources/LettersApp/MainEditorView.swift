@@ -6,6 +6,7 @@ import LettersKit
 #endif
 
 public struct MainEditorView: View {
+    @StateObject private var editorController = EditorActionController()
     @State private var documentTitle: String = "Letters Product Specification"
     @State private var document = DocumentModel(
         title: "Letters Product Specification",
@@ -13,21 +14,21 @@ public struct MainEditorView: View {
     )
 
     @State private var rawText: String = """
-# Letters: Modern Document Studio
+Letters: Modern Document Studio
 
 Letters is a next-generation desktop publishing and document studio combining graphic design precision with native Word (.docx) fidelity.
 
-## 1. Core Architecture & Native Engine
-* **SwiftUI & TextKit 2 Viewport:** Ultra-smooth layout and scrolling on massive 100+ page documents.
-* **Headless Rust Core:** Lossless OpenXML (.docx) packaging and parsing with zero formatting degradation.
-* **Universal BYOK AI Gateway:** Direct cloud streaming with Anthropic Claude, OpenAI GPT-4o, and Google Gemini.
+1. Core Architecture & Native Engine
+• SwiftUI & TextKit 2 Viewport: Ultra-smooth layout and scrolling on massive 100+ page documents.
+• Headless Rust Core: Lossless OpenXML (.docx) packaging and parsing with zero formatting degradation.
+• Universal BYOK AI Gateway: Direct cloud streaming with Anthropic Claude, OpenAI GPT-4o, and Google Gemini.
 
-## 2. Linked Sources & Dynamic Style Rules
-* Citations store structured bibliographic metadata rather than flat static text.
-* Real-time re-rendering across APA 7, MLA 9, Chicago, and Bluebook legal standards.
+2. Linked Sources & Dynamic Style Rules
+• Citations store structured bibliographic metadata rather than flat static text.
+• Real-time re-rendering across APA 7, MLA 9, Chicago, and Bluebook legal standards.
 
-## 3. Dynamic Smart Tables & Formulas
-* Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
+3. Dynamic Smart Tables & Formulas
+• Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
 """
 
     @State private var activeTool: StudioTool = .select
@@ -221,6 +222,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                             text: $rawText,
                                             selectedText: $selectedText,
                                             selectionRange: $selectionRange,
+                                            controller: editorController,
                                             fontFamily: fontFamily,
                                             fontSize: fontSize,
                                             isBold: isBold,
@@ -415,7 +417,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         case .select:
             showToast("✓ Selection Tool active")
         case .text:
-            rawText += "\n\n## New Section Heading\nType section body text here..."
+            rawText += "\n\nNew Section Heading\nType section body text here..."
             showToast("✓ Inserted Text Section")
         case .table:
             let newTable = StudioTableData(
@@ -445,69 +447,39 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func toggleBoldAction() {
-        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if selectedText.hasPrefix("**") && selectedText.hasSuffix("**") {
-                let unwrapped = String(selectedText.dropFirst(2).dropLast(2))
-                rawText = rawText.replacingOccurrences(of: selectedText, with: unwrapped)
-                selectedText = unwrapped
-            } else {
-                let wrapped = "**\(selectedText)**"
-                rawText = rawText.replacingOccurrences(of: selectedText, with: wrapped)
-                selectedText = wrapped
-            }
-            showToast("✓ Formatted Bold")
-        } else {
-            showToast(isBold ? "✓ Bold mode enabled" : "Bold mode disabled")
-        }
+        editorController.toggleBold()
+        isBold.toggle()
+        showToast(isBold ? "✓ Bold enabled" : "Bold disabled")
     }
 
     private func toggleItalicAction() {
-        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if selectedText.hasPrefix("*") && selectedText.hasSuffix("*") {
-                let unwrapped = String(selectedText.dropFirst(1).dropLast(1))
-                rawText = rawText.replacingOccurrences(of: selectedText, with: unwrapped)
-                selectedText = unwrapped
-            } else {
-                let wrapped = "*\(selectedText)*"
-                rawText = rawText.replacingOccurrences(of: selectedText, with: wrapped)
-                selectedText = wrapped
-            }
-            showToast("✓ Formatted Italic")
-        } else {
-            showToast(isItalic ? "✓ Italic mode enabled" : "Italic mode disabled")
-        }
+        editorController.toggleItalic()
+        isItalic.toggle()
+        showToast(isItalic ? "✓ Italic enabled" : "Italic disabled")
     }
 
     private func toggleUnderlineAction() {
-        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if selectedText.hasPrefix("<u>") && selectedText.hasSuffix("</u>") {
-                let unwrapped = String(selectedText.dropFirst(3).dropLast(4))
-                rawText = rawText.replacingOccurrences(of: selectedText, with: unwrapped)
-                selectedText = unwrapped
-            } else {
-                let wrapped = "<u>\(selectedText)</u>"
-                rawText = rawText.replacingOccurrences(of: selectedText, with: wrapped)
-                selectedText = wrapped
-            }
-            showToast("✓ Formatted Underline")
-        } else {
-            showToast(isUnderline ? "✓ Underline mode enabled" : "Underline mode disabled")
-        }
+        editorController.toggleUnderline()
+        isUnderline.toggle()
+        showToast(isUnderline ? "✓ Underline enabled" : "Underline disabled")
     }
 
     private func setAlignmentAction(_ align: TextAlignment) {
         textAlignment = align
+        editorController.applyAlignment(align, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
         let name = align == .leading ? "Left" : align == .center ? "Center" : "Right"
         showToast("✓ Alignment: \(name)")
     }
 
     private func setFontFamilyAction(_ font: String) {
         fontFamily = font
+        editorController.applyFontFamily(font, size: fontSize)
         showToast("✓ Font: \(font)")
     }
 
     private func setFontSizeAction(_ size: CGFloat) {
         fontSize = size
+        editorController.applyFontSize(size)
         showToast("✓ Font Size: \(Int(size)) pt")
     }
 
