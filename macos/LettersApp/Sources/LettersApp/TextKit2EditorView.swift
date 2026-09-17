@@ -422,13 +422,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         Coordinator(self)
     }
 
-    public func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.drawsBackground = false
-
+    public func makeNSView(context: Context) -> StudioTextView {
         let textView = StudioTextView()
         textView.actionController = controller
         textView.isRichText = true
@@ -439,6 +433,9 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = true
         textView.isSelectable = true
         textView.isEditable = true
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        textView.focusRingType = .none
 
         let font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = NSMutableParagraphStyle()
@@ -454,8 +451,6 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.font = font
         textView.textColor = textColor
         textView.insertionPointColor = NSColor.systemBlue
-        textView.backgroundColor = .clear
-        textView.drawsBackground = false
         textView.defaultParagraphStyle = paragraphStyle
 
         let typingAttrs: [NSAttributedString.Key: Any] = [
@@ -465,9 +460,9 @@ public struct TextKit2EditorView: NSViewRepresentable {
         ]
         textView.typingAttributes = typingAttrs
 
-        // Dynamic Document Page Insets
-        textView.textContainerInset = NSSize(width: margins.left, height: margins.top)
+        textView.textContainerInset = NSSize(width: 0, height: 2)
         textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
@@ -481,26 +476,18 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
         controller?.textView = textView
-        scrollView.documentView = textView
 
         DispatchQueue.main.async {
             context.coordinator.isInitializing = false
         }
 
-        return scrollView
+        return textView
     }
 
-    public func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? StudioTextView else { return }
+    public func updateNSView(_ textView: StudioTextView, context: Context) {
         textView.actionController = controller
         if context.coordinator.textView == nil {
             context.coordinator.textView = textView
-        }
-
-        // Update margins if changed
-        let targetInset = NSSize(width: margins.left, height: margins.top)
-        if textView.textContainerInset != targetInset {
-            textView.textContainerInset = targetInset
         }
 
         // Update text if changed externally

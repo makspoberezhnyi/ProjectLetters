@@ -520,9 +520,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func calculateEditorHeight(for textContent: String) -> CGFloat {
-        let font = NSFont(name: fontFamily, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
+        let font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineSpacing = lineSpacing * 4.0
+        switch textAlignment {
+        case .leading: paragraphStyle.alignment = .left
+        case .center: paragraphStyle.alignment = .center
+        case .trailing: paragraphStyle.alignment = .right
+        }
+        paragraphStyle.lineHeightMultiple = lineSpacing
         paragraphStyle.paragraphSpacing = paragraphSpacing
         let availableWidth = max(100, currentSheetWidth - margins.left - margins.right)
         let attrStr = NSAttributedString(
@@ -536,7 +541,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
-        return max(40, ceil(rect.height) + 28)
+        return max(32, ceil(rect.height) + 20)
     }
 
     private var unreferencedTableIndices: [Int] {
@@ -1193,6 +1198,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func documentCanvasContent(pageIndex: Int) -> some View {
         let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : rawText
         let segments = parseCanvasSegments(for: pageStr, pageIndex: pageIndex)
+        let printableWidth = max(100, currentSheetWidth - margins.left - margins.right)
 
         VStack(alignment: .leading, spacing: 14) {
             ForEach(segments) { segment in
@@ -1224,7 +1230,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         alignment: textAlignment,
                         lineSpacing: lineSpacing,
                         paragraphSpacing: paragraphSpacing,
-                        margins: PageMargins(top: 6, bottom: 6, left: margins.left, right: margins.right),
+                        margins: PageMargins(),
                         onSelectionChanged: { _, _, attrs in
                             self.isBold = attrs.isBold
                             self.isItalic = attrs.isItalic
@@ -1234,7 +1240,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             self.textAlignment = attrs.alignment
                         }
                     )
-                    .frame(width: currentSheetWidth, height: calculateEditorHeight(for: chunkText))
+                    .frame(width: printableWidth, height: calculateEditorHeight(for: chunkText))
 
                 case .table(let tableId):
                     if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
@@ -1254,7 +1260,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 showToast(msg)
                             }
                         )
-                        .padding(.horizontal, margins.left)
                     }
 
                 case .image(let imageId):
@@ -1274,7 +1279,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 showToast(msg)
                             }
                         )
-                        .padding(.horizontal, margins.left)
                     }
 
                 case .video(let videoId):
@@ -1294,7 +1298,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 showToast(msg)
                             }
                         )
-                        .padding(.horizontal, margins.left)
                     }
 
                 case .bibliography:
@@ -1309,7 +1312,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             showToast(msg)
                         }
                     )
-                    .padding(.horizontal, margins.left)
 
                 case .tableOfContents:
                     DynamicTOCView(
@@ -1322,7 +1324,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             showToast(msg)
                         }
                     )
-                    .padding(.horizontal, margins.left)
                 }
             }
 
@@ -1333,7 +1334,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         tableData: $studioTables[idx],
                         onDelete: {
                             studioTables.remove(at: idx)
-                            showToast("✓ Deleted table")
+                            showToast("✓ Removed unreferenced table")
                         },
                         onChange: {
                             showToast("✓ Table updated")
@@ -1342,16 +1343,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             showToast(msg)
                         }
                     )
-                    .padding(.horizontal, margins.left)
                 }
 
-                // Unreferenced Images
                 ForEach(unreferencedImageIndices, id: \.self) { idx in
                     StudioImageView(
                         imageBlock: $studioImages[idx],
                         onDelete: {
                             studioImages.remove(at: idx)
-                            showToast("✓ Deleted figure")
+                            showToast("✓ Removed unreferenced figure")
                         },
                         onChange: {
                             showToast("✓ Figure updated")
@@ -1360,16 +1359,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             showToast(msg)
                         }
                     )
-                    .padding(.horizontal, margins.left)
                 }
 
-                // Unreferenced Videos
                 ForEach(unreferencedVideoIndices, id: \.self) { idx in
                     StudioVideoView(
                         videoBlock: $studioVideos[idx],
                         onDelete: {
                             studioVideos.remove(at: idx)
-                            showToast("✓ Deleted video card")
+                            showToast("✓ Removed unreferenced video")
                         },
                         onChange: {
                             showToast("✓ Video updated")
@@ -1378,10 +1375,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             showToast(msg)
                         }
                     )
-                    .padding(.horizontal, margins.left)
                 }
             }
         }
+        .padding(.top, margins.top)
+        .padding(.bottom, margins.bottom)
+        .padding(.horizontal, margins.left)
         .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
     }
 
