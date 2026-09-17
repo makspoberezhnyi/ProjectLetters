@@ -7,6 +7,7 @@ public struct FloatingActionMenu: View {
     let selectedText: String
     var onBold: () -> Void
     var onItalic: () -> Void
+    var onPolish: () -> Void
     var onTranslate: () -> Void
     var onExplain: () -> Void
     var onCite: () -> Void
@@ -15,6 +16,7 @@ public struct FloatingActionMenu: View {
         selectedText: String,
         onBold: @escaping () -> Void,
         onItalic: @escaping () -> Void,
+        onPolish: @escaping () -> Void = {},
         onTranslate: @escaping () -> Void,
         onExplain: @escaping () -> Void,
         onCite: @escaping () -> Void
@@ -22,6 +24,7 @@ public struct FloatingActionMenu: View {
         self.selectedText = selectedText
         self.onBold = onBold
         self.onItalic = onItalic
+        self.onPolish = onPolish
         self.onTranslate = onTranslate
         self.onExplain = onExplain
         self.onCite = onCite
@@ -43,6 +46,12 @@ public struct FloatingActionMenu: View {
 
             Divider()
                 .frame(height: 16)
+
+            Button(action: onPolish) {
+                Label("Polish", systemImage: "wand.and.stars")
+                    .font(.system(size: 12))
+            }
+            .help("AI Academic & Flow Polish")
 
             Button(action: onTranslate) {
                 Label("Translate", systemImage: "translate")

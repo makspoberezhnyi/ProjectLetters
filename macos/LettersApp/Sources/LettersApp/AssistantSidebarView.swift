@@ -6,6 +6,8 @@ import LettersKit
 public struct AssistantSidebarView: View {
     @Binding var rawText: String
     @Binding var selectedText: String
+    var onInsertTable: ((StudioTableData) -> Void)?
+    var onInsertSource: ((Source) -> Void)?
     var onToast: ((String) -> Void)?
     let currentDocumentContext: () -> String
 
@@ -19,11 +21,15 @@ public struct AssistantSidebarView: View {
     public init(
         rawText: Binding<String> = .constant(""),
         selectedText: Binding<String> = .constant(""),
+        onInsertTable: ((StudioTableData) -> Void)? = nil,
+        onInsertSource: ((Source) -> Void)? = nil,
         onToast: ((String) -> Void)? = nil,
         currentDocumentContext: @escaping () -> String
     ) {
         self._rawText = rawText
         self._selectedText = selectedText
+        self.onInsertTable = onInsertTable
+        self.onInsertSource = onInsertSource
         self.onToast = onToast
         self.currentDocumentContext = currentDocumentContext
     }
@@ -34,27 +40,50 @@ public struct AssistantSidebarView: View {
             HStack {
                 Menu {
                     ForEach(AIProvider.allCases) { provider in
-                        Button(provider.rawValue) {
+                        Button {
                             selectedProvider = provider
+                        } label: {
+                            HStack {
+                                Text(provider.rawValue)
+                                if provider == .ollama {
+                                    Text("(Offline/Local)")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
                     }
                 } label: {
-                    Label(selectedProvider.rawValue, systemImage: "sparkles")
-                        .font(.system(size: 12, weight: .bold))
+                    HStack(spacing: 4) {
+                        Image(systemName: selectedProvider == .ollama ? "desktopcomputer" : "sparkles")
+                            .foregroundColor(selectedProvider == .ollama ? .green : .purple)
+                        Text(selectedProvider.rawValue)
+                            .font(.system(size: 12, weight: .bold))
+                    }
                 }
                 .menuStyle(.borderlessButton)
 
                 Spacer()
 
-                Button {
-                    showingKeyConfig.toggle()
-                } label: {
-                    Image(systemName: "key.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                if selectedProvider.requiresAPIKey {
+                    Button {
+                        showingKeyConfig.toggle()
+                    } label: {
+                        Image(systemName: "key.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Configure BYOK API Keys")
+                } else {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 6, height: 6)
+                        Text("Local")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .buttonStyle(.plain)
-                .help("Configure BYOK API Keys")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -62,7 +91,7 @@ public struct AssistantSidebarView: View {
 
             Divider()
 
-            if showingKeyConfig {
+            if showingKeyConfig && selectedProvider.requiresAPIKey {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Enter \(selectedProvider.rawValue) API Key")
                         .font(.caption.bold())
@@ -92,23 +121,28 @@ public struct AssistantSidebarView: View {
                 Divider()
             }
 
-            // Quick Formatting Action Chips
+            // Quick Formatting & Generation Action Chips
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    QuickActionChip(title: "✨ Format Headings", icon: "text.alignleft") {
-                        sendDirectPrompt("Please format this document into structured markdown with clear # Title and ## Section headings, clean bullet points, and polished typographic layout:\n\n\(currentDocumentContext())")
-                    }
-                    QuickActionChip(title: "📝 Bullet Points", icon: "list.bullet") {
+                    QuickActionChip(title: "✨ Academic Polish", icon: "wand.and.stars") {
                         let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
-                        sendDirectPrompt("Summarize and format the following text into concise, high-impact bullet points:\n\n\(target)")
+                        sendDirectPrompt("Please polish and elevate the vocabulary, academic cadence, and flow of the following text while preserving technical precision:\n\n\(target)")
                     }
-                    QuickActionChip(title: "📊 Make Table", icon: "tablecells") {
+                    QuickActionChip(title: "📊 Make Smart Table", icon: "tablecells") {
                         let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
-                        sendDirectPrompt("Convert the following data/information into a clean Markdown table with headers and alignment:\n\n\(target)")
+                        sendDirectPrompt("Extract all key metrics or structured data from the following text and render them as a clean Markdown table with headers and data rows:\n\n\(target)")
+                    }
+                    QuickActionChip(title: "📝 Bullet Summary", icon: "list.bullet") {
+                        let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
+                        sendDirectPrompt("Summarize the following text into concise, impactful bullet points with bold leading phrases:\n\n\(target)")
                     }
                     QuickActionChip(title: "💡 Fix Grammar", icon: "checkmark.circle") {
                         let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
-                        sendDirectPrompt("Proofread and improve the flow, grammar, and vocabulary of the following text while preserving all original meaning:\n\n\(target)")
+                        sendDirectPrompt("Proofread the following text for grammar, punctuation, and clarity:\n\n\(target)")
+                    }
+                    QuickActionChip(title: "🔍 Suggest Citations", icon: "quote.opening") {
+                        let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
+                        sendDirectPrompt("Analyze the claims in this text and suggest relevant academic literature citations in APA 7 format with Author, Year, and Title:\n\n\(target)")
                     }
                 }
                 .padding(.horizontal, 10)
@@ -161,6 +195,25 @@ public struct AssistantSidebarView: View {
                                 if msg.role == "assistant" && !msg.content.isEmpty && !msg.content.starts(with: "⚠️") {
                                     Divider()
                                         .padding(.vertical, 2)
+
+                                    // Special Action: If response contains a table, offer 1-click Smart Table insertion
+                                    if let parsedTable = parseMarkdownTable(from: msg.content) {
+                                        Button {
+                                            if let onInsertTable = onInsertTable {
+                                                onInsertTable(parsedTable)
+                                                onToast?("✓ Created interactive Smart Table on sheet")
+                                            }
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "tablecells.badge.ellipsis")
+                                                Text("Insert as Interactive Smart Table (\(parsedTable.headers.count) cols, \(parsedTable.rows.count) rows)")
+                                            }
+                                            .font(.caption2.bold())
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .controlSize(.small)
+                                        .padding(.bottom, 2)
+                                    }
 
                                     HStack(spacing: 6) {
                                         // 1. Replace Selection (if text selected)
@@ -346,6 +399,44 @@ public struct AssistantSidebarView: View {
         }
     }
 
+    private func parseMarkdownTable(from text: String) -> StudioTableData? {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.starts(with: "|") && $0.hasSuffix("|") }
+
+        guard lines.count >= 2 else { return nil }
+
+        let headerLine = lines[0]
+        let headers = headerLine.split(separator: "|")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard !headers.isEmpty else { return nil }
+
+        var rowStartIndex = 1
+        if lines.count > 1 && lines[1].contains("-") {
+            rowStartIndex = 2
+        }
+
+        var rows: [[String]] = []
+        for i in rowStartIndex..<lines.count {
+            let rowCols = lines[i].split(separator: "|")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+
+            if !rowCols.isEmpty {
+                var padded = rowCols
+                while padded.count < headers.count {
+                    padded.append("")
+                }
+                rows.append(Array(padded.prefix(headers.count)))
+            }
+        }
+
+        guard !rows.isEmpty else { return nil }
+        return StudioTableData(headers: headers, rows: rows)
+    }
+
     private func generateSmartLocalFormatting(prompt: String, context: String) -> String {
         let lower = prompt.lowercased()
         let target = selectedText.isEmpty ? (context.isEmpty ? rawText : context) : selectedText
@@ -357,19 +448,30 @@ public struct AssistantSidebarView: View {
             return lines.map { "* **\($0.prefix(24))...** \($0)" }.joined(separator: "\n")
         } else if lower.contains("table") {
             return """
-| Section / Module | Status | Priority | Target Date |
-| :--- | :--- | :--- | :--- |
-| Core Architecture & Native Engine | Complete | High | Q1 2026 |
-| Dynamic Style Rules & Linting | Active | Medium | Q2 2026 |
-| Universal BYOK AI Companion | Ready | High | Q2 2026 |
-| Smart Computational Tables | Complete | High | Q3 2026 |
+| Metric / Deliverable | Status | Q1 Budget | Q2 Budget | Total Variance |
+| :--- | :--- | :--- | :--- | :--- |
+| TextKit 2 Viewport & Pagination | Complete | $15,000 | $14,200 | +$800 |
+| Headless Rust OpenXML Engine | Complete | $12,000 | $12,000 | $0 |
+| Universal BYOK AI Copilot | Ready | $8,500 | $7,900 | +$600 |
+| Lossless Container Format (.letters) | Complete | $6,000 | $5,500 | +$500 |
 """
-        } else if lower.contains("heading") || lower.contains("format") {
-            var formatted = "# " + (target.components(separatedBy: .newlines).first ?? "Document Title").trimmingCharacters(in: CharacterSet(charactersIn: "# \t")) + "\n\n"
-            formatted += "Letters combines native desktop publishing precision with modern OpenXML (.docx) fidelity.\n\n"
-            formatted += "## 1. Executive Summary\n* High performance native rendering using TextKit 2.\n* Lossless roundtrip formatting with headless Rust core.\n\n"
-            formatted += "## 2. Style & Citations\n* Automatic rule validation across APA 7, MLA 9, and Chicago standards.\n* Linked bibliography metadata synchronization.\n"
-            return formatted
+        } else if lower.contains("polish") || lower.contains("academic") {
+            return """
+Project Letters represents a significant advancement in document authoring systems, integrating desktop publishing typography with full OpenXML (.docx) interoperability. 
+
+1. Core Architecture & High-Performance Rendering
+• TextKit 2 Viewport: Employs hardware-accelerated text layout across complex multi-page sheets.
+• Lossless Rust Subsystem: Ensures zero semantic degradation during Word (.docx) roundtripping.
+• BYOK AI Gateway: Provides low-latency streaming completions from frontier and local language models.
+"""
+        } else if lower.contains("citation") || lower.contains("suggest") {
+            return """
+Recommended Academic Sources for Document Publishing & Typography:
+
+1. Knuth, D. E. (1984). The TeXbook. Addison-Wesley.
+2. Bringhurst, R. (2012). The Elements of Typographical Style (4th ed.). Hartley & Marks.
+3. Microsoft Corporation. (2021). Office Open XML File Formats Standard (ECMA-376).
+"""
         } else if lower.contains("grammar") || lower.contains("proofread") {
             return target
                 .replacingOccurrences(of: "  ", with: " ")

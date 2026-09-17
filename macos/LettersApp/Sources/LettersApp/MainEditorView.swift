@@ -415,6 +415,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                     onItalic: {
                                                         toggleItalicAction()
                                                     },
+                                                    onPolish: {
+                                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                            showAIDrawer = true
+                                                        }
+                                                        showToast("✨ AI Copilot opened for polish")
+                                                    },
                                                     onTranslate: {
                                                         Task {
                                                             if let res = try? await TranslationService.shared.translate(text: selectedText) {
@@ -423,7 +429,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                         }
                                                     },
                                                     onExplain: {
-                                                        showAIDrawer = true
+                                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                            showAIDrawer = true
+                                                        }
+                                                        showToast("✨ AI Copilot explaining selection")
                                                     },
                                                     onCite: {
                                                         insertCitationForSelection()
@@ -532,8 +541,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     AssistantSidebarView(
                         rawText: $rawText,
                         selectedText: $selectedText,
+                        onInsertTable: { table in
+                            studioTables.append(table)
+                        },
+                        onInsertSource: { source in
+                            document.sources[source.id] = source
+                        },
                         onToast: { msg in showToast(msg) },
-                        currentDocumentContext: { rawText }
+                        currentDocumentContext: { buildDocumentAIContext() }
                     )
                     .transition(.move(edge: .trailing))
                 }
@@ -771,6 +786,67 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 showToast("✓ Zoom: 100%")
             }
         ]
+    }
+
+    private func buildDocumentAIContext() -> String {
+        var context = "=== DOCUMENT METADATA ===\n"
+        context += "Title: \(documentTitle)\n"
+        context += "Page Format: \(pageSize.rawValue) (\(Int(currentSheetWidth))x\(Int(currentSheetHeight)) pt)\n"
+        context += "Margins: Top \(Int(margins.top)) pt, Bottom \(Int(margins.bottom)) pt, Left \(Int(margins.left)) pt, Right \(Int(margins.right)) pt\n"
+        context += "Word Count: \(wordCount) words, \(characterCount) characters\n\n"
+
+        context += "=== DOCUMENT BODY TEXT ===\n"
+        context += rawText + "\n\n"
+
+        if !studioTables.isEmpty {
+            context += "=== EMBEDDED SMART TABLES (\(studioTables.count)) ===\n"
+            for (i, table) in studioTables.enumerated() {
+                context += "Table \(i + 1):\n"
+                context += "| " + table.headers.joined(separator: " | ") + " |\n"
+                context += "| " + table.headers.map { _ in "---" }.joined(separator: " | ") + " |\n"
+                for row in table.rows {
+                    context += "| " + row.joined(separator: " | ") + " |\n"
+                }
+                context += "\n"
+            }
+        }
+
+        if !studioImages.isEmpty {
+            context += "=== EMBEDDED FIGURES & IMAGES (\(studioImages.count)) ===\n"
+            for (i, img) in studioImages.enumerated() {
+                context += "Figure \(i + 1): \(img.caption) [Alignment: \(img.alignment.rawValue), Aspect Ratio: \(img.aspectRatioPreset.rawValue)]\n"
+            }
+            context += "\n"
+        }
+
+        if !studioVideos.isEmpty {
+            context += "=== EMBEDDED MEDIA / VIDEOS (\(studioVideos.count)) ===\n"
+            for (i, vid) in studioVideos.enumerated() {
+                context += "Video \(i + 1): \(vid.title) (\(vid.platform.rawValue): \(vid.url))\n"
+            }
+            context += "\n"
+        }
+
+        if !document.sources.isEmpty {
+            context += "=== LINKED BIBLIOGRAPHIC SOURCES (\(document.sources.count)) ===\n"
+            for (id, src) in document.sources {
+                let authorsStr = src.authors.joined(separator: ", ")
+                let yearStr = src.year != nil ? String(src.year!) : "n.d."
+                context += "[\(id)]: \(authorsStr) (\(yearStr)). \(src.title). [Type: \(src.sourceType.rawValue)]\n"
+            }
+            context += "\n"
+        }
+
+        if !lintIssues.isEmpty {
+            context += "=== STYLE & CITATION LINT NOTICES (\(lintIssues.count)) ===\n"
+            for issue in lintIssues.prefix(5) {
+                let sugg = issue.suggestion ?? "Check rule guideline"
+                context += "• [\(issue.ruleId)]: \(issue.message) -> Recommendation: \(sugg)\n"
+            }
+            context += "\n"
+        }
+
+        return context
     }
 
     private func runLinter() {
