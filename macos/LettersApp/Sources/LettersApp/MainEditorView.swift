@@ -278,7 +278,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                     lineSpacing: lineSpacing,
                                                     paragraphSpacing: paragraphSpacing,
                                                     margins: margins,
-                                                    onSelectionChanged: { _, _ in }
+                                                    onSelectionChanged: { _, _, attrs in
+                                                        self.isBold = attrs.isBold
+                                                        self.isItalic = attrs.isItalic
+                                                        self.isUnderline = attrs.isUnderline
+                                                        self.fontFamily = attrs.fontFamily
+                                                        self.fontSize = attrs.fontSize
+                                                        self.textAlignment = attrs.alignment
+                                                    }
                                                 )
                                                 .frame(width: currentSheetWidth, height: calculateEditorHeight())
 
@@ -389,7 +396,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                                     onTranslate: {
                                                         Task {
                                                             if let res = try? await TranslationService.shared.translate(text: selectedText) {
-                                                                rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                                                                if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
+                                                                    let ns = rawText as NSString
+                                                                    rawText = ns.replacingCharacters(in: selectionRange, with: res)
+                                                                } else {
+                                                                    rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                                                                }
                                                             }
                                                         }
                                                     },
@@ -704,19 +716,46 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     private func toggleBoldAction() {
         editorController.toggleBold()
-        isBold.toggle()
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.isBold = attrs.isBold
+            self.isItalic = attrs.isItalic
+            self.isUnderline = attrs.isUnderline
+            self.fontFamily = attrs.fontFamily
+            self.fontSize = attrs.fontSize
+            self.textAlignment = attrs.alignment
+        } else {
+            isBold.toggle()
+        }
         showToast(isBold ? "✓ Bold enabled" : "Bold disabled")
     }
 
     private func toggleItalicAction() {
         editorController.toggleItalic()
-        isItalic.toggle()
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.isBold = attrs.isBold
+            self.isItalic = attrs.isItalic
+            self.isUnderline = attrs.isUnderline
+            self.fontFamily = attrs.fontFamily
+            self.fontSize = attrs.fontSize
+            self.textAlignment = attrs.alignment
+        } else {
+            isItalic.toggle()
+        }
         showToast(isItalic ? "✓ Italic enabled" : "Italic disabled")
     }
 
     private func toggleUnderlineAction() {
         editorController.toggleUnderline()
-        isUnderline.toggle()
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.isBold = attrs.isBold
+            self.isItalic = attrs.isItalic
+            self.isUnderline = attrs.isUnderline
+            self.fontFamily = attrs.fontFamily
+            self.fontSize = attrs.fontSize
+            self.textAlignment = attrs.alignment
+        } else {
+            isUnderline.toggle()
+        }
         showToast(isUnderline ? "✓ Underline enabled" : "Underline disabled")
     }
 
@@ -730,12 +769,24 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func setFontFamilyAction(_ font: String) {
         fontFamily = font
         editorController.applyFontFamily(font, size: fontSize)
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.isBold = attrs.isBold
+            self.isItalic = attrs.isItalic
+            self.isUnderline = attrs.isUnderline
+            self.fontSize = attrs.fontSize
+        }
         showToast("✓ Font: \(font)")
     }
 
     private func setFontSizeAction(_ size: CGFloat) {
         fontSize = size
         editorController.applyFontSize(size)
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.isBold = attrs.isBold
+            self.isItalic = attrs.isItalic
+            self.isUnderline = attrs.isUnderline
+            self.fontFamily = attrs.fontFamily
+        }
         showToast("✓ Font Size: \(Int(size)) pt")
     }
 

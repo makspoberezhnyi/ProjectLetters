@@ -5,11 +5,96 @@ import Foundation
 import LettersKit
 #endif
 
+public struct EditorSelectionAttributes: Equatable {
+    public var fontFamily: String
+    public var fontSize: CGFloat
+    public var isBold: Bool
+    public var isItalic: Bool
+    public var isUnderline: Bool
+    public var alignment: TextAlignment
+
+    public init(
+        fontFamily: String = "Default Serif (Georgia)",
+        fontSize: CGFloat = 15.0,
+        isBold: Bool = false,
+        isItalic: Bool = false,
+        isUnderline: Bool = false,
+        alignment: TextAlignment = .leading
+    ) {
+        self.fontFamily = fontFamily
+        self.fontSize = fontSize
+        self.isBold = isBold
+        self.isItalic = isItalic
+        self.isUnderline = isUnderline
+        self.alignment = alignment
+    }
+}
+
 @MainActor
 public class EditorActionController: ObservableObject {
     public weak var textView: NSTextView?
 
     public init() {}
+
+    public func currentSelectionAttributes() -> EditorSelectionAttributes? {
+        guard let textView = textView else { return nil }
+        let range = textView.selectedRange()
+        var font: NSFont? = nil
+        var isUnderlined = false
+        var align: TextAlignment = .leading
+
+        if let textStorage = textView.textStorage, textStorage.length > 0 {
+            let loc: Int
+            if range.length > 0 {
+                loc = range.location
+            } else {
+                loc = max(0, min(range.location, textStorage.length - 1))
+            }
+            if loc < textStorage.length {
+                let attrs = textStorage.attributes(at: loc, effectiveRange: nil)
+                font = attrs[.font] as? NSFont
+                if let u = attrs[.underlineStyle] as? Int, u != 0 {
+                    isUnderlined = true
+                }
+                if let p = attrs[.paragraphStyle] as? NSParagraphStyle {
+                    switch p.alignment {
+                    case .center: align = .center
+                    case .right: align = .trailing
+                    default: align = .leading
+                    }
+                }
+            }
+        }
+
+        if font == nil {
+            font = (textView.typingAttributes[.font] as? NSFont) ?? textView.font ?? NSFont.systemFont(ofSize: 15)
+            if let u = textView.typingAttributes[.underlineStyle] as? Int, u != 0 {
+                isUnderlined = true
+            }
+            if let p = textView.typingAttributes[.paragraphStyle] as? NSParagraphStyle {
+                switch p.alignment {
+                case .center: align = .center
+                case .right: align = .trailing
+                default: align = .leading
+                }
+            }
+        }
+
+        let validFont = font ?? NSFont.systemFont(ofSize: 15)
+        let traits = NSFontManager.shared.traits(of: validFont)
+        let bold = traits.contains(.boldFontMask)
+        let italic = traits.contains(.italicFontMask)
+        let fam = fontDisplayName(for: validFont)
+
+        return EditorSelectionAttributes(
+            fontFamily: fam,
+            fontSize: validFont.pointSize > 0 ? validFont.pointSize : 15.0,
+            isBold: bold,
+            isItalic: italic,
+            isUnderline: isUnderlined,
+            alignment: align
+        )
+    }
 
     public func toggleBold() {
         guard let textView = textView else { return }
@@ -18,12 +103,22 @@ public class EditorActionController: ObservableObject {
 
         if range.length > 0 {
             textStorage.beginEditing()
-            textStorage.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+            var allBold = true
+            textStorage.enumerateAttribute(.font, in: range, options: []) { value, _, stop in
                 let currentFont = (value as? NSFont) ?? NSFont.systemFont(ofSize: 15)
                 let isBold = NSFontManager.shared.traits(of: currentFont).contains(.boldFontMask)
-                let newFont = isBold
-                    ? NSFontManager.shared.convert(currentFont, toNotHaveTrait: .boldFontMask)
-                    : NSFontManager.shared.convert(currentFont, toHaveTrait: .boldFontMask)
+                if !isBold {
+                    allBold = false
+                    stop.pointee = true
+                }
+            }
+            let targetTraitBold = !allBold
+
+            textStorage.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+                let currentFont = (value as? NSFont) ?? NSFont.systemFont(ofSize: 15)
+                let newFont = targetTraitBold
+                    ? NSFontManager.shared.convert(currentFont, toHaveTrait: .boldFontMask)
+                    : NSFontManager.shared.convert(currentFont, toNotHaveTrait: .boldFontMask)
                 textStorage.addAttribute(.font, value: newFont, range: subRange)
             }
             textStorage.endEditing()
@@ -47,12 +142,22 @@ public class EditorActionController: ObservableObject {
 
         if range.length > 0 {
             textStorage.beginEditing()
-            textStorage.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+            var allItalic = true
+            textStorage.enumerateAttribute(.font, in: range, options: []) { value, _, stop in
                 let currentFont = (value as? NSFont) ?? NSFont.systemFont(ofSize: 15)
                 let isItalic = NSFontManager.shared.traits(of: currentFont).contains(.italicFontMask)
-                let newFont = isItalic
-                    ? NSFontManager.shared.convert(currentFont, toNotHaveTrait: .italicFontMask)
-                    : NSFontManager.shared.convert(currentFont, toHaveTrait: .italicFontMask)
+                if !isItalic {
+                    allItalic = false
+                    stop.pointee = true
+                }
+            }
+            let targetTraitItalic = !allItalic
+
+            textStorage.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+                let currentFont = (value as? NSFont) ?? NSFont.systemFont(ofSize: 15)
+                let newFont = targetTraitItalic
+                    ? NSFontManager.shared.convert(currentFont, toHaveTrait: .italicFontMask)
+                    : NSFontManager.shared.convert(currentFont, toNotHaveTrait: .italicFontMask)
                 textStorage.addAttribute(.font, value: newFont, range: subRange)
             }
             textStorage.endEditing()
@@ -76,14 +181,15 @@ public class EditorActionController: ObservableObject {
 
         if range.length > 0 {
             textStorage.beginEditing()
-            var hasUnderline = false
+            var allUnderlined = true
             textStorage.enumerateAttribute(.underlineStyle, in: range, options: []) { value, _, stop in
-                if let val = value as? Int, val != 0 {
-                    hasUnderline = true
+                let isUnderlined = ((value as? Int) ?? 0) != 0
+                if !isUnderlined {
+                    allUnderlined = false
                     stop.pointee = true
                 }
             }
-            if hasUnderline {
+            if allUnderlined {
                 textStorage.removeAttribute(.underlineStyle, range: range)
             } else {
                 textStorage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
@@ -101,39 +207,65 @@ public class EditorActionController: ObservableObject {
     public func applyFontFamily(_ family: String, size: CGFloat) {
         guard let textView = textView, let textStorage = textView.textStorage else { return }
         let range = textView.selectedRange()
-        let targetRange = range.length > 0 ? range : NSRange(location: 0, length: textStorage.length)
-        if targetRange.length > 0 {
+        if range.length > 0 {
             textStorage.beginEditing()
-            textStorage.enumerateAttribute(.font, in: targetRange, options: []) { value, subRange, _ in
+            textStorage.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
                 let currentFont = (value as? NSFont) ?? NSFont.systemFont(ofSize: size)
                 let isBold = NSFontManager.shared.traits(of: currentFont).contains(.boldFontMask)
                 let isItalic = NSFontManager.shared.traits(of: currentFont).contains(.italicFontMask)
-                let newFont = resolveFontNamed(family: family, size: currentFont.pointSize > 0 ? currentFont.pointSize : size, bold: isBold, italic: isItalic)
+                let ptSize = currentFont.pointSize > 0 ? currentFont.pointSize : size
+                let newFont = resolveFontNamed(family: family, size: ptSize, bold: isBold, italic: isItalic)
                 textStorage.addAttribute(.font, value: newFont, range: subRange)
             }
             textStorage.endEditing()
             textView.didChangeText()
+        } else {
+            var attrs = textView.typingAttributes
+            let currentFont = (attrs[.font] as? NSFont) ?? textView.font ?? NSFont.systemFont(ofSize: size)
+            let isBold = NSFontManager.shared.traits(of: currentFont).contains(.boldFontMask)
+            let isItalic = NSFontManager.shared.traits(of: currentFont).contains(.italicFontMask)
+            let ptSize = currentFont.pointSize > 0 ? currentFont.pointSize : size
+            let newFont = resolveFontNamed(family: family, size: ptSize, bold: isBold, italic: isItalic)
+            attrs[.font] = newFont
+            textView.typingAttributes = attrs
         }
     }
 
     public func applyFontSize(_ size: CGFloat) {
         guard let textView = textView, let textStorage = textView.textStorage else { return }
         let range = textView.selectedRange()
-        let targetRange = range.length > 0 ? range : NSRange(location: 0, length: textStorage.length)
-        if targetRange.length > 0 {
+        if range.length > 0 {
             textStorage.beginEditing()
-            textStorage.enumerateAttribute(.font, in: targetRange, options: []) { value, subRange, _ in
+            textStorage.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
                 let currentFont = (value as? NSFont) ?? NSFont.systemFont(ofSize: size)
                 let newFont = NSFontManager.shared.convert(currentFont, toSize: size)
                 textStorage.addAttribute(.font, value: newFont, range: subRange)
             }
             textStorage.endEditing()
             textView.didChangeText()
+        } else {
+            var attrs = textView.typingAttributes
+            let currentFont = (attrs[.font] as? NSFont) ?? textView.font ?? NSFont.systemFont(ofSize: size)
+            let newFont = NSFontManager.shared.convert(currentFont, toSize: size)
+            attrs[.font] = newFont
+            textView.typingAttributes = attrs
         }
     }
 
     public func applyAlignment(_ alignment: TextAlignment, lineSpacing: CGFloat, paragraphSpacing: CGFloat) {
         guard let textView = textView, let textStorage = textView.textStorage else { return }
+        let nsString = textStorage.string as NSString
+        guard nsString.length > 0 else { return }
+
+        let range = textView.selectedRange()
+        let targetRange: NSRange
+        if range.length > 0 {
+            targetRange = nsString.paragraphRange(for: range)
+        } else {
+            let safeLoc = min(max(0, range.location), max(0, nsString.length - 1))
+            targetRange = nsString.paragraphRange(for: NSRange(location: safeLoc, length: 0))
+        }
+
         let style = NSMutableParagraphStyle()
         switch alignment {
         case .leading: style.alignment = .left
@@ -143,18 +275,42 @@ public class EditorActionController: ObservableObject {
         style.lineHeightMultiple = lineSpacing
         style.paragraphSpacing = paragraphSpacing
 
-        let fullRange = NSRange(location: 0, length: textStorage.length)
         textStorage.beginEditing()
-        textStorage.addAttribute(.paragraphStyle, value: style, range: fullRange)
+        textStorage.addAttribute(.paragraphStyle, value: style, range: targetRange)
         textStorage.endEditing()
-        textView.defaultParagraphStyle = style
+
+        var attrs = textView.typingAttributes
+        attrs[.paragraphStyle] = style
+        textView.typingAttributes = attrs
+
         textView.didChangeText()
     }
 }
 
+public func fontDisplayName(for font: NSFont) -> String {
+    let name = font.fontName.lowercased()
+    let familyName = font.familyName?.lowercased() ?? ""
+    if name.contains("georgia") || familyName.contains("georgia") {
+        return "Default Serif (Georgia)"
+    } else if name.contains("times") || familyName.contains("times") {
+        return "Times New Roman"
+    } else if name.contains("helvetica") || familyName.contains("helvetica") {
+        return "Helvetica"
+    } else if name.contains("menlo") || familyName.contains("menlo") {
+        return "Menlo (Monospace)"
+    } else if name.contains("courier") || familyName.contains("courier") {
+        return "Courier"
+    } else if name.contains("charter") || familyName.contains("charter") {
+        return "Charter"
+    } else if name.contains("system") || name.contains("sfpro") || familyName.contains("sf pro") || familyName.contains("system") {
+        return "SF Pro"
+    }
+    return font.familyName ?? "Default Serif (Georgia)"
+}
+
 public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: Bool) -> NSFont {
     var baseName = "Georgia"
-    if family.contains("SF Pro") || family.contains("Modern Sans") {
+    if family.contains("SF Pro") || family.contains("Modern Sans") || family.contains("System") {
         let weight: NSFont.Weight = bold ? .bold : .regular
         let systemFont = NSFont.systemFont(ofSize: size, weight: weight)
         if italic {
@@ -162,11 +318,14 @@ public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: 
             return NSFont(descriptor: descriptor, size: size) ?? systemFont
         }
         return systemFont
-    } else if family.contains("Times New Roman") {
+    } else if family.contains("Times") {
         baseName = bold ? (italic ? "TimesNewRomanPS-BoldItalicMT" : "TimesNewRomanPS-BoldMT") : (italic ? "TimesNewRomanPS-ItalicMT" : "TimesNewRomanPSMT")
         if let custom = NSFont(name: baseName, size: size) { return custom }
-    } else if family.contains("Helvetica Neue") {
+    } else if family.contains("Helvetica") {
         baseName = bold ? (italic ? "HelveticaNeue-BoldItalic" : "HelveticaNeue-Bold") : (italic ? "HelveticaNeue-Italic" : "HelveticaNeue")
+        if let custom = NSFont(name: baseName, size: size) { return custom }
+    } else if family.contains("Menlo") {
+        baseName = bold ? (italic ? "Menlo-BoldItalic" : "Menlo-Bold") : (italic ? "Menlo-Italic" : "Menlo-Regular")
         if let custom = NSFont(name: baseName, size: size) { return custom }
     } else if family.contains("Courier") {
         baseName = bold ? (italic ? "Courier-BoldOblique" : "Courier-Bold") : (italic ? "Courier-Oblique" : "Courier")
@@ -179,7 +338,14 @@ public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: 
         if let custom = NSFont(name: baseName, size: size) { return custom }
     }
 
-    return NSFont(name: baseName, size: size) ?? NSFont.systemFont(ofSize: size)
+    let font = NSFont(name: baseName, size: size) ?? NSFont.systemFont(ofSize: size)
+    var traits: NSFontTraitMask = []
+    if bold { traits.insert(.boldFontMask) }
+    if italic { traits.insert(.italicFontMask) }
+    if !traits.isEmpty {
+        return NSFontManager.shared.convert(font, toHaveTrait: traits)
+    }
+    return font
 }
 
 public struct TextKit2EditorView: NSViewRepresentable {
@@ -196,7 +362,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     var lineSpacing: CGFloat
     var paragraphSpacing: CGFloat
     var margins: PageMargins
-    var onSelectionChanged: ((NSRange, String) -> Void)?
+    var onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)?
 
     public init(
         text: Binding<String>,
@@ -212,7 +378,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         lineSpacing: CGFloat = 1.15,
         paragraphSpacing: CGFloat = 12.0,
         margins: PageMargins = PageMargins(),
-        onSelectionChanged: ((NSRange, String) -> Void)? = nil
+        onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)? = nil
     ) {
         self._text = text
         self._selectedText = selectedText
@@ -348,6 +514,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
             let range = textView.selectedRange()
             let nsString = textView.string as NSString
             let sub = range.length > 0 && range.location + range.length <= nsString.length ? nsString.substring(with: range) : ""
+            let attrs = parent.controller?.currentSelectionAttributes() ?? EditorSelectionAttributes()
 
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
@@ -357,9 +524,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
                 if self.parent.selectedText != sub {
                     self.parent.selectedText = sub
                 }
-                self.parent.onSelectionChanged?(range, sub)
+                self.parent.onSelectionChanged?(range, sub, attrs)
             }
         }
     }
 }
-
