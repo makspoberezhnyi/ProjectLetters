@@ -49,6 +49,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var newSourceYear: String = ""
     @State private var newSourceType: SourceType = .journalArticle
 
+    // Page Setup & Margins State
+    @State private var pageSize: PageSizePreset = .letter
+    @State private var marginPreset: MarginPreset = .normal
+    @State private var margins: PageMargins = PageMargins(top: 72, bottom: 72, left: 72, right: 72)
+    @State private var showMarginGuides: Bool = true
+    @State private var showCropMarks: Bool = true
+
     // Live Typography States (Directly updates TextKit 2)
     @State private var fontFamily: String = "Default Serif (Georgia)"
     @State private var fontSize: CGFloat = 15.0
@@ -71,6 +78,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     private var readingTimeMinutes: Int {
         max(1, Int(ceil(Double(wordCount) / 200.0)))
+    }
+
+    private var currentSheetWidth: CGFloat {
+        pageSize.dimensions.width
+    }
+
+    private var currentSheetHeight: CGFloat {
+        pageSize.dimensions.height
     }
 
     public var body: some View {
@@ -107,7 +122,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 // Center Studio Canvas & Paper Sheet
                 ZStack(alignment: .bottom) {
                     ScrollView([.vertical, .horizontal]) {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 16) {
                             // Document Sheet Title Header (Clean and de-duplicated)
                             HStack {
                                 TextField("Document Title", text: $documentTitle)
@@ -117,15 +132,54 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                                 Spacer()
 
-                                Text("US Letter • 8.5 × 11 in")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.secondary)
+                                HStack(spacing: 8) {
+                                    Text("\(pageSize.rawValue) • \(pageSize.subtitle)")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.secondary)
+
+                                    Text("•")
+                                        .foregroundColor(.secondary.opacity(0.5))
+
+                                    Text("Margins: \(marginPreset.rawValue)")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
                             }
-                            .frame(width: 816 * zoomScale)
-                            .padding(.top, 24)
+                            .frame(width: currentSheetWidth * zoomScale)
+                            .padding(.top, 20)
 
                             // Graphic Studio Paper Sheet Canvas
-                            ZStack(alignment: .top) {
+                            ZStack(alignment: .topLeading) {
+                                // Background Paper Sheet
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .fill(StudioTheme.paperBackground)
+                                    .frame(width: currentSheetWidth, height: currentSheetHeight)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                            .stroke(StudioTheme.border.opacity(0.8), lineWidth: 1)
+                                    )
+                                    // High fidelity drop shadows
+                                    .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+                                    .shadow(color: Color.black.opacity(0.12), radius: 24, x: 0, y: 10)
+
+                                // Visual Margin Guides Overlay (Affinity/Pages Publisher Style)
+                                if showMarginGuides {
+                                    PaperMarginGuidesView(
+                                        width: currentSheetWidth,
+                                        height: currentSheetHeight,
+                                        margins: margins
+                                    )
+                                }
+
+                                // Publisher Corner Crop Marks
+                                if showCropMarks {
+                                    PublisherCropMarksView(
+                                        width: currentSheetWidth,
+                                        height: currentSheetHeight
+                                    )
+                                }
+
+                                // Native TextKit 2 Text Engine
                                 TextKit2EditorView(
                                     text: $rawText,
                                     selectedText: $selectedText,
@@ -137,20 +191,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                     alignment: textAlignment,
                                     lineSpacing: lineSpacing,
                                     paragraphSpacing: paragraphSpacing,
+                                    margins: margins,
                                     onSelectionChanged: { _, _ in }
                                 )
-                                .frame(width: 816)
-                                .frame(minHeight: 1056)
-                                .background(StudioTheme.paperBackground)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .stroke(StudioTheme.border, lineWidth: 1)
-                                )
-                                // Multi-layered depth shadow
-                                .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-                                .shadow(color: Color.black.opacity(0.12), radius: 28, x: 0, y: 14)
-                                .scaleEffect(zoomScale, anchor: .top)
+                                .frame(width: currentSheetWidth, height: currentSheetHeight)
 
                                 // Floating contextual selection menu
                                 if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -178,9 +222,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                         }
                                     )
                                     .padding(.top, 16)
+                                    .padding(.leading, currentSheetWidth / 2 - 120)
                                     .transition(.scale.combined(with: .opacity))
                                 }
                             }
+                            .frame(width: currentSheetWidth, height: currentSheetHeight)
+                            .scaleEffect(zoomScale, anchor: .top)
                             .padding(.bottom, 60)
                         }
                         .frame(maxWidth: .infinity)
@@ -212,14 +259,22 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 if showInspector {
                     StudioInspectorView(
                         activePersona: $activePersona,
+                        rawText: $rawText,
+                        selectedText: $selectedText,
                         sources: $document.sources,
                         activeCitationStyle: $activeCitationStyle,
                         lintIssues: $lintIssues,
                         lineSpacing: $lineSpacing,
                         paragraphSpacing: $paragraphSpacing,
+                        pageSize: $pageSize,
+                        marginPreset: $marginPreset,
+                        margins: $margins,
+                        showMarginGuides: $showMarginGuides,
+                        showCropMarks: $showCropMarks,
                         currentDocumentContext: { rawText },
                         onRunLinter: runLinter,
-                        onAddSource: { showingAddSourceSheet = true }
+                        onAddSource: { showingAddSourceSheet = true },
+                        onToast: { msg in showToast(msg) }
                     )
                     .transition(.move(edge: .trailing))
                 }
@@ -415,3 +470,85 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
     }
 }
+
+// MARK: - Visual Publishing Guides
+struct PaperMarginGuidesView: View {
+    let width: CGFloat
+    let height: CGFloat
+    let margins: PageMargins
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // Printable Margin Area Guide Box
+            Rectangle()
+                .stroke(
+                    Color.accentColor.opacity(0.3),
+                    style: StrokeStyle(lineWidth: 0.75, dash: [4, 4])
+                )
+                .frame(
+                    width: max(0, width - margins.left - margins.right),
+                    height: max(0, height - margins.top - margins.bottom)
+                )
+                .offset(x: margins.left, y: margins.top)
+
+            // Header Zone Line
+            Path { path in
+                path.move(to: CGPoint(x: margins.left, y: margins.top / 2))
+                path.addLine(to: CGPoint(x: width - margins.right, y: margins.top / 2))
+            }
+            .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+
+            // Footer Zone Line
+            Path { path in
+                let footerY = height - (margins.bottom / 2)
+                path.move(to: CGPoint(x: margins.left, y: footerY))
+                path.addLine(to: CGPoint(x: width - margins.right, y: footerY))
+            }
+            .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+struct PublisherCropMarksView: View {
+    let width: CGFloat
+    let height: CGFloat
+    let markLength: CGFloat = 14
+    let offset: CGFloat = 6
+
+    var body: some View {
+        ZStack {
+            // Top Left Corner
+            CropMarkCorner()
+                .position(x: -offset, y: -offset)
+
+            // Top Right Corner
+            CropMarkCorner()
+                .rotationEffect(.degrees(90))
+                .position(x: width + offset, y: -offset)
+
+            // Bottom Right Corner
+            CropMarkCorner()
+                .rotationEffect(.degrees(180))
+                .position(x: width + offset, y: height + offset)
+
+            // Bottom Left Corner
+            CropMarkCorner()
+                .rotationEffect(.degrees(270))
+                .position(x: -offset, y: height + offset)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+struct CropMarkCorner: View {
+    var body: some View {
+        Path { path in
+            path.move(to: CGPoint(x: -12, y: 0))
+            path.addLine(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: 0, y: -12))
+        }
+        .stroke(Color.secondary.opacity(0.4), lineWidth: 0.75)
+    }
+}
+

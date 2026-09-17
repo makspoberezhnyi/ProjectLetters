@@ -5,15 +5,24 @@ import LettersKit
 
 public struct StudioInspectorView: View {
     @Binding var activePersona: StudioPersona
+    @Binding var rawText: String
+    @Binding var selectedText: String
     @Binding var sources: [String: Source]
     @Binding var activeCitationStyle: CitationStyle
     @Binding var lintIssues: [StyleLintMatch]
     @Binding var lineSpacing: CGFloat
     @Binding var paragraphSpacing: CGFloat
+    @Binding var pageSize: PageSizePreset
+    @Binding var marginPreset: MarginPreset
+    @Binding var margins: PageMargins
+    @Binding var showMarginGuides: Bool
+    @Binding var showCropMarks: Bool
     let currentDocumentContext: () -> String
     var onRunLinter: () -> Void
     var onAddSource: () -> Void
+    var onToast: ((String) -> Void)?
 
+    @State private var isPageSetupExpanded = true
     @State private var isTypographyExpanded = true
     @State private var isSourcesExpanded = true
     @State private var isLinterExpanded = true
@@ -21,30 +30,127 @@ public struct StudioInspectorView: View {
 
     public init(
         activePersona: Binding<StudioPersona>,
+        rawText: Binding<String>,
+        selectedText: Binding<String>,
         sources: Binding<[String: Source]>,
         activeCitationStyle: Binding<CitationStyle>,
         lintIssues: Binding<[StyleLintMatch]>,
         lineSpacing: Binding<CGFloat>,
         paragraphSpacing: Binding<CGFloat>,
+        pageSize: Binding<PageSizePreset>,
+        marginPreset: Binding<MarginPreset>,
+        margins: Binding<PageMargins>,
+        showMarginGuides: Binding<Bool>,
+        showCropMarks: Binding<Bool>,
         currentDocumentContext: @escaping () -> String,
         onRunLinter: @escaping () -> Void,
-        onAddSource: @escaping () -> Void
+        onAddSource: @escaping () -> Void,
+        onToast: ((String) -> Void)? = nil
     ) {
         self._activePersona = activePersona
+        self._rawText = rawText
+        self._selectedText = selectedText
         self._sources = sources
         self._activeCitationStyle = activeCitationStyle
         self._lintIssues = lintIssues
         self._lineSpacing = lineSpacing
         self._paragraphSpacing = paragraphSpacing
+        self._pageSize = pageSize
+        self._marginPreset = marginPreset
+        self._margins = margins
+        self._showMarginGuides = showMarginGuides
+        self._showCropMarks = showCropMarks
         self.currentDocumentContext = currentDocumentContext
         self.onRunLinter = onRunLinter
         self.onAddSource = onAddSource
+        self.onToast = onToast
     }
 
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                // Section 1: Typography & Paragraph Spacing (Affinity / InDesign Style)
+                // Section 1: Page Setup & Margins (Affinity / InDesign Style)
+                DisclosureGroup("Page Setup & Margins", isExpanded: $isPageSetupExpanded) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Page Size
+                        HStack {
+                            Text("Page Format")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Picker("Page Format", selection: $pageSize) {
+                                ForEach(PageSizePreset.allCases, id: \.self) { size in
+                                    Text("\(size.rawValue) (\(size.subtitle))").tag(size)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 145)
+                        }
+
+                        // Margins Preset
+                        HStack {
+                            Text("Margins")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Picker("Margins Preset", selection: $marginPreset) {
+                                ForEach(MarginPreset.allCases, id: \.self) { preset in
+                                    Text(preset.rawValue).tag(preset)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 145)
+                            .onChange(of: marginPreset) { _, newPreset in
+                                if newPreset != .custom {
+                                    margins = newPreset.margins
+                                }
+                            }
+                        }
+
+                        // Custom Margins Insets (when Custom selected)
+                        if marginPreset == .custom {
+                            VStack(spacing: 6) {
+                                HStack(spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Top: \(Int(margins.top)) pt").font(.system(size: 9)).foregroundColor(.secondary)
+                                        Slider(value: $margins.top, in: 18...144, step: 6)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Bottom: \(Int(margins.bottom)) pt").font(.system(size: 9)).foregroundColor(.secondary)
+                                        Slider(value: $margins.bottom, in: 18...144, step: 6)
+                                    }
+                                }
+                                HStack(spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Left: \(Int(margins.left)) pt").font(.system(size: 9)).foregroundColor(.secondary)
+                                        Slider(value: $margins.left, in: 18...144, step: 6)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Right: \(Int(margins.right)) pt").font(.system(size: 9)).foregroundColor(.secondary)
+                                        Slider(value: $margins.right, in: 18...144, step: 6)
+                                    }
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+
+                        Divider()
+                            .padding(.vertical, 2)
+
+                        // Margin Guides & Crop Marks Toggles
+                        Toggle("Show Margin Guides", isOn: $showMarginGuides)
+                            .font(.caption)
+                        Toggle("Show Corner Crop Marks", isOn: $showCropMarks)
+                            .font(.caption)
+                    }
+                    .padding(8)
+                    .background(StudioTheme.surfaceHighlight, in: RoundedRectangle(cornerRadius: 6))
+                }
+                .font(.caption.bold())
+
+                Divider()
+
+                // Section 2: Typography & Spacing
                 DisclosureGroup("Typography & Spacing", isExpanded: $isTypographyExpanded) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -84,7 +190,7 @@ public struct StudioInspectorView: View {
 
                 Divider()
 
-                // Section 2: Linked Citations (CSL Profiles)
+                // Section 3: Linked Citations (CSL Profiles)
                 DisclosureGroup("Linked Citations & Styles", isExpanded: $isSourcesExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -132,7 +238,7 @@ public struct StudioInspectorView: View {
 
                 Divider()
 
-                // Section 3: Style Rules & Lint Warnings
+                // Section 4: Style Rules & Lint Warnings
                 DisclosureGroup("Style Rules & Linting (\(lintIssues.count))", isExpanded: $isLinterExpanded) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -178,9 +284,14 @@ public struct StudioInspectorView: View {
 
                 Divider()
 
-                // Section 4: AI Copilot Assistant Companion
+                // Section 5: AI Copilot Assistant Companion (Direct Sheet Manipulation)
                 DisclosureGroup("AI Copilot Assistant", isExpanded: $isCopilotExpanded) {
-                    AssistantSidebarView(currentDocumentContext: currentDocumentContext)
+                    AssistantSidebarView(
+                        rawText: $rawText,
+                        selectedText: $selectedText,
+                        onToast: onToast,
+                        currentDocumentContext: currentDocumentContext
+                    )
                 }
                 .font(.caption.bold())
             }
@@ -208,3 +319,4 @@ public struct StudioInspectorView: View {
         }
     }
 }
+

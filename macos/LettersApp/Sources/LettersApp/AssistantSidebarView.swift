@@ -4,15 +4,27 @@ import LettersKit
 #endif
 
 public struct AssistantSidebarView: View {
+    @Binding var rawText: String
+    @Binding var selectedText: String
+    var onToast: ((String) -> Void)?
+    let currentDocumentContext: () -> String
+
     @State private var messages: [AIChatMessage] = []
     @State private var inputPrompt: String = ""
     @State private var isGenerating: Bool = false
     @State private var selectedProvider: AIProvider = .anthropic
     @State private var apiKeyInput: String = ""
     @State private var showingKeyConfig: Bool = false
-    let currentDocumentContext: () -> String
 
-    public init(currentDocumentContext: @escaping () -> String) {
+    public init(
+        rawText: Binding<String> = .constant(""),
+        selectedText: Binding<String> = .constant(""),
+        onToast: ((String) -> Void)? = nil,
+        currentDocumentContext: @escaping () -> String
+    ) {
+        self._rawText = rawText
+        self._selectedText = selectedText
+        self.onToast = onToast
         self.currentDocumentContext = currentDocumentContext
     }
 
@@ -28,7 +40,7 @@ public struct AssistantSidebarView: View {
                     }
                 } label: {
                     Label(selectedProvider.rawValue, systemImage: "sparkles")
-                        .font(.headline)
+                        .font(.system(size: 12, weight: .bold))
                 }
                 .menuStyle(.borderlessButton)
 
@@ -38,29 +50,31 @@ public struct AssistantSidebarView: View {
                     showingKeyConfig.toggle()
                 } label: {
                     Image(systemName: "key.fill")
+                        .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Configure BYOK API Keys")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(NSColor.controlBackgroundColor))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(StudioTheme.surfaceHighlight)
 
             Divider()
 
             if showingKeyConfig {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Enter \(selectedProvider.rawValue) API Key")
                         .font(.caption.bold())
                     SecureField("sk-...", text: $apiKeyInput)
                         .textFieldStyle(.roundedBorder)
                     HStack {
-                        Button("Save to Keychain") {
+                        Button("Save Key") {
                             Task {
                                 try? await AIGateway.shared.storeKey(provider: selectedProvider, key: apiKeyInput)
                                 showingKeyConfig = false
                                 apiKeyInput = ""
+                                onToast?("✓ API Key saved to Keychain")
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -73,53 +87,151 @@ public struct AssistantSidebarView: View {
                         .controlSize(.small)
                     }
                 }
-                .padding(12)
+                .padding(10)
                 .background(Color.accentColor.opacity(0.08))
                 Divider()
             }
 
-            // Chat stream history
+            // Quick Formatting Action Chips
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    QuickActionChip(title: "✨ Format Headings", icon: "text.alignleft") {
+                        sendDirectPrompt("Please format this document into structured markdown with clear # Title and ## Section headings, clean bullet points, and polished typographic layout:\n\n\(currentDocumentContext())")
+                    }
+                    QuickActionChip(title: "📝 Bullet Points", icon: "list.bullet") {
+                        let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
+                        sendDirectPrompt("Summarize and format the following text into concise, high-impact bullet points:\n\n\(target)")
+                    }
+                    QuickActionChip(title: "📊 Make Table", icon: "tablecells") {
+                        let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
+                        sendDirectPrompt("Convert the following data/information into a clean Markdown table with headers and alignment:\n\n\(target)")
+                    }
+                    QuickActionChip(title: "💡 Fix Grammar", icon: "checkmark.circle") {
+                        let target = selectedText.isEmpty ? currentDocumentContext() : selectedText
+                        sendDirectPrompt("Proofread and improve the flow, grammar, and vocabulary of the following text while preserving all original meaning:\n\n\(target)")
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+            }
+            .background(StudioTheme.canvasBackground)
+
+            Divider()
+
+            // Chat Stream History
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: 10) {
                         if messages.isEmpty {
                             VStack(spacing: 8) {
-                                Image(systemName: "bubble.left.and.text.bubble.right")
-                                    .font(.largeTitle)
-                                    .foregroundColor(.secondary)
-                                Text("Ask Letters Copilot")
-                                    .font(.headline)
-                                Text("Summarize sections, improve flow, generate citations, or refine style.")
-                                    .font(.caption)
+                                Image(systemName: "sparkles.rectangle.stack.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(.accentColor.opacity(0.8))
+                                Text("AI Document Copilot")
+                                    .font(.system(size: 13, weight: .bold))
+                                Text("Ask questions, format sections, generate smart tables, or rewrite text with 1-click apply to the sheet.")
+                                    .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
                             }
-                            .padding(.top, 40)
-                            .padding(.horizontal)
+                            .padding(.top, 24)
+                            .padding(.horizontal, 12)
                         }
 
                         ForEach(messages) { msg in
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: msg.role == "user" ? "person.circle.fill" : "sparkles.rectangle.stack.fill")
-                                    .foregroundColor(msg.role == "user" ? .blue : .purple)
-                                    .font(.system(size: 16))
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .top, spacing: 6) {
+                                    Image(systemName: msg.role == "user" ? "person.circle.fill" : "sparkles")
+                                        .foregroundColor(msg.role == "user" ? .blue : .purple)
+                                        .font(.system(size: 13))
 
-                                VStack(alignment: .leading, spacing: 4) {
                                     Text(msg.role == "user" ? "You" : "Letters Assistant")
                                         .font(.caption.bold())
                                         .foregroundColor(.secondary)
-                                    Text(msg.content)
-                                        .font(.system(size: 13))
-                                        .textSelection(.enabled)
+
+                                    Spacer()
+                                }
+
+                                Text(msg.content)
+                                    .font(.system(size: 12))
+                                    .textSelection(.enabled)
+                                    .lineSpacing(2)
+
+                                // Direct Document Manipulation Actions for Assistant Messages
+                                if msg.role == "assistant" && !msg.content.isEmpty && !msg.content.starts(with: "⚠️") {
+                                    Divider()
+                                        .padding(.vertical, 2)
+
+                                    HStack(spacing: 6) {
+                                        // 1. Replace Selection (if text selected)
+                                        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            Button {
+                                                applyReplacementToSelection(content: msg.content)
+                                            } label: {
+                                                HStack(spacing: 3) {
+                                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                                    Text("Replace Selection")
+                                                }
+                                                .font(.caption2.bold())
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .controlSize(.mini)
+                                        }
+
+                                        // 2. Apply to Entire Document
+                                        Button {
+                                            applyToFullDocument(content: msg.content)
+                                        } label: {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: "doc.text.fill")
+                                                Text("Apply to Sheet")
+                                            }
+                                            .font(.caption2)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+
+                                        // 3. Append to end
+                                        Button {
+                                            appendToDocument(content: msg.content)
+                                        } label: {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: "plus.circle")
+                                                Text("Insert")
+                                            }
+                                            .font(.caption2)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+
+                                        Spacer()
+
+                                        // 4. Copy
+                                        Button {
+                                            let pasteboard = NSPasteboard.general
+                                            pasteboard.clearContents()
+                                            pasteboard.setString(extractCleanContent(msg.content), forType: .string)
+                                            onToast?("✓ Copied to clipboard")
+                                        } label: {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.caption2)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Copy content")
+                                    }
                                 }
                             }
-                            .padding(10)
-                            .background(msg.role == "user" ? Color.primary.opacity(0.03) : Color.accentColor.opacity(0.06))
-                            .cornerRadius(8)
+                            .padding(8)
+                            .background(msg.role == "user" ? Color.primary.opacity(0.03) : StudioTheme.surfaceHighlight)
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(StudioTheme.border, lineWidth: 0.5)
+                            )
                             .id(msg.id)
                         }
                     }
-                    .padding(12)
+                    .padding(8)
                 }
                 .onChange(of: messages.count) { _, _ in
                     if let last = messages.last {
@@ -131,25 +243,62 @@ public struct AssistantSidebarView: View {
             Divider()
 
             // Prompt input
-            HStack(spacing: 8) {
-                TextField("Ask assistant...", text: $inputPrompt)
+            HStack(spacing: 6) {
+                TextField("Ask assistant or enter format command...", text: $inputPrompt)
                     .textFieldStyle(.plain)
+                    .font(.system(size: 12))
                     .onSubmit {
                         sendMessage()
                     }
 
                 Button(action: sendMessage) {
                     Image(systemName: isGenerating ? "stop.circle.fill" : "arrow.up.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 18))
                         .foregroundColor(inputPrompt.isEmpty ? .secondary : .accentColor)
                 }
                 .buttonStyle(.plain)
                 .disabled(inputPrompt.isEmpty && !isGenerating)
             }
-            .padding(12)
-            .background(Color(NSColor.controlBackgroundColor))
+            .padding(8)
+            .background(StudioTheme.surfaceHighlight)
         }
         .frame(minWidth: 260)
+    }
+
+    private func extractCleanContent(_ text: String) -> String {
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("```markdown") && cleaned.hasSuffix("```") {
+            cleaned = String(cleaned.dropFirst(11).dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if cleaned.hasPrefix("```") && cleaned.hasSuffix("```") {
+            cleaned = String(cleaned.dropFirst(3).dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return cleaned
+    }
+
+    private func applyReplacementToSelection(content: String) {
+        let clean = extractCleanContent(content)
+        if !selectedText.isEmpty {
+            rawText = rawText.replacingOccurrences(of: selectedText, with: clean)
+            selectedText = ""
+            onToast?("✓ Replaced selection with AI changes")
+        }
+    }
+
+    private func applyToFullDocument(content: String) {
+        let clean = extractCleanContent(content)
+        rawText = clean
+        onToast?("✓ Applied formatting to entire sheet")
+    }
+
+    private func appendToDocument(content: String) {
+        let clean = extractCleanContent(content)
+        rawText += "\n\n" + clean
+        onToast?("✓ Inserted AI content into sheet")
+    }
+
+    private func sendDirectPrompt(_ prompt: String) {
+        inputPrompt = prompt
+        sendMessage()
     }
 
     private func sendMessage() {
@@ -192,5 +341,30 @@ public struct AssistantSidebarView: View {
                 isGenerating = false
             }
         }
+    }
+}
+
+struct QuickActionChip: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9))
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(StudioTheme.surfaceHighlight, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(StudioTheme.border, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

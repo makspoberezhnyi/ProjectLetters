@@ -248,14 +248,82 @@ public enum BlockElement: Codable, Sendable {
     }
 }
 
+public struct PageMargins: Codable, Sendable, Hashable {
+    public var top: CGFloat
+    public var bottom: CGFloat
+    public var left: CGFloat
+    public var right: CGFloat
+
+    public init(top: CGFloat = 72, bottom: CGFloat = 72, left: CGFloat = 72, right: CGFloat = 72) {
+        self.top = top
+        self.bottom = bottom
+        self.left = left
+        self.right = right
+    }
+}
+
+public enum PageSizePreset: String, Codable, CaseIterable, Sendable {
+    case letter = "US Letter"
+    case a4 = "A4"
+    case executive = "Executive"
+    case legal = "US Legal"
+
+    public var dimensions: (width: CGFloat, height: CGFloat) {
+        switch self {
+        case .letter: return (816, 1056)
+        case .a4: return (794, 1123)
+        case .executive: return (522, 756)
+        case .legal: return (816, 1344)
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .letter: return "8.5 × 11 in"
+        case .a4: return "210 × 297 mm"
+        case .executive: return "7.25 × 10.5 in"
+        case .legal: return "8.5 × 14 in"
+        }
+    }
+}
+
+public enum MarginPreset: String, Codable, CaseIterable, Sendable {
+    case normal = "Normal (1.0\")"
+    case narrow = "Narrow (0.5\")"
+    case moderate = "Moderate (0.75\")"
+    case wide = "Wide (1.5\")"
+    case custom = "Custom"
+
+    public var margins: PageMargins {
+        switch self {
+        case .normal: return PageMargins(top: 72, bottom: 72, left: 72, right: 72)
+        case .narrow: return PageMargins(top: 36, bottom: 36, left: 36, right: 36)
+        case .moderate: return PageMargins(top: 72, bottom: 72, left: 54, right: 54)
+        case .wide: return PageMargins(top: 108, bottom: 108, left: 108, right: 108)
+        case .custom: return PageMargins(top: 72, bottom: 72, left: 72, right: 72)
+        }
+    }
+}
+
 public struct DocumentModel: Codable, Sendable {
     public var title: String
     public var blocks: [BlockElement]
     public var sources: [String: Source]
+    public var pageSize: PageSizePreset
+    public var margins: PageMargins
 
-    public init(title: String = "Untitled Document", blocks: [BlockElement] = [], sources: [String: Source] = [:]) {
+    public init(
+        title: String = "Untitled Document",
+        blocks: [BlockElement] = [],
+        sources: [String: Source] = [:],
+        pageSize: PageSizePreset = .letter,
+        margins: PageMargins = PageMargins()
+    ) {
         self.title = title
         self.blocks = blocks
         self.sources = sources
+        self.pageSize = pageSize
+        self.margins = margins
     }
 }
+

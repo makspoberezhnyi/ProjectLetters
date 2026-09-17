@@ -15,6 +15,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     var alignment: TextAlignment
     var lineSpacing: CGFloat
     var paragraphSpacing: CGFloat
+    var margins: PageMargins
     var onSelectionChanged: ((NSRange, String) -> Void)?
 
     public init(
@@ -28,6 +29,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         alignment: TextAlignment = .leading,
         lineSpacing: CGFloat = 1.15,
         paragraphSpacing: CGFloat = 12.0,
+        margins: PageMargins = PageMargins(),
         onSelectionChanged: ((NSRange, String) -> Void)? = nil
     ) {
         self._text = text
@@ -40,6 +42,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self.alignment = alignment
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
+        self.margins = margins
         self.onSelectionChanged = onSelectionChanged
     }
 
@@ -78,8 +81,9 @@ public struct TextKit2EditorView: NSViewRepresentable {
         ]
         textView.typingAttributes = typingAttrs
 
-        // Document page margins (1-inch margins)
-        textView.textContainerInset = NSSize(width: 64, height: 64)
+        // Dynamic Document Page Insets
+        textView.textContainerInset = NSSize(width: margins.left, height: margins.top)
+        textView.textContainer?.lineFragmentPadding = 0
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
@@ -119,6 +123,12 @@ public struct TextKit2EditorView: NSViewRepresentable {
             textView.font = font
         }
         textView.defaultParagraphStyle = paragraphStyle
+
+        // Update margins if changed
+        let targetInset = NSSize(width: margins.left, height: margins.top)
+        if textView.textContainerInset != targetInset {
+            textView.textContainerInset = targetInset
+        }
 
         // Update text if changed externally
         if textView.string != text && !context.coordinator.isInitializing {
