@@ -254,6 +254,41 @@ public actor AIGateway {
     }
 
     // MARK: - 3. Google Gemini (Free Tier)
+    private func fetchAvailableGeminiModels(cleanKey: String) async -> [String] {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?key=\(cleanKey)") else {
+            return []
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                return []
+            }
+            if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let models = obj["models"] as? [[String: Any]] {
+                let validModels = models.compactMap { m -> String? in
+                    guard let name = m["name"] as? String else { return nil }
+                    if let methods = m["supportedGenerationMethods"] as? [String], !methods.contains("generateContent") {
+                        return nil
+                    }
+                    return name
+                }
+                if !validModels.isEmpty {
+                    return validModels.sorted { a, b in
+                        let rankA = a.contains("2.0-flash") ? 0 : (a.contains("1.5-flash") ? 1 : (a.contains("pro") ? 2 : 3))
+                        let rankB = b.contains("2.0-flash") ? 0 : (b.contains("1.5-flash") ? 1 : (b.contains("pro") ? 2 : 3))
+                        return rankA < rankB
+                    }
+                }
+            }
+        } catch {
+            return []
+        }
+        return []
+    }
+
     private func streamGemini(
         key: String,
         prompt: String,
@@ -263,7 +298,7 @@ public actor AIGateway {
     ) async throws {
         let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanKey.isEmpty else {
-            throw NSError(domain: "GeminiAPI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google Gemini API key is missing."])
+            throw NSError(domain: "GeminiAPI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google Gemini API key is missing. Enter your key in Settings."])
         }
 
         var promptText = prompt
@@ -284,53 +319,71 @@ public actor AIGateway {
         ]
         let httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let candidateModels = [
-            "gemini-1.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-pro",
-            "gemini-2.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-2.0-flash-exp"
-        ]
+        // Try dynamically discovered models first
+        var candidateModels = await fetchAvailableGeminiModels(cleanKey: cleanKey)
+        if candidateModels.isEmpty {
+            candidateModels = [
+                "models/gemini-2.0-flash",
+                "models/gemini-1.5-flash",
+                "models/gemini-1.5-pro",
+                "models/gemini-2.0-flash-exp",
+                "models/gemini-1.5-flash-8b"
+            ]
+        }
 
         var lastErrorMessage: String? = nil
 
         for model in candidateModels {
-            let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(cleanKey)"
+            let modelPath = model.starts(with: "models/") ? model : "models/\(model)"
+            let endpoint = "https://generativelanguage.googleapis.com/v1beta/\(modelPath):generateContent?key=\(cleanKey)"
             guard let url = URL(string: endpoint) else { continue }
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = httpBody
+            request.timeoutInterval = 25
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else { continue }
-                if httpResponse.statusCode == 404 { continue }
+
                 if !(200...299).contains(httpResponse.statusCode) {
                     if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let err = obj["error"] as? [String: Any],
                        let msg = err["message"] as? String {
                         lastErrorMessage = msg
                     } else {
-                        lastErrorMessage = "HTTP \(httpResponse.statusCode)"
+                        lastErrorMessage = "Google API returned HTTP \(httpResponse.statusCode)"
                     }
                     continue
                 }
 
-                if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let candidates = obj["candidates"] as? [[String: Any]],
-                   let first = candidates.first,
-                   let content = first["content"] as? [String: Any],
-                   let parts = content["parts"] as? [[String: Any]],
-                   let firstPart = parts.first,
-                   let text = firstPart["text"] as? String {
-                    for word in text.split(separator: " ") {
-                        onToken(String(word) + " ")
-                        try? await Task.sleep(nanoseconds: 12_000_000)
+                if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let candidates = obj["candidates"] as? [[String: Any]],
+                       let first = candidates.first,
+                       let content = first["content"] as? [String: Any],
+                       let parts = content["parts"] as? [[String: Any]] {
+                        var fullText = ""
+                        for part in parts {
+                            if let text = part["text"] as? String {
+                                fullText += text
+                            }
+                        }
+                        if !fullText.isEmpty {
+                            let words = fullText.split(separator: " ", omittingEmptySubsequences: false)
+                            for (idx, word) in words.enumerated() {
+                                let suffix = (idx == words.count - 1) ? "" : " "
+                                onToken(String(word) + suffix)
+                                try? await Task.sleep(nanoseconds: 12_000_000)
+                            }
+                            return
+                        }
                     }
-                    return
+                    if let promptFeedback = obj["promptFeedback"] as? [String: Any],
+                       let blockReason = promptFeedback["blockReason"] as? String {
+                        lastErrorMessage = "Request was blocked by safety filter: \(blockReason)"
+                    }
                 }
             } catch {
                 lastErrorMessage = error.localizedDescription
@@ -341,7 +394,7 @@ public actor AIGateway {
         if let msg = lastErrorMessage {
             throw NSError(domain: "GeminiAPI", code: 400, userInfo: [NSLocalizedDescriptionKey: msg])
         } else {
-            throw NSError(domain: "GeminiAPI", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not connect to Google Gemini. Check your API key at aistudio.google.com."])
+            throw NSError(domain: "GeminiAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to generate response from Google Gemini. Please verify your connection."])
         }
     }
 
