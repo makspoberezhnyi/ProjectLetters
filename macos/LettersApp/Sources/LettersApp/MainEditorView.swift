@@ -442,6 +442,38 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .zIndex(14)
 
+                        // Floating Right AI Copilot Companion Island
+                        if showAIDrawer {
+                            VStack {
+                                HStack {
+                                    Spacer()
+                                    AssistantSidebarView(
+                                        rawText: $rawText,
+                                        selectedText: $selectedText,
+                                        onInsertTable: { table in
+                                            studioTables.append(table)
+                                        },
+                                        onInsertSource: { source in
+                                            document.sources[source.id] = source
+                                        },
+                                        onToast: { msg in showToast(msg) },
+                                        onClose: {
+                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                showAIDrawer = false
+                                            }
+                                        },
+                                        currentDocumentContext: { buildDocumentAIContext() }
+                                    )
+                                }
+                                Spacer()
+                            }
+                            .padding(.trailing, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 16)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .zIndex(15)
+                        }
+
                         // Floating Toast Notification
                         if let msg = toastMessage {
                             VStack {
@@ -467,23 +499,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .zIndex(25)
                         }
                     }
-                }
-
-                // Optional Sliding Right AI Copilot Companion Drawer
-                if showAIDrawer {
-                    AssistantSidebarView(
-                        rawText: $rawText,
-                        selectedText: $selectedText,
-                        onInsertTable: { table in
-                            studioTables.append(table)
-                        },
-                        onInsertSource: { source in
-                            document.sources[source.id] = source
-                        },
-                        onToast: { msg in showToast(msg) },
-                        currentDocumentContext: { buildDocumentAIContext() }
-                    )
-                    .transition(.move(edge: .trailing))
                 }
             }
         }
