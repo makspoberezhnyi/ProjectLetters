@@ -67,6 +67,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var headerFooterConfig: HeaderFooterConfig = HeaderFooterConfig()
     @State private var isEditingHeaderFooter: Bool = false
     @State private var activeHeaderFooterTarget: HeaderFooterTarget = .header
+    @State private var isBottomBarHovered: Bool = false
 
     // Rich Interactive Blocks State
     @State private var studioTables: [StudioTableData] = [
@@ -261,7 +262,18 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
-                        // 4. Floating Studio Bottom Bar (Stats, Citations, Scale, AI)
+                        // Bottom Edge Hover Detection Strip (triggers bottom bar reveal)
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 64)
+                            .contentShape(Rectangle())
+                            .onHover { hovered in
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                    isBottomBarHovered = hovered
+                                }
+                            }
+
+                        // 4. Floating Studio Bottom Bar (Stats, Citations, Scale, AI) - Auto-hides when pointer is not at the bottom
                         StudioFloatingBottomBar(
                             wordCount: wordCount,
                             characterCount: characterCount,
@@ -272,6 +284,16 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             onToast: { msg in showToast(msg) }
                         )
                         .padding(.bottom, 20)
+                        .opacity(isBottomBarHovered ? 1.0 : 0.0)
+                        .offset(y: isBottomBarHovered ? 0 : 25)
+                        .scaleEffect(isBottomBarHovered ? 1.0 : 0.96)
+                        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isBottomBarHovered)
+                        .onHover { hovered in
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                isBottomBarHovered = hovered
+                            }
+                        }
+                        .allowsHitTesting(isBottomBarHovered)
 
                         // Floating Toast Notification
                         if let msg = toastMessage {
