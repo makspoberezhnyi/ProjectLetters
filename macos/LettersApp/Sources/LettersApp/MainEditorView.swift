@@ -94,7 +94,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     public init() {}
 
     private var wordCount: Int {
-        rawText.split { $0.isWhitespace || $0.isNewline }.count
+        EditorPerformanceCache.countWords(in: rawText)
     }
 
     private var characterCount: Int {
@@ -1426,10 +1426,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func extractTextChunks(from pageContent: String) -> [String] {
-        let pattern = #"(?:^|\n)?\[\[(?:table|image|video|bibliography|toc)(?::[a-zA-Z0-9\-]+)?\]\](?:\n)?"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return [pageContent]
-        }
+        let regex = EditorPerformanceCache.shared.canvasChunkMarkerRegex
         let ns = pageContent as NSString
         let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: ns.length))
         if matches.isEmpty {
@@ -1449,10 +1446,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func replaceTextChunk(in pageContent: String, textIndex: Int, with newText: String) -> String {
-        let pattern = #"(?:^|\n)?\[\[(?:table|image|video|bibliography|toc)(?::[a-zA-Z0-9\-]+)?\]\](?:\n)?"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return newText
-        }
+        let regex = EditorPerformanceCache.shared.canvasChunkMarkerRegex
         let ns = pageContent as NSString
         let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: ns.length))
         if matches.isEmpty {
@@ -1508,11 +1502,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func parseCanvasSegments(for pageContent: String, pageIndex: Int = 0) -> [DocumentCanvasSegment] {
-        let pattern = #"(?:^|\n)?\[\[(table|image|video|bibliography|toc)(?::([a-zA-Z0-9\-]+))?\]\](?:\n)?"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return [DocumentCanvasSegment.text(id: "p\(pageIndex)-text-0", textIndex: 0, initialContent: pageContent)]
-        }
-
+        let regex = EditorPerformanceCache.shared.canvasSegmentRegex
         let nsContent = pageContent as NSString
         let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: nsContent.length))
 

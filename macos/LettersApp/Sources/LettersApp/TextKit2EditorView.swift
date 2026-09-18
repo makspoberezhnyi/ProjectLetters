@@ -309,43 +309,7 @@ public func fontDisplayName(for font: NSFont) -> String {
 }
 
 public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: Bool) -> NSFont {
-    var baseName = "Georgia"
-    if family.contains("SF Pro") || family.contains("Modern Sans") || family.contains("System") {
-        let weight: NSFont.Weight = bold ? .bold : .regular
-        let systemFont = NSFont.systemFont(ofSize: size, weight: weight)
-        if italic {
-            let descriptor = systemFont.fontDescriptor.withSymbolicTraits(.italic)
-            return NSFont(descriptor: descriptor, size: size) ?? systemFont
-        }
-        return systemFont
-    } else if family.contains("Times") {
-        baseName = bold ? (italic ? "TimesNewRomanPS-BoldItalicMT" : "TimesNewRomanPS-BoldMT") : (italic ? "TimesNewRomanPS-ItalicMT" : "TimesNewRomanPSMT")
-        if let custom = NSFont(name: baseName, size: size) { return custom }
-    } else if family.contains("Helvetica") {
-        baseName = bold ? (italic ? "HelveticaNeue-BoldItalic" : "HelveticaNeue-Bold") : (italic ? "HelveticaNeue-Italic" : "HelveticaNeue")
-        if let custom = NSFont(name: baseName, size: size) { return custom }
-    } else if family.contains("Menlo") {
-        baseName = bold ? (italic ? "Menlo-BoldItalic" : "Menlo-Bold") : (italic ? "Menlo-Italic" : "Menlo-Regular")
-        if let custom = NSFont(name: baseName, size: size) { return custom }
-    } else if family.contains("Courier") {
-        baseName = bold ? (italic ? "Courier-BoldOblique" : "Courier-Bold") : (italic ? "Courier-Oblique" : "Courier")
-        if let custom = NSFont(name: baseName, size: size) { return custom }
-    } else if family.contains("Charter") {
-        baseName = bold ? (italic ? "Charter-BoldItalic" : "Charter-Bold") : (italic ? "Charter-Italic" : "Charter-Roman")
-        if let custom = NSFont(name: baseName, size: size) { return custom }
-    } else {
-        baseName = bold ? (italic ? "Georgia-BoldItalic" : "Georgia-Bold") : (italic ? "Georgia-Italic" : "Georgia")
-        if let custom = NSFont(name: baseName, size: size) { return custom }
-    }
-
-    let font = NSFont(name: baseName, size: size) ?? NSFont.systemFont(ofSize: size)
-    var traits: NSFontTraitMask = []
-    if bold { traits.insert(.boldFontMask) }
-    if italic { traits.insert(.italicFontMask) }
-    if !traits.isEmpty {
-        return NSFontManager.shared.convert(font, toHaveTrait: traits)
-    }
-    return font
+    EditorPerformanceCache.shared.resolveFont(family: family, size: size, bold: bold, italic: italic)
 }
 
 public class StudioTextView: NSTextView {

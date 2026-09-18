@@ -1,10 +1,17 @@
 import SwiftUI
 
 public struct TOCItem: Identifiable, Hashable {
-    public let id = UUID()
+    public let id: String
     public let title: String
     public let level: Int
     public let page: Int
+
+    public init(title: String, level: Int, page: Int) {
+        self.id = "p\(page)-l\(level)-\(title.hashValue)"
+        self.title = title
+        self.level = level
+        self.page = page
+    }
 }
 
 public struct DynamicTOCView: View {
@@ -25,6 +32,7 @@ public struct DynamicTOCView: View {
     private var tocItems: [TOCItem] {
         var items: [TOCItem] = []
         let pages = rawText.components(separatedBy: "---pagebreak---")
+        let regex = EditorPerformanceCache.shared.tocHeadingRegex
 
         for (pageIdx, pageText) in pages.enumerated() {
             let lines = pageText.components(separatedBy: .newlines)
@@ -45,10 +53,14 @@ public struct DynamicTOCView: View {
                     if !title.isEmpty {
                         items.append(TOCItem(title: title, level: 3, page: pageIdx + 1))
                     }
-                } else if let match = trimmed.range(of: #"^[0-9]+(?:\.[0-9]+)*\.\s+(.+)$"#, options: .regularExpression) {
-                    let title = String(trimmed[match])
-                    let dotCount = title.prefix(while: { $0 != " " }).filter { $0 == "." }.count
-                    items.append(TOCItem(title: title, level: max(1, dotCount), page: pageIdx + 1))
+                } else {
+                    let ns = trimmed as NSString
+                    let match = regex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: ns.length))
+                    if let m = match, m.range.location != NSNotFound {
+                        let title = trimmed
+                        let dotCount = title.prefix(while: { $0 != " " }).filter { $0 == "." }.count
+                        items.append(TOCItem(title: title, level: max(1, dotCount), page: pageIdx + 1))
+                    }
                 }
             }
         }

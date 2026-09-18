@@ -38,6 +38,7 @@
 		B100000A2C1234560000000A /* StudioImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000A2C1234560000000A /* StudioImageView.swift */; };
 		B100000B2C1234560000000B /* StudioLeftAttachedRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */; };
 		B100000C2C1234560000000C /* StudioVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000C2C1234560000000C /* StudioVideoView.swift */; };
+		B100000D2C1234560000000D /* EditorPerformanceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000D2C1234560000000D /* EditorPerformanceCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -74,6 +75,7 @@
 		A100000A2C1234560000000A /* StudioImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioImageView.swift"; sourceTree = "<group>"; };
 		A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift"; sourceTree = "<group>"; };
 		A100000C2C1234560000000C /* StudioVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioVideoView.swift"; sourceTree = "<group>"; };
+		A100000D2C1234560000000D /* EditorPerformanceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/EditorPerformanceCache.swift"; sourceTree = "<group>"; };
 		CC59F701E35B58EA91D6096B /* Letters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Letters.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -125,6 +127,7 @@
 				A100000A2C1234560000000A /* StudioImageView.swift */,
 				A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */,
 				A100000C2C1234560000000C /* StudioVideoView.swift */,
+				A100000D2C1234560000000D /* EditorPerformanceCache.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -218,6 +221,7 @@
 				B100000A2C1234560000000A /* StudioImageView.swift in Sources */,
 				B100000B2C1234560000000B /* StudioLeftAttachedRail.swift in Sources */,
 				B100000C2C1234560000000C /* StudioVideoView.swift in Sources */,
+				B100000D2C1234560000000D /* EditorPerformanceCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
