@@ -859,22 +859,18 @@ public struct AssistantSidebarView: View {
                         .textFieldStyle(.roundedBorder)
 
                     Button("Save") {
-                        Task {
-                            try? await AIGateway.shared.storeKey(provider: .google, key: geminiKeyInput)
-                            selectedProvider = .google
-                            onToast?("✓ Saved Google Gemini key")
-                        }
+                        try? AIGateway.shared.storeKey(provider: .google, key: geminiKeyInput)
+                        selectedProvider = .google
+                        onToast?("✓ Saved Google Gemini key")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(geminiKeyInput.isEmpty)
 
                     if AIGateway.shared.getKey(provider: .google) != nil {
                         Button("Remove", role: .destructive) {
-                            Task {
-                                try? await AIGateway.shared.storeKey(provider: .google, key: "")
-                                geminiKeyInput = ""
-                                onToast?("Removed Google key")
-                            }
+                            try? AIGateway.shared.storeKey(provider: .google, key: "")
+                            geminiKeyInput = ""
+                            onToast?("Removed Google key")
                         }
                         .buttonStyle(.bordered)
                     }
@@ -882,6 +878,10 @@ public struct AssistantSidebarView: View {
             }
 
             Button {
+                if !geminiKeyInput.isEmpty {
+                    try? AIGateway.shared.storeKey(provider: .google, key: geminiKeyInput)
+                }
+                selectedProvider = .google
                 runConnectionTest(for: .google)
             } label: {
                 HStack(spacing: 4) {
@@ -1091,15 +1091,17 @@ public struct AssistantSidebarView: View {
                         .textFieldStyle(.roundedBorder)
 
                     Button("Save") {
-                        Task {
-                            try? await AIGateway.shared.storeKey(provider: .anthropic, key: anthropicKeyInput)
-                            onToast?("✓ Saved Anthropic API key")
-                        }
+                        try? AIGateway.shared.storeKey(provider: .anthropic, key: anthropicKeyInput)
+                        onToast?("✓ Saved Anthropic API key")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(anthropicKeyInput.isEmpty)
 
                     Button("Test") {
+                        if !anthropicKeyInput.isEmpty {
+                            try? AIGateway.shared.storeKey(provider: .anthropic, key: anthropicKeyInput)
+                        }
+                        selectedProvider = .anthropic
                         runConnectionTest(for: .anthropic)
                     }
                     .buttonStyle(.bordered)
@@ -1117,15 +1119,17 @@ public struct AssistantSidebarView: View {
                         .textFieldStyle(.roundedBorder)
 
                     Button("Save") {
-                        Task {
-                            try? await AIGateway.shared.storeKey(provider: .openAI, key: openAIKeyInput)
-                            onToast?("✓ Saved OpenAI API key")
-                        }
+                        try? AIGateway.shared.storeKey(provider: .openAI, key: openAIKeyInput)
+                        onToast?("✓ Saved OpenAI API key")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(openAIKeyInput.isEmpty)
 
                     Button("Test") {
+                        if !openAIKeyInput.isEmpty {
+                            try? AIGateway.shared.storeKey(provider: .openAI, key: openAIKeyInput)
+                        }
+                        selectedProvider = .openAI
                         runConnectionTest(for: .openAI)
                     }
                     .buttonStyle(.bordered)

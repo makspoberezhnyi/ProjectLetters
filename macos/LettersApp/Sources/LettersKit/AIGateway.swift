@@ -59,7 +59,8 @@ public actor AIGateway {
 
     public nonisolated func storeKey(provider: AIProvider, key: String) throws {
         let account = provider.rawValue
-        let data = Data(key.utf8)
+        let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let data = Data(cleanKey.utf8)
 
         // Delete existing item if present
         let query: [String: Any] = [
@@ -69,7 +70,7 @@ public actor AIGateway {
         ]
         SecItemDelete(query as CFDictionary)
 
-        if !key.isEmpty {
+        if !cleanKey.isEmpty {
             let addQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: keychainService,
@@ -95,10 +96,11 @@ public actor AIGateway {
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else {
+        guard status == errSecSuccess, let data = item as? Data, let key = String(data: data, encoding: .utf8) else {
             return nil
         }
-        return String(data: data, encoding: .utf8)
+        let clean = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty ? nil : clean
     }
 
     // MARK: - Streaming Entrypoint
@@ -112,7 +114,7 @@ public actor AIGateway {
         switch provider {
         case .google:
             guard let key = getKey(provider: provider), !key.isEmpty else {
-                throw NSError(domain: "LettersAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "No Google Gemini API key configured. Click the key icon to get a free key in 30 seconds."])
+                throw NSError(domain: "LettersAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "No Google Gemini API key found. Paste your key and click Save or Test."])
             }
             try await streamGemini(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
 
@@ -259,11 +261,21 @@ public actor AIGateway {
         system: String,
         onToken: @Sendable (String) -> Void
     ) async throws {
-        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=\(key)&alt=sse"
-        guard let url = URL(string: endpoint) else { return }
+        let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanKey.isEmpty else {
+            throw NSError(domain: "GeminiAPI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google Gemini API key is missing."])
+        }
+
+        // Standard Gemini v1beta endpoint using x-goog-api-key header
+        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse"
+        guard let url = URL(string: endpoint) else {
+            throw NSError(domain: "GeminiAPI", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid Gemini URL endpoint."])
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(cleanKey, forHTTPHeaderField: "x-goog-api-key")
 
         let fullUserMsg = context != nil ? "\(system)\n\nDocument Context:\n\(context!)\n\nUser Question:\n\(prompt)" : "\(system)\n\n\(prompt)"
         let body: [String: Any] = [
@@ -278,8 +290,22 @@ public actor AIGateway {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "GeminiAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid Google Gemini API key or request error. Verify your key from aistudio.google.com."])
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "GeminiAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to connect to Google Gemini."])
+        }
+
+        if !(200...299).contains(httpResponse.statusCode) {
+            var errMessage = "HTTP \(httpResponse.statusCode)"
+            for try await line in bytes.lines {
+                if let data = line.data(using: .utf8),
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let err = obj["error"] as? [String: Any],
+                   let msg = err["message"] as? String {
+                    errMessage = msg
+                    break
+                }
+            }
+            throw NSError(domain: "GeminiAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errMessage)"])
         }
 
         for try await line in bytes.lines {
@@ -308,10 +334,11 @@ public actor AIGateway {
         onToken: @Sendable (String) -> Void
     ) async throws {
         guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return }
+        let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(key, forHTTPHeaderField: "x-api-key")
+        request.setValue(cleanKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
 
         let fullUserMsg = context != nil ? "Document Context:\n\(context!)\n\nUser Question:\n\(prompt)" : prompt
@@ -352,10 +379,11 @@ public actor AIGateway {
         onToken: @Sendable (String) -> Void
     ) async throws {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else { return }
+        let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(cleanKey)", forHTTPHeaderField: "Authorization")
 
         let fullUserMsg = context != nil ? "Document Context:\n\(context!)\n\nUser Question:\n\(prompt)" : prompt
         let body: [String: Any] = [

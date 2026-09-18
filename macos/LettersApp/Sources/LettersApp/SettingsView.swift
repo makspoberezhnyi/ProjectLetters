@@ -302,23 +302,19 @@ public struct SettingsView: View {
     }
 
     private func loadStoredKeys() {
-        Task {
-            if let a = await AIGateway.shared.getKey(provider: .anthropic) {
-                anthropicKey = a
-            }
-            if let o = await AIGateway.shared.getKey(provider: .openAI) {
-                openAIKey = o
-            }
-            if let g = await AIGateway.shared.getKey(provider: .google) {
-                geminiKey = g
-            }
+        if let a = AIGateway.shared.getKey(provider: .anthropic) {
+            anthropicKey = a
+        }
+        if let o = AIGateway.shared.getKey(provider: .openAI) {
+            openAIKey = o
+        }
+        if let g = AIGateway.shared.getKey(provider: .google) {
+            geminiKey = g
         }
     }
 
     private func saveKey(provider: AIProvider, key: String) {
-        Task {
-            try? await AIGateway.shared.storeKey(provider: provider, key: key)
-            onToast?("✓ Saved \(provider.rawValue) key to Keychain")
-        }
+        try? AIGateway.shared.storeKey(provider: provider, key: key)
+        onToast?("✓ Saved \(provider.rawValue) key to Keychain")
     }
 }
