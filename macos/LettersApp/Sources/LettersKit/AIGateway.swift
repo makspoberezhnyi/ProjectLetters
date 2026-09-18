@@ -305,14 +305,22 @@ public actor AIGateway {
         if let ctx = context?.trimmingCharacters(in: .whitespacesAndNewlines), !ctx.isEmpty, !ctx.contains("Word Count: 0 words") {
             promptText = "Document Context:\n\(ctx)\n\nUser Request: \(prompt)"
         }
-        let fullUserMsg = "\(system)\n\n\(promptText)"
+
+        let effectiveSystem = system.isEmpty
+            ? "You are Letters Assistant, an expert academic and professional document copilot. Provide direct, concise, insightful assistance without internal reasoning or meta-commentary."
+            : "\(system)\n\nNever output internal thoughts, brainstorming notes, or option lists. Respond directly to the user."
 
         let body: [String: Any] = [
+            "system_instruction": [
+                "parts": [
+                    ["text": effectiveSystem]
+                ]
+            ],
             "contents": [
                 [
                     "role": "user",
                     "parts": [
-                        ["text": fullUserMsg]
+                        ["text": promptText]
                     ]
                 ]
             ]
