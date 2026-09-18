@@ -280,74 +280,15 @@ public actor AIGateway {
 
         let candidateModels = [
             "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
             "gemini-2.0-flash",
             "gemini-1.5-pro",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash-latest",
             "gemini-2.0-flash-exp"
         ]
 
         var lastErrorMessage: String? = nil
 
-        // 1. Try SSE streaming across models
-        for model in candidateModels {
-            let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):streamGenerateContent?alt=sse&key=\(cleanKey)"
-            guard let url = URL(string: endpoint) else { continue }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue(cleanKey, forHTTPHeaderField: "x-goog-api-key")
-            request.httpBody = httpBody
-
-            do {
-                let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                if let httpResponse = response as? HTTPURLResponse {
-                    if httpResponse.statusCode == 404 {
-                        continue
-                    }
-                    if !(200...299).contains(httpResponse.statusCode) {
-                        var errMessage = "HTTP \(httpResponse.statusCode)"
-                        for try await line in bytes.lines {
-                            if let data = line.data(using: .utf8),
-                               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                               let err = obj["error"] as? [String: Any],
-                               let msg = err["message"] as? String {
-                                errMessage = msg
-                                break
-                            }
-                        }
-                        lastErrorMessage = errMessage
-                        continue
-                    }
-
-                    var receivedTokens = false
-                    for try await line in bytes.lines {
-                        if line.hasPrefix("data: ") {
-                            let payload = line.dropFirst(6)
-                            if let data = payload.data(using: .utf8),
-                               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                               let candidates = obj["candidates"] as? [[String: Any]],
-                               let first = candidates.first,
-                               let content = first["content"] as? [String: Any],
-                               let parts = content["parts"] as? [[String: Any]],
-                               let firstPart = parts.first,
-                               let text = firstPart["text"] as? String {
-                                receivedTokens = true
-                                onToken(text)
-                            }
-                        }
-                    }
-                    if receivedTokens {
-                        return
-                    }
-                }
-            } catch {
-                lastErrorMessage = error.localizedDescription
-                continue
-            }
-        }
-
-        // 2. Fallback: Direct standard generateContent
         for model in candidateModels {
             let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(cleanKey)"
             guard let url = URL(string: endpoint) else { continue }
@@ -504,6 +445,36 @@ public actor AIGateway {
 
     // MARK: - 6. Test Key Connection
     public func testConnection(provider: AIProvider) async -> (Bool, String) {
+        if provider == .google {
+            guard let key = getKey(provider: .google), !key.isEmpty else {
+                return (false, "⚠️ No Google Gemini API key found. Paste your key and click Test.")
+            }
+            let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?key=\(cleanKey)") else {
+                return (false, "⚠️ Invalid URL for Gemini endpoint.")
+            }
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue(cleanKey, forHTTPHeaderField: "x-goog-api-key")
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse {
+                    if (200...299).contains(httpResponse.statusCode) {
+                        return (true, "✓ Connected successfully to Google Gemini Free Tier")
+                    } else {
+                        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                           let err = json["error"] as? [String: Any],
+                           let msg = err["message"] as? String {
+                            return (false, "⚠️ Google Error: \(msg)")
+                        }
+                        return (false, "⚠️ Google HTTP Error \(httpResponse.statusCode)")
+                    }
+                }
+            } catch {
+                return (false, "⚠️ Connection error: \(error.localizedDescription)")
+            }
+        }
+
         do {
             try await streamCompletion(
                 prompt: "Reply with the single word 'OK'",
