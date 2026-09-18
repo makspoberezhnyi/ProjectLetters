@@ -7,76 +7,76 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		820B68458F3B5FC58A5A2215 /* shim.c in Sources */ = {isa = PBXBuildFile; fileRef = 14E9C123A2455A0AA0B34DBD /* shim.c */; };
-		DF65AE3506A856A38D577A75 /* DocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C3E0EFE9C952C49BD42999 /* DocumentModel.swift */; };
-		D041FA244F1350128A4C8082 /* CoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */; };
-		DEB669D5CB1D560F91DA95B7 /* AIGateway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02636281821E5ED19CA49946 /* AIGateway.swift */; };
-		9C92B015C3195CFA9596670E /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F512B921A195EAF9AB6DC3C /* TranslationService.swift */; };
-		202C1C778D7250B3A815FD2D /* StudioTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBA0ECCD3275D5B883542FF /* StudioTheme.swift */; };
-		41496EF24606542380766F86 /* StudioToolRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7ADC3CCADB522F88209C40 /* StudioToolRail.swift */; };
-		9DDC067F42F750E1A68A5695 /* StudioTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1CB6EA4E7A5554832A4732 /* StudioTopBar.swift */; };
-		9BF79FE3F16D5F2DBAAA6489 /* StudioPagesNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396E0474EAAA5E3EAD98E80C /* StudioPagesNavigator.swift */; };
-		F8866289B7F5542592222697 /* StudioBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C8FDA838535C3D95C8A362 /* StudioBottomBar.swift */; };
-		64105B9F56F35970B66E359F /* StudioInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A6BF0122D559A69CE7F411 /* StudioInspectorView.swift */; };
-		35B29CF4029A5F0885027A11 /* LettersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801953898BED5339AC886A7C /* LettersApp.swift */; };
-		508986EF36BE5E039535191F /* MainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F06682BCC855F218E0B2296 /* MainEditorView.swift */; };
-		0C8D87CE5EE75687A8B7361F /* TextKit2EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */; };
-		C686D40AD63A5208B5371020 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2E2D958FA05D21BB95C77B /* CommandPaletteView.swift */; };
-		80319C9E4B2050968FE350EF /* FloatingActionMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337F10FDDBCF52AAB1737ACF /* FloatingActionMenu.swift */; };
-		2797CE91D0BF594387A581B7 /* SourceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */; };
-		9905AB804FAE57FBAE0ACB07 /* AssistantSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */; };
-		527C1756F23258CFBD781EAA /* DocumentOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */; };
-		B10000012C12345600000001 /* AppCommandCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012C12345600000001 /* AppCommandCenter.swift */; };
-		B10000022C12345600000002 /* DynamicBibliographyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12345600000002 /* DynamicBibliographyView.swift */; };
-		B10000032C12345600000003 /* DynamicTOCView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000032C12345600000003 /* DynamicTOCView.swift */; };
-		B10000042C12345600000004 /* FindReplaceBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000042C12345600000004 /* FindReplaceBar.swift */; };
-		B10000052C12345600000005 /* FloatingStudioHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000052C12345600000005 /* FloatingStudioHUD.swift */; };
-		B10000062C12345600000006 /* LettersDocumentBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000062C12345600000006 /* LettersDocumentBundle.swift */; };
-		B10000072C12345600000007 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000072C12345600000007 /* SettingsView.swift */; };
-		B10000082C12345600000008 /* SmartTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000082C12345600000008 /* SmartTableView.swift */; };
-		B10000092C12345600000009 /* StudioFloatingBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000092C12345600000009 /* StudioFloatingBottomBar.swift */; };
-		B100000A2C1234560000000A /* StudioImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000A2C1234560000000A /* StudioImageView.swift */; };
-		B100000B2C1234560000000B /* StudioLeftAttachedRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */; };
-		B100000C2C1234560000000C /* StudioVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000C2C1234560000000C /* StudioVideoView.swift */; };
-		B100000D2C1234560000000D /* EditorPerformanceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000D2C1234560000000D /* EditorPerformanceCache.swift */; };
+		0C8D87CE5EE75687A8B7361F /* LettersApp/Sources/LettersApp/TextKit2EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B776BA42B7855CFACC82158 /* LettersApp/Sources/LettersApp/TextKit2EditorView.swift */; };
+		202C1C778D7250B3A815FD2D /* LettersApp/Sources/LettersApp/StudioTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBA0ECCD3275D5B883542FF /* LettersApp/Sources/LettersApp/StudioTheme.swift */; };
+		2797CE91D0BF594387A581B7 /* LettersApp/Sources/LettersApp/SourceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E407308380E956A6B0D4FEE3 /* LettersApp/Sources/LettersApp/SourceManagerView.swift */; };
+		35B29CF4029A5F0885027A11 /* LettersApp/Sources/LettersApp/LettersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801953898BED5339AC886A7C /* LettersApp/Sources/LettersApp/LettersApp.swift */; };
+		41496EF24606542380766F86 /* LettersApp/Sources/LettersApp/StudioToolRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7ADC3CCADB522F88209C40 /* LettersApp/Sources/LettersApp/StudioToolRail.swift */; };
+		508986EF36BE5E039535191F /* LettersApp/Sources/LettersApp/MainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F06682BCC855F218E0B2296 /* LettersApp/Sources/LettersApp/MainEditorView.swift */; };
+		527C1756F23258CFBD781EAA /* LettersApp/Sources/LettersApp/DocumentOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF7A12561E15F51951684B2 /* LettersApp/Sources/LettersApp/DocumentOutlineView.swift */; };
+		64105B9F56F35970B66E359F /* LettersApp/Sources/LettersApp/StudioInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A6BF0122D559A69CE7F411 /* LettersApp/Sources/LettersApp/StudioInspectorView.swift */; };
+		80319C9E4B2050968FE350EF /* LettersApp/Sources/LettersApp/FloatingActionMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337F10FDDBCF52AAB1737ACF /* LettersApp/Sources/LettersApp/FloatingActionMenu.swift */; };
+		820B68458F3B5FC58A5A2215 /* LettersApp/Sources/LettersCoreC/shim.c in Sources */ = {isa = PBXBuildFile; fileRef = 14E9C123A2455A0AA0B34DBD /* LettersApp/Sources/LettersCoreC/shim.c */; };
+		9905AB804FAE57FBAE0ACB07 /* LettersApp/Sources/LettersApp/AssistantSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9878156A469C5C5BBA414684 /* LettersApp/Sources/LettersApp/AssistantSidebarView.swift */; };
+		9BF79FE3F16D5F2DBAAA6489 /* LettersApp/Sources/LettersApp/StudioPagesNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396E0474EAAA5E3EAD98E80C /* LettersApp/Sources/LettersApp/StudioPagesNavigator.swift */; };
+		9C92B015C3195CFA9596670E /* LettersApp/Sources/LettersKit/TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F512B921A195EAF9AB6DC3C /* LettersApp/Sources/LettersKit/TranslationService.swift */; };
+		9DDC067F42F750E1A68A5695 /* LettersApp/Sources/LettersApp/StudioTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1CB6EA4E7A5554832A4732 /* LettersApp/Sources/LettersApp/StudioTopBar.swift */; };
+		B10000012C12345600000001 /* LettersApp/Sources/LettersApp/AppCommandCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012C12345600000001 /* LettersApp/Sources/LettersApp/AppCommandCenter.swift */; };
+		B10000022C12345600000002 /* LettersApp/Sources/LettersApp/DynamicBibliographyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000022C12345600000002 /* LettersApp/Sources/LettersApp/DynamicBibliographyView.swift */; };
+		B10000032C12345600000003 /* LettersApp/Sources/LettersApp/DynamicTOCView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000032C12345600000003 /* LettersApp/Sources/LettersApp/DynamicTOCView.swift */; };
+		B10000042C12345600000004 /* LettersApp/Sources/LettersApp/FindReplaceBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000042C12345600000004 /* LettersApp/Sources/LettersApp/FindReplaceBar.swift */; };
+		B10000052C12345600000005 /* LettersApp/Sources/LettersApp/FloatingStudioHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000052C12345600000005 /* LettersApp/Sources/LettersApp/FloatingStudioHUD.swift */; };
+		B10000062C12345600000006 /* LettersApp/Sources/LettersApp/LettersDocumentBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000062C12345600000006 /* LettersApp/Sources/LettersApp/LettersDocumentBundle.swift */; };
+		B10000072C12345600000007 /* LettersApp/Sources/LettersApp/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000072C12345600000007 /* LettersApp/Sources/LettersApp/SettingsView.swift */; };
+		B10000082C12345600000008 /* LettersApp/Sources/LettersApp/SmartTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000082C12345600000008 /* LettersApp/Sources/LettersApp/SmartTableView.swift */; };
+		B10000092C12345600000009 /* LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000092C12345600000009 /* LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift */; };
+		B100000A2C1234560000000A /* LettersApp/Sources/LettersApp/StudioImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000A2C1234560000000A /* LettersApp/Sources/LettersApp/StudioImageView.swift */; };
+		B100000B2C1234560000000B /* LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000B2C1234560000000B /* LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift */; };
+		B100000C2C1234560000000C /* LettersApp/Sources/LettersApp/StudioVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000C2C1234560000000C /* LettersApp/Sources/LettersApp/StudioVideoView.swift */; };
+		B100000D2C1234560000000D /* LettersApp/Sources/LettersApp/EditorPerformanceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000D2C1234560000000D /* LettersApp/Sources/LettersApp/EditorPerformanceCache.swift */; };
+		C686D40AD63A5208B5371020 /* LettersApp/Sources/LettersApp/CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2E2D958FA05D21BB95C77B /* LettersApp/Sources/LettersApp/CommandPaletteView.swift */; };
+		D041FA244F1350128A4C8082 /* LettersApp/Sources/LettersKit/CoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2406FFBB4B0C5737A7F14E2E /* LettersApp/Sources/LettersKit/CoreBridge.swift */; };
+		DEB669D5CB1D560F91DA95B7 /* LettersApp/Sources/LettersKit/AIGateway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02636281821E5ED19CA49946 /* LettersApp/Sources/LettersKit/AIGateway.swift */; };
+		DF65AE3506A856A38D577A75 /* LettersApp/Sources/LettersKit/DocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C3E0EFE9C952C49BD42999 /* LettersApp/Sources/LettersKit/DocumentModel.swift */; };
+		F8866289B7F5542592222697 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C8FDA838535C3D95C8A362 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		14E9C123A2455A0AA0B34DBD /* shim.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "LettersApp/Sources/LettersCoreC/shim.c"; sourceTree = "<group>"; };
-		D3005EE29D1C5292927E4982 /* letters_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LettersApp/Sources/LettersCoreC/include/letters_core.h"; sourceTree = "<group>"; };
-		25F7DE8109B858BC8460CD19 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.module-map; path = "LettersApp/Sources/LettersCoreC/include/module.modulemap"; sourceTree = "<group>"; };
-		80C3E0EFE9C952C49BD42999 /* DocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/DocumentModel.swift"; sourceTree = "<group>"; };
-		2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/CoreBridge.swift"; sourceTree = "<group>"; };
-		02636281821E5ED19CA49946 /* AIGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/AIGateway.swift"; sourceTree = "<group>"; };
-		8F512B921A195EAF9AB6DC3C /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersKit/TranslationService.swift"; sourceTree = "<group>"; };
-		6CBA0ECCD3275D5B883542FF /* StudioTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioTheme.swift"; sourceTree = "<group>"; };
-		9E7ADC3CCADB522F88209C40 /* StudioToolRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioToolRail.swift"; sourceTree = "<group>"; };
-		1C1CB6EA4E7A5554832A4732 /* StudioTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioTopBar.swift"; sourceTree = "<group>"; };
-		396E0474EAAA5E3EAD98E80C /* StudioPagesNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioPagesNavigator.swift"; sourceTree = "<group>"; };
-		D8C8FDA838535C3D95C8A362 /* StudioBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioBottomBar.swift"; sourceTree = "<group>"; };
-		17A6BF0122D559A69CE7F411 /* StudioInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioInspectorView.swift"; sourceTree = "<group>"; };
-		801953898BED5339AC886A7C /* LettersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/LettersApp.swift"; sourceTree = "<group>"; };
-		6F06682BCC855F218E0B2296 /* MainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/MainEditorView.swift"; sourceTree = "<group>"; };
-		2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/TextKit2EditorView.swift"; sourceTree = "<group>"; };
-		3A2E2D958FA05D21BB95C77B /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/CommandPaletteView.swift"; sourceTree = "<group>"; };
-		337F10FDDBCF52AAB1737ACF /* FloatingActionMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/FloatingActionMenu.swift"; sourceTree = "<group>"; };
-		E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SourceManagerView.swift"; sourceTree = "<group>"; };
-		9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/AssistantSidebarView.swift"; sourceTree = "<group>"; };
-		DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DocumentOutlineView.swift"; sourceTree = "<group>"; };
-		A10000012C12345600000001 /* AppCommandCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/AppCommandCenter.swift"; sourceTree = "<group>"; };
-		A10000022C12345600000002 /* DynamicBibliographyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DynamicBibliographyView.swift"; sourceTree = "<group>"; };
-		A10000032C12345600000003 /* DynamicTOCView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/DynamicTOCView.swift"; sourceTree = "<group>"; };
-		A10000042C12345600000004 /* FindReplaceBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/FindReplaceBar.swift"; sourceTree = "<group>"; };
-		A10000052C12345600000005 /* FloatingStudioHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/FloatingStudioHUD.swift"; sourceTree = "<group>"; };
-		A10000062C12345600000006 /* LettersDocumentBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/LettersDocumentBundle.swift"; sourceTree = "<group>"; };
-		A10000072C12345600000007 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SettingsView.swift"; sourceTree = "<group>"; };
-		A10000082C12345600000008 /* SmartTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/SmartTableView.swift"; sourceTree = "<group>"; };
-		A10000092C12345600000009 /* StudioFloatingBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift"; sourceTree = "<group>"; };
-		A100000A2C1234560000000A /* StudioImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioImageView.swift"; sourceTree = "<group>"; };
-		A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift"; sourceTree = "<group>"; };
-		A100000C2C1234560000000C /* StudioVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/StudioVideoView.swift"; sourceTree = "<group>"; };
-		A100000D2C1234560000000D /* EditorPerformanceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LettersApp/Sources/LettersApp/EditorPerformanceCache.swift"; sourceTree = "<group>"; };
+		02636281821E5ED19CA49946 /* LettersApp/Sources/LettersKit/AIGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersKit/AIGateway.swift; sourceTree = "<group>"; };
+		14E9C123A2455A0AA0B34DBD /* LettersApp/Sources/LettersCoreC/shim.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = LettersApp/Sources/LettersCoreC/shim.c; sourceTree = "<group>"; };
+		17A6BF0122D559A69CE7F411 /* LettersApp/Sources/LettersApp/StudioInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioInspectorView.swift; sourceTree = "<group>"; };
+		1C1CB6EA4E7A5554832A4732 /* LettersApp/Sources/LettersApp/StudioTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioTopBar.swift; sourceTree = "<group>"; };
+		2406FFBB4B0C5737A7F14E2E /* LettersApp/Sources/LettersKit/CoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersKit/CoreBridge.swift; sourceTree = "<group>"; };
+		25F7DE8109B858BC8460CD19 /* LettersApp/Sources/LettersCoreC/include/module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = LettersApp/Sources/LettersCoreC/include/module.modulemap; sourceTree = "<group>"; };
+		2B776BA42B7855CFACC82158 /* LettersApp/Sources/LettersApp/TextKit2EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/TextKit2EditorView.swift; sourceTree = "<group>"; };
+		337F10FDDBCF52AAB1737ACF /* LettersApp/Sources/LettersApp/FloatingActionMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/FloatingActionMenu.swift; sourceTree = "<group>"; };
+		396E0474EAAA5E3EAD98E80C /* LettersApp/Sources/LettersApp/StudioPagesNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioPagesNavigator.swift; sourceTree = "<group>"; };
+		3A2E2D958FA05D21BB95C77B /* LettersApp/Sources/LettersApp/CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/CommandPaletteView.swift; sourceTree = "<group>"; };
+		6CBA0ECCD3275D5B883542FF /* LettersApp/Sources/LettersApp/StudioTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioTheme.swift; sourceTree = "<group>"; };
+		6F06682BCC855F218E0B2296 /* LettersApp/Sources/LettersApp/MainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/MainEditorView.swift; sourceTree = "<group>"; };
+		801953898BED5339AC886A7C /* LettersApp/Sources/LettersApp/LettersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/LettersApp.swift; sourceTree = "<group>"; };
+		80C3E0EFE9C952C49BD42999 /* LettersApp/Sources/LettersKit/DocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersKit/DocumentModel.swift; sourceTree = "<group>"; };
+		8F512B921A195EAF9AB6DC3C /* LettersApp/Sources/LettersKit/TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersKit/TranslationService.swift; sourceTree = "<group>"; };
+		9878156A469C5C5BBA414684 /* LettersApp/Sources/LettersApp/AssistantSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/AssistantSidebarView.swift; sourceTree = "<group>"; };
+		9E7ADC3CCADB522F88209C40 /* LettersApp/Sources/LettersApp/StudioToolRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioToolRail.swift; sourceTree = "<group>"; };
+		A10000012C12345600000001 /* LettersApp/Sources/LettersApp/AppCommandCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/AppCommandCenter.swift; sourceTree = "<group>"; };
+		A10000022C12345600000002 /* LettersApp/Sources/LettersApp/DynamicBibliographyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/DynamicBibliographyView.swift; sourceTree = "<group>"; };
+		A10000032C12345600000003 /* LettersApp/Sources/LettersApp/DynamicTOCView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/DynamicTOCView.swift; sourceTree = "<group>"; };
+		A10000042C12345600000004 /* LettersApp/Sources/LettersApp/FindReplaceBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/FindReplaceBar.swift; sourceTree = "<group>"; };
+		A10000052C12345600000005 /* LettersApp/Sources/LettersApp/FloatingStudioHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/FloatingStudioHUD.swift; sourceTree = "<group>"; };
+		A10000062C12345600000006 /* LettersApp/Sources/LettersApp/LettersDocumentBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/LettersDocumentBundle.swift; sourceTree = "<group>"; };
+		A10000072C12345600000007 /* LettersApp/Sources/LettersApp/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/SettingsView.swift; sourceTree = "<group>"; };
+		A10000082C12345600000008 /* LettersApp/Sources/LettersApp/SmartTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/SmartTableView.swift; sourceTree = "<group>"; };
+		A10000092C12345600000009 /* LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift; sourceTree = "<group>"; };
+		A100000A2C1234560000000A /* LettersApp/Sources/LettersApp/StudioImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioImageView.swift; sourceTree = "<group>"; };
+		A100000B2C1234560000000B /* LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift; sourceTree = "<group>"; };
+		A100000C2C1234560000000C /* LettersApp/Sources/LettersApp/StudioVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioVideoView.swift; sourceTree = "<group>"; };
+		A100000D2C1234560000000D /* LettersApp/Sources/LettersApp/EditorPerformanceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/EditorPerformanceCache.swift; sourceTree = "<group>"; };
 		CC59F701E35B58EA91D6096B /* Letters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Letters.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3005EE29D1C5292927E4982 /* LettersApp/Sources/LettersCoreC/include/letters_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LettersApp/Sources/LettersCoreC/include/letters_core.h; sourceTree = "<group>"; };
+		D8C8FDA838535C3D95C8A362 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioBottomBar.swift; sourceTree = "<group>"; };
+		DAF7A12561E15F51951684B2 /* LettersApp/Sources/LettersApp/DocumentOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/DocumentOutlineView.swift; sourceTree = "<group>"; };
+		E407308380E956A6B0D4FEE3 /* LettersApp/Sources/LettersApp/SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/SourceManagerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -90,53 +90,53 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AC7B0D9F87A259F59BB658FD = {
-			isa = PBXGroup;
-			children = (
-				29040342C6925CC794C66F0F /* Products */,
-				14E9C123A2455A0AA0B34DBD /* shim.c */,
-				D3005EE29D1C5292927E4982 /* letters_core.h */,
-				25F7DE8109B858BC8460CD19 /* module.modulemap */,
-				80C3E0EFE9C952C49BD42999 /* DocumentModel.swift */,
-				2406FFBB4B0C5737A7F14E2E /* CoreBridge.swift */,
-				02636281821E5ED19CA49946 /* AIGateway.swift */,
-				8F512B921A195EAF9AB6DC3C /* TranslationService.swift */,
-				6CBA0ECCD3275D5B883542FF /* StudioTheme.swift */,
-				9E7ADC3CCADB522F88209C40 /* StudioToolRail.swift */,
-				1C1CB6EA4E7A5554832A4732 /* StudioTopBar.swift */,
-				396E0474EAAA5E3EAD98E80C /* StudioPagesNavigator.swift */,
-				D8C8FDA838535C3D95C8A362 /* StudioBottomBar.swift */,
-				17A6BF0122D559A69CE7F411 /* StudioInspectorView.swift */,
-				801953898BED5339AC886A7C /* LettersApp.swift */,
-				6F06682BCC855F218E0B2296 /* MainEditorView.swift */,
-				2B776BA42B7855CFACC82158 /* TextKit2EditorView.swift */,
-				3A2E2D958FA05D21BB95C77B /* CommandPaletteView.swift */,
-				337F10FDDBCF52AAB1737ACF /* FloatingActionMenu.swift */,
-				E407308380E956A6B0D4FEE3 /* SourceManagerView.swift */,
-				9878156A469C5C5BBA414684 /* AssistantSidebarView.swift */,
-				DAF7A12561E15F51951684B2 /* DocumentOutlineView.swift */,
-				A10000012C12345600000001 /* AppCommandCenter.swift */,
-				A10000022C12345600000002 /* DynamicBibliographyView.swift */,
-				A10000032C12345600000003 /* DynamicTOCView.swift */,
-				A10000042C12345600000004 /* FindReplaceBar.swift */,
-				A10000052C12345600000005 /* FloatingStudioHUD.swift */,
-				A10000062C12345600000006 /* LettersDocumentBundle.swift */,
-				A10000072C12345600000007 /* SettingsView.swift */,
-				A10000082C12345600000008 /* SmartTableView.swift */,
-				A10000092C12345600000009 /* StudioFloatingBottomBar.swift */,
-				A100000A2C1234560000000A /* StudioImageView.swift */,
-				A100000B2C1234560000000B /* StudioLeftAttachedRail.swift */,
-				A100000C2C1234560000000C /* StudioVideoView.swift */,
-				A100000D2C1234560000000D /* EditorPerformanceCache.swift */,
-			);
-			sourceTree = "<group>";
-		};
 		29040342C6925CC794C66F0F /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				CC59F701E35B58EA91D6096B /* Letters.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AC7B0D9F87A259F59BB658FD = {
+			isa = PBXGroup;
+			children = (
+				29040342C6925CC794C66F0F /* Products */,
+				14E9C123A2455A0AA0B34DBD /* LettersApp/Sources/LettersCoreC/shim.c */,
+				D3005EE29D1C5292927E4982 /* LettersApp/Sources/LettersCoreC/include/letters_core.h */,
+				25F7DE8109B858BC8460CD19 /* LettersApp/Sources/LettersCoreC/include/module.modulemap */,
+				80C3E0EFE9C952C49BD42999 /* LettersApp/Sources/LettersKit/DocumentModel.swift */,
+				2406FFBB4B0C5737A7F14E2E /* LettersApp/Sources/LettersKit/CoreBridge.swift */,
+				02636281821E5ED19CA49946 /* LettersApp/Sources/LettersKit/AIGateway.swift */,
+				8F512B921A195EAF9AB6DC3C /* LettersApp/Sources/LettersKit/TranslationService.swift */,
+				6CBA0ECCD3275D5B883542FF /* LettersApp/Sources/LettersApp/StudioTheme.swift */,
+				9E7ADC3CCADB522F88209C40 /* LettersApp/Sources/LettersApp/StudioToolRail.swift */,
+				1C1CB6EA4E7A5554832A4732 /* LettersApp/Sources/LettersApp/StudioTopBar.swift */,
+				396E0474EAAA5E3EAD98E80C /* LettersApp/Sources/LettersApp/StudioPagesNavigator.swift */,
+				D8C8FDA838535C3D95C8A362 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift */,
+				17A6BF0122D559A69CE7F411 /* LettersApp/Sources/LettersApp/StudioInspectorView.swift */,
+				801953898BED5339AC886A7C /* LettersApp/Sources/LettersApp/LettersApp.swift */,
+				6F06682BCC855F218E0B2296 /* LettersApp/Sources/LettersApp/MainEditorView.swift */,
+				2B776BA42B7855CFACC82158 /* LettersApp/Sources/LettersApp/TextKit2EditorView.swift */,
+				3A2E2D958FA05D21BB95C77B /* LettersApp/Sources/LettersApp/CommandPaletteView.swift */,
+				337F10FDDBCF52AAB1737ACF /* LettersApp/Sources/LettersApp/FloatingActionMenu.swift */,
+				E407308380E956A6B0D4FEE3 /* LettersApp/Sources/LettersApp/SourceManagerView.swift */,
+				9878156A469C5C5BBA414684 /* LettersApp/Sources/LettersApp/AssistantSidebarView.swift */,
+				DAF7A12561E15F51951684B2 /* LettersApp/Sources/LettersApp/DocumentOutlineView.swift */,
+				A10000012C12345600000001 /* LettersApp/Sources/LettersApp/AppCommandCenter.swift */,
+				A10000022C12345600000002 /* LettersApp/Sources/LettersApp/DynamicBibliographyView.swift */,
+				A10000032C12345600000003 /* LettersApp/Sources/LettersApp/DynamicTOCView.swift */,
+				A10000042C12345600000004 /* LettersApp/Sources/LettersApp/FindReplaceBar.swift */,
+				A10000052C12345600000005 /* LettersApp/Sources/LettersApp/FloatingStudioHUD.swift */,
+				A10000062C12345600000006 /* LettersApp/Sources/LettersApp/LettersDocumentBundle.swift */,
+				A10000072C12345600000007 /* LettersApp/Sources/LettersApp/SettingsView.swift */,
+				A10000082C12345600000008 /* LettersApp/Sources/LettersApp/SmartTableView.swift */,
+				A10000092C12345600000009 /* LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift */,
+				A100000A2C1234560000000A /* LettersApp/Sources/LettersApp/StudioImageView.swift */,
+				A100000B2C1234560000000B /* LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift */,
+				A100000C2C1234560000000C /* LettersApp/Sources/LettersApp/StudioVideoView.swift */,
+				A100000D2C1234560000000D /* LettersApp/Sources/LettersApp/EditorPerformanceCache.swift */,
+			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -165,7 +165,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2700;
 			};
 			buildConfigurationList = 942D1889F73A590F97900C59 /* Build configuration list for PBXProject "Letters" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -190,38 +190,38 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				820B68458F3B5FC58A5A2215 /* shim.c in Sources */,
-				DF65AE3506A856A38D577A75 /* DocumentModel.swift in Sources */,
-				D041FA244F1350128A4C8082 /* CoreBridge.swift in Sources */,
-				DEB669D5CB1D560F91DA95B7 /* AIGateway.swift in Sources */,
-				9C92B015C3195CFA9596670E /* TranslationService.swift in Sources */,
-				202C1C778D7250B3A815FD2D /* StudioTheme.swift in Sources */,
-				41496EF24606542380766F86 /* StudioToolRail.swift in Sources */,
-				9DDC067F42F750E1A68A5695 /* StudioTopBar.swift in Sources */,
-				9BF79FE3F16D5F2DBAAA6489 /* StudioPagesNavigator.swift in Sources */,
-				F8866289B7F5542592222697 /* StudioBottomBar.swift in Sources */,
-				64105B9F56F35970B66E359F /* StudioInspectorView.swift in Sources */,
-				35B29CF4029A5F0885027A11 /* LettersApp.swift in Sources */,
-				508986EF36BE5E039535191F /* MainEditorView.swift in Sources */,
-				0C8D87CE5EE75687A8B7361F /* TextKit2EditorView.swift in Sources */,
-				C686D40AD63A5208B5371020 /* CommandPaletteView.swift in Sources */,
-				80319C9E4B2050968FE350EF /* FloatingActionMenu.swift in Sources */,
-				2797CE91D0BF594387A581B7 /* SourceManagerView.swift in Sources */,
-				9905AB804FAE57FBAE0ACB07 /* AssistantSidebarView.swift in Sources */,
-				527C1756F23258CFBD781EAA /* DocumentOutlineView.swift in Sources */,
-				B10000012C12345600000001 /* AppCommandCenter.swift in Sources */,
-				B10000022C12345600000002 /* DynamicBibliographyView.swift in Sources */,
-				B10000032C12345600000003 /* DynamicTOCView.swift in Sources */,
-				B10000042C12345600000004 /* FindReplaceBar.swift in Sources */,
-				B10000052C12345600000005 /* FloatingStudioHUD.swift in Sources */,
-				B10000062C12345600000006 /* LettersDocumentBundle.swift in Sources */,
-				B10000072C12345600000007 /* SettingsView.swift in Sources */,
-				B10000082C12345600000008 /* SmartTableView.swift in Sources */,
-				B10000092C12345600000009 /* StudioFloatingBottomBar.swift in Sources */,
-				B100000A2C1234560000000A /* StudioImageView.swift in Sources */,
-				B100000B2C1234560000000B /* StudioLeftAttachedRail.swift in Sources */,
-				B100000C2C1234560000000C /* StudioVideoView.swift in Sources */,
-				B100000D2C1234560000000D /* EditorPerformanceCache.swift in Sources */,
+				820B68458F3B5FC58A5A2215 /* LettersApp/Sources/LettersCoreC/shim.c in Sources */,
+				DF65AE3506A856A38D577A75 /* LettersApp/Sources/LettersKit/DocumentModel.swift in Sources */,
+				D041FA244F1350128A4C8082 /* LettersApp/Sources/LettersKit/CoreBridge.swift in Sources */,
+				DEB669D5CB1D560F91DA95B7 /* LettersApp/Sources/LettersKit/AIGateway.swift in Sources */,
+				9C92B015C3195CFA9596670E /* LettersApp/Sources/LettersKit/TranslationService.swift in Sources */,
+				202C1C778D7250B3A815FD2D /* LettersApp/Sources/LettersApp/StudioTheme.swift in Sources */,
+				41496EF24606542380766F86 /* LettersApp/Sources/LettersApp/StudioToolRail.swift in Sources */,
+				9DDC067F42F750E1A68A5695 /* LettersApp/Sources/LettersApp/StudioTopBar.swift in Sources */,
+				9BF79FE3F16D5F2DBAAA6489 /* LettersApp/Sources/LettersApp/StudioPagesNavigator.swift in Sources */,
+				F8866289B7F5542592222697 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift in Sources */,
+				64105B9F56F35970B66E359F /* LettersApp/Sources/LettersApp/StudioInspectorView.swift in Sources */,
+				35B29CF4029A5F0885027A11 /* LettersApp/Sources/LettersApp/LettersApp.swift in Sources */,
+				508986EF36BE5E039535191F /* LettersApp/Sources/LettersApp/MainEditorView.swift in Sources */,
+				0C8D87CE5EE75687A8B7361F /* LettersApp/Sources/LettersApp/TextKit2EditorView.swift in Sources */,
+				C686D40AD63A5208B5371020 /* LettersApp/Sources/LettersApp/CommandPaletteView.swift in Sources */,
+				80319C9E4B2050968FE350EF /* LettersApp/Sources/LettersApp/FloatingActionMenu.swift in Sources */,
+				2797CE91D0BF594387A581B7 /* LettersApp/Sources/LettersApp/SourceManagerView.swift in Sources */,
+				9905AB804FAE57FBAE0ACB07 /* LettersApp/Sources/LettersApp/AssistantSidebarView.swift in Sources */,
+				527C1756F23258CFBD781EAA /* LettersApp/Sources/LettersApp/DocumentOutlineView.swift in Sources */,
+				B10000012C12345600000001 /* LettersApp/Sources/LettersApp/AppCommandCenter.swift in Sources */,
+				B10000022C12345600000002 /* LettersApp/Sources/LettersApp/DynamicBibliographyView.swift in Sources */,
+				B10000032C12345600000003 /* LettersApp/Sources/LettersApp/DynamicTOCView.swift in Sources */,
+				B10000042C12345600000004 /* LettersApp/Sources/LettersApp/FindReplaceBar.swift in Sources */,
+				B10000052C12345600000005 /* LettersApp/Sources/LettersApp/FloatingStudioHUD.swift in Sources */,
+				B10000062C12345600000006 /* LettersApp/Sources/LettersApp/LettersDocumentBundle.swift in Sources */,
+				B10000072C12345600000007 /* LettersApp/Sources/LettersApp/SettingsView.swift in Sources */,
+				B10000082C12345600000008 /* LettersApp/Sources/LettersApp/SmartTableView.swift in Sources */,
+				B10000092C12345600000009 /* LettersApp/Sources/LettersApp/StudioFloatingBottomBar.swift in Sources */,
+				B100000A2C1234560000000A /* LettersApp/Sources/LettersApp/StudioImageView.swift in Sources */,
+				B100000B2C1234560000000B /* LettersApp/Sources/LettersApp/StudioLeftAttachedRail.swift in Sources */,
+				B100000C2C1234560000000C /* LettersApp/Sources/LettersApp/StudioVideoView.swift in Sources */,
+				B100000D2C1234560000000D /* LettersApp/Sources/LettersApp/EditorPerformanceCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,37 +236,49 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
 				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
-		};
-		9C018DCB2A975A9B9A47B42F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				GCC_OPTIMIZATION_LEVEL = s;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				SDKROOT = macosx;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 6.0;
-			};
-			name = Release;
 		};
 		22CFAFEF858D58168FCAC79D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -275,7 +287,9 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/LettersApp/Sources/LettersCoreC/include";
 				INFOPLIST_KEY_CFBundleDisplayName = Letters;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -285,12 +299,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.projectletters.Letters;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_INCLUDE_PATHS = (
-					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
-				);
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/LettersApp/Sources/LettersCoreC/include";
 			};
 			name = Debug;
 		};
@@ -301,7 +310,9 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/LettersApp/Sources/LettersCoreC/include";
 				INFOPLIST_KEY_CFBundleDisplayName = Letters;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -311,12 +322,53 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.projectletters.Letters;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_INCLUDE_PATHS = (
-					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
-				);
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/LettersApp/Sources/LettersCoreC/include",
-				);
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/LettersApp/Sources/LettersCoreC/include";
+			};
+			name = Release;
+		};
+		9C018DCB2A975A9B9A47B42F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -342,7 +394,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = CB2AA7564FE65A77A67DBBFE /* Project object */;
 }

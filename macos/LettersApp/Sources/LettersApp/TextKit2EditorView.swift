@@ -252,6 +252,36 @@ public class EditorActionController: ObservableObject {
         }
     }
 
+    public func toggleStrikethrough() {
+        guard let textView = textView else { return }
+        let range = textView.selectedRange()
+        guard let textStorage = textView.textStorage else { return }
+
+        if range.length > 0 {
+            textStorage.beginEditing()
+            var allStrikethrough = true
+            textStorage.enumerateAttribute(.strikethroughStyle, in: range, options: []) { value, _, stop in
+                let isStruck = ((value as? Int) ?? 0) != 0
+                if !isStruck {
+                    allStrikethrough = false
+                    stop.pointee = true
+                }
+            }
+            if allStrikethrough {
+                textStorage.removeAttribute(.strikethroughStyle, range: range)
+            } else {
+                textStorage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+            }
+            textStorage.endEditing()
+            textView.didChangeText()
+        } else {
+            var attrs = textView.typingAttributes
+            let isStruck = ((attrs[.strikethroughStyle] as? Int) ?? 0) != 0
+            attrs[.strikethroughStyle] = isStruck ? nil : NSUnderlineStyle.single.rawValue
+            textView.typingAttributes = attrs
+        }
+    }
+
     public func applyAlignment(_ alignment: TextAlignment, lineSpacing: CGFloat, paragraphSpacing: CGFloat) {
         guard let textView = textView, let textStorage = textView.textStorage else { return }
         let nsString = textStorage.string as NSString
@@ -266,12 +296,43 @@ public class EditorActionController: ObservableObject {
             targetRange = nsString.paragraphRange(for: NSRange(location: safeLoc, length: 0))
         }
 
-        let style = NSMutableParagraphStyle()
+        let existingStyle = (textStorage.attribute(.paragraphStyle, at: max(0, targetRange.location), effectiveRange: nil) as? NSParagraphStyle)
+        let style = (existingStyle?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
         switch alignment {
         case .leading: style.alignment = .left
         case .center: style.alignment = .center
         case .trailing: style.alignment = .right
         }
+        style.lineHeightMultiple = lineSpacing
+        style.paragraphSpacing = paragraphSpacing
+
+        textStorage.beginEditing()
+        textStorage.addAttribute(.paragraphStyle, value: style, range: targetRange)
+        textStorage.endEditing()
+
+        var attrs = textView.typingAttributes
+        attrs[.paragraphStyle] = style
+        textView.typingAttributes = attrs
+
+        textView.didChangeText()
+    }
+
+    public func applyLineSpacing(_ lineSpacing: CGFloat, paragraphSpacing: CGFloat) {
+        guard let textView = textView, let textStorage = textView.textStorage else { return }
+        let nsString = textStorage.string as NSString
+        guard nsString.length > 0 else { return }
+
+        let range = textView.selectedRange()
+        let targetRange: NSRange
+        if range.length > 0 {
+            targetRange = nsString.paragraphRange(for: range)
+        } else {
+            let safeLoc = min(max(0, range.location), max(0, nsString.length - 1))
+            targetRange = nsString.paragraphRange(for: NSRange(location: safeLoc, length: 0))
+        }
+
+        let existingStyle = (textStorage.attribute(.paragraphStyle, at: max(0, targetRange.location), effectiveRange: nil) as? NSParagraphStyle)
+        let style = (existingStyle?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
         style.lineHeightMultiple = lineSpacing
         style.paragraphSpacing = paragraphSpacing
 

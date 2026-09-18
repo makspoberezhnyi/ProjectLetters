@@ -5,12 +5,6 @@ import LettersKit
 
 public struct StudioLeftAttachedRail: View {
     @Binding var activeTool: StudioTool
-    @Binding var fontFamily: String
-    @Binding var fontSize: CGFloat
-    @Binding var isBold: Bool
-    @Binding var isItalic: Bool
-    @Binding var isUnderline: Bool
-    @Binding var textAlignment: TextAlignment
     @Binding var pageSize: PageSizePreset
     @Binding var marginPreset: MarginPreset
     @Binding var margins: PageMargins
@@ -19,12 +13,6 @@ public struct StudioLeftAttachedRail: View {
     @Binding var showOutlineDrawer: Bool
     @Binding var showFindReplace: Bool
 
-    var onToggleBold: () -> Void
-    var onToggleItalic: () -> Void
-    var onToggleUnderline: () -> Void
-    var onSetAlignment: (TextAlignment) -> Void
-    var onSetFontFamily: (String) -> Void
-    var onSetFontSize: (CGFloat) -> Void
     var onInsertTable: () -> Void
     var onInsertSection: () -> Void
     var onAddSource: () -> Void
@@ -33,22 +21,14 @@ public struct StudioLeftAttachedRail: View {
     var onInsertPageBreak: () -> Void
     var onInsertTOC: () -> Void
     var onInsertBibliography: () -> Void
-    var onToggleStrikethrough: () -> Void
     var onInsertBulletList: () -> Void
     var onInsertNumberedList: () -> Void
 
-    @State private var showingFontMenu: Bool = false
     @State private var showingPageLayoutPopover: Bool = false
-    @State private var showingTypographyPopover: Bool = false
+    @State private var showingListsPopover: Bool = false
 
     public init(
         activeTool: Binding<StudioTool>,
-        fontFamily: Binding<String>,
-        fontSize: Binding<CGFloat>,
-        isBold: Binding<Bool>,
-        isItalic: Binding<Bool>,
-        isUnderline: Binding<Bool>,
-        textAlignment: Binding<TextAlignment>,
         pageSize: Binding<PageSizePreset>,
         marginPreset: Binding<MarginPreset>,
         margins: Binding<PageMargins>,
@@ -56,12 +36,6 @@ public struct StudioLeftAttachedRail: View {
         showCropMarks: Binding<Bool>,
         showOutlineDrawer: Binding<Bool>,
         showFindReplace: Binding<Bool>,
-        onToggleBold: @escaping () -> Void,
-        onToggleItalic: @escaping () -> Void,
-        onToggleUnderline: @escaping () -> Void,
-        onSetAlignment: @escaping (TextAlignment) -> Void,
-        onSetFontFamily: @escaping (String) -> Void,
-        onSetFontSize: @escaping (CGFloat) -> Void,
         onInsertTable: @escaping () -> Void,
         onInsertSection: @escaping () -> Void,
         onAddSource: @escaping () -> Void,
@@ -70,17 +44,10 @@ public struct StudioLeftAttachedRail: View {
         onInsertPageBreak: @escaping () -> Void,
         onInsertTOC: @escaping () -> Void,
         onInsertBibliography: @escaping () -> Void,
-        onToggleStrikethrough: @escaping () -> Void,
-        onInsertBulletList: @escaping () -> Void,
-        onInsertNumberedList: @escaping () -> Void
+        onInsertBulletList: @escaping () -> Void = {},
+        onInsertNumberedList: @escaping () -> Void = {}
     ) {
         self._activeTool = activeTool
-        self._fontFamily = fontFamily
-        self._fontSize = fontSize
-        self._isBold = isBold
-        self._isItalic = isItalic
-        self._isUnderline = isUnderline
-        self._textAlignment = textAlignment
         self._pageSize = pageSize
         self._marginPreset = marginPreset
         self._margins = margins
@@ -88,12 +55,6 @@ public struct StudioLeftAttachedRail: View {
         self._showCropMarks = showCropMarks
         self._showOutlineDrawer = showOutlineDrawer
         self._showFindReplace = showFindReplace
-        self.onToggleBold = onToggleBold
-        self.onToggleItalic = onToggleItalic
-        self.onToggleUnderline = onToggleUnderline
-        self.onSetAlignment = onSetAlignment
-        self.onSetFontFamily = onSetFontFamily
-        self.onSetFontSize = onSetFontSize
         self.onInsertTable = onInsertTable
         self.onInsertSection = onInsertSection
         self.onAddSource = onAddSource
@@ -102,14 +63,13 @@ public struct StudioLeftAttachedRail: View {
         self.onInsertPageBreak = onInsertPageBreak
         self.onInsertTOC = onInsertTOC
         self.onInsertBibliography = onInsertBibliography
-        self.onToggleStrikethrough = onToggleStrikethrough
         self.onInsertBulletList = onInsertBulletList
         self.onInsertNumberedList = onInsertNumberedList
     }
 
     public var body: some View {
         VStack(spacing: 8) {
-            // 1. Outline & Pages Toggle
+            // 1. Outline & Pages Navigator Toggle
             RailIconButton(
                 icon: "sidebar.left",
                 isActive: showOutlineDrawer,
@@ -123,7 +83,7 @@ public struct StudioLeftAttachedRail: View {
             Divider()
                 .frame(width: 24)
 
-            // 2. Primary Insert & Content Tools
+            // 2. Primary Insert & Content Creation Tools
             VStack(spacing: 4) {
                 RailIconButton(icon: "textformat", isActive: false, shortcut: "Insert Text Section") {
                     onInsertSection()
@@ -156,121 +116,29 @@ public struct StudioLeftAttachedRail: View {
                 RailIconButton(icon: "pagebreak", isActive: false, shortcut: "Insert Page Break (⌘↵)") {
                     onInsertPageBreak()
                 }
-            }
 
-            Divider()
-                .frame(width: 24)
-
-            // 3. Typography & Styling Tools
-            VStack(spacing: 4) {
-                // Font Family Menu
-                Menu {
-                    Button("Default Serif (Georgia)") { onSetFontFamily("Default Serif (Georgia)") }
-                    Button("Helvetica") { onSetFontFamily("Helvetica") }
-                    Button("Times New Roman") { onSetFontFamily("Times New Roman") }
-                    Button("SF Pro") { onSetFontFamily("SF Pro") }
-                    Button("Menlo (Monospace)") { onSetFontFamily("Menlo (Monospace)") }
-                } label: {
-                    Image(systemName: "textformat.size")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.primary)
-                        .frame(width: 32, height: 28)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .menuStyle(.borderlessButton)
-                .help("Font Family: \(fontFamily)")
-
-                // Font Size Stepper
-                HStack(spacing: 2) {
-                    Button {
-                        if fontSize > 9 { onSetFontSize(fontSize - 1) }
-                    } label: {
-                        Text("-")
-                            .font(.system(size: 11, weight: .bold))
-                            .frame(width: 14, height: 22)
-                    }
-                    .buttonStyle(.plain)
-
-                    Text("\(Int(fontSize))")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .frame(width: 16)
-
-                    Button {
-                        if fontSize < 48 { onSetFontSize(fontSize + 1) }
-                    } label: {
-                        Text("+")
-                            .font(.system(size: 11, weight: .bold))
-                            .frame(width: 14, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 2)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-                .help("Font Size (pt)")
-
-                // Bold / Italic / Underline
-                RailIconButton(icon: "bold", isActive: isBold, shortcut: "Bold (⌘B)") {
-                    onToggleBold()
-                }
-
-                RailIconButton(icon: "italic", isActive: isItalic, shortcut: "Italic (⌘I)") {
-                    onToggleItalic()
-                }
-
-                RailIconButton(icon: "underline", isActive: isUnderline, shortcut: "Underline (⌘U)") {
-                    onToggleUnderline()
-                }
-
-                // Text Alignment Menu
-                Menu {
-                    Button("Align Left") { onSetAlignment(.leading) }
-                    Button("Align Center") { onSetAlignment(.center) }
-                    Button("Align Right") { onSetAlignment(.trailing) }
-                } label: {
-                    Image(systemName: textAlignment == .leading ? "text.alignleft" : textAlignment == .center ? "text.aligncenter" : "text.alignright")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.primary)
-                        .frame(width: 32, height: 28)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .menuStyle(.borderlessButton)
-                .help("Text Alignment")
-
-                // Advanced Typography & Lists Popover
+                // Quick Lists Popover
                 Button {
-                    showingTypographyPopover.toggle()
+                    showingListsPopover.toggle()
                 } label: {
-                    Image(systemName: "character.cursor.ibeam")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(showingTypographyPopover ? .accentColor : .primary)
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(showingListsPopover ? .accentColor : .primary)
                         .frame(width: 32, height: 28)
-                        .background(showingTypographyPopover ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                        .background(showingListsPopover ? Color.accentColor.opacity(0.15) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
-                .help("Advanced Typography & Lists")
-                .popover(isPresented: $showingTypographyPopover, arrowEdge: .trailing) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Fine Typography & Lists")
-                            .font(.system(size: 13, weight: .bold))
+                .help("Insert Lists (Bullet, Numbered)")
+                .popover(isPresented: $showingListsPopover, arrowEdge: .trailing) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("List Structures")
+                            .font(.system(size: 12, weight: .bold))
 
                         Divider()
 
-                        // Strikethrough
-                        Button {
-                            onToggleStrikethrough()
-                        } label: {
-                            HStack {
-                                Image(systemName: "strikethrough")
-                                Text("Strikethrough")
-                                Spacer()
-                            }
-                            .font(.system(size: 12))
-                        }
-                        .buttonStyle(.plain)
-
-                        // Bullet List
                         Button {
                             onInsertBulletList()
+                            showingListsPopover = false
                         } label: {
                             HStack {
                                 Image(systemName: "list.bullet")
@@ -281,9 +149,9 @@ public struct StudioLeftAttachedRail: View {
                         }
                         .buttonStyle(.plain)
 
-                        // Numbered List
                         Button {
                             onInsertNumberedList()
+                            showingListsPopover = false
                         } label: {
                             HStack {
                                 Image(systemName: "list.number")
@@ -294,15 +162,15 @@ public struct StudioLeftAttachedRail: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(14)
-                    .frame(width: 200)
+                    .padding(12)
+                    .frame(width: 170)
                 }
             }
 
             Divider()
                 .frame(width: 24)
 
-            // 4. Page Setup & Guides Popover
+            // 3. Page Setup, Margins & Publishing Guides Popover
             Button {
                 showingPageLayoutPopover.toggle()
             } label: {
@@ -364,7 +232,7 @@ public struct StudioLeftAttachedRail: View {
                 .frame(width: 240)
             }
 
-            // 5. Find & Replace
+            // 4. Find & Replace Overlay Toggle
             RailIconButton(icon: "magnifyingglass", isActive: showFindReplace, shortcut: "Find & Replace (⌘F)") {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     showFindReplace.toggle()

@@ -156,12 +156,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 // Attached Left Vertical Studio Tool Rail
                 StudioLeftAttachedRail(
                     activeTool: $activeTool,
-                    fontFamily: $fontFamily,
-                    fontSize: $fontSize,
-                    isBold: $isBold,
-                    isItalic: $isItalic,
-                    isUnderline: $isUnderline,
-                    textAlignment: $textAlignment,
                     pageSize: $pageSize,
                     marginPreset: $marginPreset,
                     margins: $margins,
@@ -169,12 +163,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     showCropMarks: $showCropMarks,
                     showOutlineDrawer: $showOutlineDrawer,
                     showFindReplace: $showFindReplace,
-                    onToggleBold: toggleBoldAction,
-                    onToggleItalic: toggleItalicAction,
-                    onToggleUnderline: toggleUnderlineAction,
-                    onSetAlignment: setAlignmentAction,
-                    onSetFontFamily: setFontFamilyAction,
-                    onSetFontSize: setFontSizeAction,
                     onInsertTable: {
                         handleToolAction(.table)
                     },
@@ -198,9 +186,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     },
                     onInsertBibliography: {
                         insertBibliographyAction()
-                    },
-                    onToggleStrikethrough: {
-                        toggleStrikethroughAction()
                     },
                     onInsertBulletList: {
                         insertBulletListAction()
@@ -661,8 +646,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func toggleStrikethroughAction() {
-        isUnderline.toggle()
+        editorController.toggleStrikethrough()
         showToast("✓ Strikethrough toggled")
+    }
+
+    private func setLineSpacingAction(_ spacing: CGFloat) {
+        lineSpacing = spacing
+        editorController.applyLineSpacing(spacing, paragraphSpacing: paragraphSpacing)
+        showToast("✓ Line Spacing: \(String(format: "%.2g", spacing))")
     }
 
     private func insertBulletListAction() {
@@ -1386,11 +1377,36 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private var floatingSelectionActionMenu: some View {
         FloatingActionMenu(
             selectedText: selectedText,
+            fontFamily: fontFamily,
+            fontSize: fontSize,
+            isBold: isBold,
+            isItalic: isItalic,
+            isUnderline: isUnderline,
+            textAlignment: textAlignment,
+            lineSpacing: lineSpacing,
             onBold: {
                 toggleBoldAction()
             },
             onItalic: {
                 toggleItalicAction()
+            },
+            onUnderline: {
+                toggleUnderlineAction()
+            },
+            onStrikethrough: {
+                toggleStrikethroughAction()
+            },
+            onSetFontFamily: { fam in
+                setFontFamilyAction(fam)
+            },
+            onSetFontSize: { sz in
+                setFontSizeAction(sz)
+            },
+            onSetAlignment: { align in
+                setAlignmentAction(align)
+            },
+            onSetLineSpacing: { sp in
+                setLineSpacingAction(sp)
             },
             onPolish: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -1421,7 +1437,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             }
         )
         .padding(.top, 16)
-        .padding(.leading, currentSheetWidth / 2 - 120)
+        .padding(.leading, max(20, currentSheetWidth / 2 - 200))
         .transition(.scale.combined(with: .opacity))
     }
 
