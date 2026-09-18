@@ -13,7 +13,7 @@ public enum AIProvider: String, CaseIterable, Identifiable, Sendable {
 
     public var defaultModel: String {
         switch self {
-        case .google: return "gemini-2.0-flash"
+        case .google: return "gemini-1.5-flash"
         case .claudeCLI: return "claude-3-5-sonnet (CLI Session)"
         case .ollama: return "llama3.2 / deepseek-r1"
         case .anthropic: return "claude-3-5-sonnet-20241022"
@@ -266,8 +266,11 @@ public actor AIGateway {
             throw NSError(domain: "GeminiAPI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google Gemini API key is missing."])
         }
 
-        // Standard Gemini v1beta endpoint using x-goog-api-key header
-        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse"
+        // Standard Gemini v1beta endpoint using query param and x-goog-api-key header
+        guard let encodedKey = cleanKey.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            throw NSError(domain: "GeminiAPI", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid characters in API key."])
+        }
+        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse&key=\(encodedKey)"
         guard let url = URL(string: endpoint) else {
             throw NSError(domain: "GeminiAPI", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid Gemini URL endpoint."])
         }

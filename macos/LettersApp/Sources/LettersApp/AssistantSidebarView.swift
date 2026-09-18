@@ -820,7 +820,7 @@ public struct AssistantSidebarView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Google Gemini 2.0 Flash")
+                    Text("Google Gemini 1.5 Flash")
                         .font(.subheadline.bold())
                     Text("100% Free Tier • No credit card required")
                         .font(.caption)
