@@ -266,10 +266,6 @@ public actor AIGateway {
             throw NSError(domain: "GeminiAPI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google Gemini API key is missing."])
         }
 
-        guard let encodedKey = cleanKey.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            throw NSError(domain: "GeminiAPI", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid characters in API key."])
-        }
-
         let fullUserMsg = context != nil ? "\(system)\n\nDocument Context:\n\(context!)\n\nUser Question:\n\(prompt)" : "\(system)\n\n\(prompt)"
         let body: [String: Any] = [
             "contents": [
@@ -284,15 +280,17 @@ public actor AIGateway {
 
         let candidateModels = [
             "gemini-1.5-flash",
+            "gemini-1.5-flash-latest",
             "gemini-2.0-flash",
             "gemini-1.5-pro",
             "gemini-2.0-flash-exp"
         ]
 
-        var lastError: Error? = nil
+        var lastErrorMessage: String? = nil
 
+        // 1. Try SSE streaming across models
         for model in candidateModels {
-            let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):streamGenerateContent?alt=sse&key=\(encodedKey)"
+            let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):streamGenerateContent?alt=sse&key=\(cleanKey)"
             guard let url = URL(string: endpoint) else { continue }
 
             var request = URLRequest(url: url)
@@ -303,59 +301,96 @@ public actor AIGateway {
 
             do {
                 let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    continue
-                }
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 404 {
+                        continue
+                    }
+                    if !(200...299).contains(httpResponse.statusCode) {
+                        var errMessage = "HTTP \(httpResponse.statusCode)"
+                        for try await line in bytes.lines {
+                            if let data = line.data(using: .utf8),
+                               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let err = obj["error"] as? [String: Any],
+                               let msg = err["message"] as? String {
+                                errMessage = msg
+                                break
+                            }
+                        }
+                        lastErrorMessage = errMessage
+                        continue
+                    }
 
-                if httpResponse.statusCode == 404 {
-                    continue
-                }
-
-                if !(200...299).contains(httpResponse.statusCode) {
-                    var errMessage = "HTTP \(httpResponse.statusCode)"
+                    var receivedTokens = false
                     for try await line in bytes.lines {
-                        if let data = line.data(using: .utf8),
-                           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                           let err = obj["error"] as? [String: Any],
-                           let msg = err["message"] as? String {
-                            errMessage = msg
-                            break
+                        if line.hasPrefix("data: ") {
+                            let payload = line.dropFirst(6)
+                            if let data = payload.data(using: .utf8),
+                               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let candidates = obj["candidates"] as? [[String: Any]],
+                               let first = candidates.first,
+                               let content = first["content"] as? [String: Any],
+                               let parts = content["parts"] as? [[String: Any]],
+                               let firstPart = parts.first,
+                               let text = firstPart["text"] as? String {
+                                receivedTokens = true
+                                onToken(text)
+                            }
                         }
                     }
-                    throw NSError(domain: "GeminiAPI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errMessage)"])
-                }
-
-                var receivedTokens = false
-                for try await line in bytes.lines {
-                    if line.hasPrefix("data: ") {
-                        let payload = line.dropFirst(6)
-                        if let data = payload.data(using: .utf8),
-                           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                           let candidates = obj["candidates"] as? [[String: Any]],
-                           let first = candidates.first,
-                           let content = first["content"] as? [String: Any],
-                           let parts = content["parts"] as? [[String: Any]],
-                           let firstPart = parts.first,
-                           let text = firstPart["text"] as? String {
-                            receivedTokens = true
-                            onToken(text)
-                        }
+                    if receivedTokens {
+                        return
                     }
-                }
-                if receivedTokens {
-                    return
                 }
             } catch {
-                lastError = error
-                if (error as NSError).code == 404 {
-                    continue
-                }
-                throw error
+                lastErrorMessage = error.localizedDescription
+                continue
             }
         }
 
-        if let err = lastError {
-            throw err
+        // 2. Fallback: Direct standard generateContent
+        for model in candidateModels {
+            let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(cleanKey)"
+            guard let url = URL(string: endpoint) else { continue }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(cleanKey, forHTTPHeaderField: "x-goog-api-key")
+            request.httpBody = httpBody
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else { continue }
+                if httpResponse.statusCode == 404 { continue }
+                if !(200...299).contains(httpResponse.statusCode) {
+                    if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let err = obj["error"] as? [String: Any],
+                       let msg = err["message"] as? String {
+                        lastErrorMessage = msg
+                    } else {
+                        lastErrorMessage = "HTTP \(httpResponse.statusCode)"
+                    }
+                    continue
+                }
+
+                if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let candidates = obj["candidates"] as? [[String: Any]],
+                   let first = candidates.first,
+                   let content = first["content"] as? [String: Any],
+                   let parts = content["parts"] as? [[String: Any]],
+                   let firstPart = parts.first,
+                   let text = firstPart["text"] as? String {
+                    onToken(text)
+                    return
+                }
+            } catch {
+                lastErrorMessage = error.localizedDescription
+                continue
+            }
+        }
+
+        if let msg = lastErrorMessage {
+            throw NSError(domain: "GeminiAPI", code: 400, userInfo: [NSLocalizedDescriptionKey: msg])
         } else {
             throw NSError(domain: "GeminiAPI", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not connect to Google Gemini. Check your API key at aistudio.google.com."])
         }
