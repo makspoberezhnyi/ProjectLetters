@@ -1203,7 +1203,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         VStack(alignment: .leading, spacing: 14) {
             ForEach(segments) { segment in
                 switch segment {
-                case .text(let segId, let textIdx, let initialChunk):
+                case .text(id: _, textIndex: let textIdx, initialContent: let initialChunk):
                     let currentChunk = getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
                     let displayChunk = currentChunk.isEmpty && !initialChunk.isEmpty ? initialChunk : currentChunk
                     let minH: CGFloat = segments.count == 1 ? max(200, currentSheetHeight - margins.top - margins.bottom - 40) : calculateEditorHeight(for: displayChunk)
@@ -1240,7 +1240,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     .frame(width: printableWidth)
                     .frame(minHeight: minH, alignment: .topLeading)
 
-                case .table(let segId, let tableId):
+                case .table(id: _, tableId: let tableId):
                     if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
                         SmartTableView(
                             tableData: $studioTables[idx],
@@ -1260,7 +1260,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                     }
 
-                case .image(let segId, let imageId):
+                case .image(id: _, imageId: let imageId):
                     if let idx = studioImages.firstIndex(where: { $0.id == imageId }) {
                         StudioImageView(
                             imageBlock: $studioImages[idx],
@@ -1279,7 +1279,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                     }
 
-                case .video(let segId, let videoId):
+                case .video(id: _, videoId: let videoId):
                     if let idx = studioVideos.firstIndex(where: { $0.id == videoId }) {
                         StudioVideoView(
                             videoBlock: $studioVideos[idx],
@@ -1298,7 +1298,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         )
                     }
 
-                case .bibliography(let segId):
+                case .bibliography(id: _):
                     DynamicBibliographyView(
                         sources: document.sources,
                         activeStyle: $activeCitationStyle,
@@ -1311,7 +1311,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         }
                     )
 
-                case .tableOfContents(let segId):
+                case .tableOfContents(id: _):
                     DynamicTOCView(
                         rawText: rawText,
                         onDelete: {
