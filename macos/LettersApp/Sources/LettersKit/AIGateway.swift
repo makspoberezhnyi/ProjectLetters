@@ -139,29 +139,80 @@ public actor AIGateway {
     }
 
     // MARK: - 1. Claude CLI / Local Subscription Bridge
+    public static func findClaudeExecutable() -> String? {
+        // 1. Try login shell discovery
+        let shellProcess = Process()
+        shellProcess.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        shellProcess.arguments = ["-l", "-c", "which claude"]
+        let shellPipe = Pipe()
+        shellProcess.standardOutput = shellPipe
+        shellProcess.standardError = Pipe()
+        do {
+            try shellProcess.run()
+            shellProcess.waitUntilExit()
+            if shellProcess.terminationStatus == 0 {
+                let data = shellPipe.fileHandleForReading.readDataToEndOfFile()
+                if let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !str.isEmpty,
+                   FileManager.default.isExecutableFile(atPath: str) {
+                    return str
+                }
+            }
+        } catch {}
+
+        let home = NSHomeDirectory()
+
+        // 2. Scan NVM node versions dynamically
+        let nvmNodeDir = "\(home)/.nvm/versions/node"
+        if let nodeVersions = try? FileManager.default.contentsOfDirectory(atPath: nvmNodeDir) {
+            for v in nodeVersions.sorted().reversed() {
+                let candidate = "\(nvmNodeDir)/\(v)/bin/claude"
+                if FileManager.default.isExecutableFile(atPath: candidate) {
+                    return candidate
+                }
+            }
+        }
+
+        // 3. Scan FNM versions dynamically
+        let fnmNodeDir = "\(home)/.fnm/node-versions"
+        if let fnmVersions = try? FileManager.default.contentsOfDirectory(atPath: fnmNodeDir) {
+            for v in fnmVersions.sorted().reversed() {
+                let candidate = "\(fnmNodeDir)/\(v)/installation/bin/claude"
+                if FileManager.default.isExecutableFile(atPath: candidate) {
+                    return candidate
+                }
+            }
+        }
+
+        // 4. Standard global paths
+        let standardPaths = [
+            "\(home)/.fnm/current/bin/claude",
+            "\(home)/.volta/bin/claude",
+            "\(home)/.asdf/shims/claude",
+            "\(home)/.bun/bin/claude",
+            "\(home)/.pnpm-global/bin/claude",
+            "\(home)/.npm-global/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+            "/usr/bin/claude"
+        ]
+
+        for p in standardPaths {
+            if FileManager.default.isExecutableFile(atPath: p) {
+                return p
+            }
+        }
+
+        return nil
+    }
+
     private func streamClaudeCLI(
         prompt: String,
         context: String?,
         system: String,
         onToken: @Sendable (String) -> Void
     ) async throws {
-        let possiblePaths = [
-            "/usr/local/bin/claude",
-            "/opt/homebrew/bin/claude",
-            "\(NSHomeDirectory())/.npm-global/bin/claude",
-            "\(NSHomeDirectory())/.nvm/versions/node/\(getNVMNodeVersion())/bin/claude",
-            "/usr/bin/claude"
-        ]
-
-        var claudePath: String? = nil
-        for p in possiblePaths {
-            if FileManager.default.isExecutableFile(atPath: p) {
-                claudePath = p
-                break
-            }
-        }
-
-        guard let executable = claudePath else {
+        guard let executable = Self.findClaudeExecutable() else {
             throw NSError(
                 domain: "ClaudeCLI",
                 code: 404,
@@ -174,10 +225,19 @@ public actor AIGateway {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = ["-p", fullPrompt, "--output-format", "text"]
+        process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+
+        var env = ProcessInfo.processInfo.environment
+        let execDir = (executable as NSString).deletingLastPathComponent
+        let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        env["PATH"] = "\(execDir):/opt/homebrew/bin:/usr/local/bin:\(currentPath)"
+        env["HOME"] = NSHomeDirectory()
+        process.environment = env
 
         let pipe = Pipe()
+        let errPipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = errPipe
 
         try process.run()
 
@@ -186,10 +246,14 @@ public actor AIGateway {
             onToken(line + "\n")
         }
         process.waitUntilExit()
-    }
 
-    private func getNVMNodeVersion() -> String {
-        return "v20.0.0"
+        if process.terminationStatus != 0 {
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            let errMsg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let msg = errMsg, !msg.isEmpty {
+                throw NSError(domain: "ClaudeCLI", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: msg])
+            }
+        }
     }
 
     // MARK: - 2. Local Ollama Models & Discovery
@@ -542,6 +606,13 @@ public actor AIGateway {
             } catch {
                 return (false, "⚠️ Connection error: \(error.localizedDescription)")
             }
+        }
+
+        if provider == .claudeCLI {
+            guard let exec = Self.findClaudeExecutable() else {
+                return (false, "⚠️ Claude CLI not found. Install in Terminal: npm install -g @anthropic-ai/claude-code")
+            }
+            return (true, "✓ Connected to Claude CLI (\(exec))")
         }
 
         do {
