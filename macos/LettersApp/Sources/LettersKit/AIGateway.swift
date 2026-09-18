@@ -275,6 +275,7 @@ public actor AIGateway {
         let body: [String: Any] = [
             "contents": [
                 [
+                    "role": "user",
                     "parts": [
                         ["text": fullUserMsg]
                     ]
@@ -301,7 +302,6 @@ public actor AIGateway {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue(cleanKey, forHTTPHeaderField: "x-goog-api-key")
             request.httpBody = httpBody
 
             do {
