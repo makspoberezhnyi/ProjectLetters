@@ -253,7 +253,7 @@ public actor AIGateway {
         }
     }
 
-    // MARK: - 3. Google Gemini (100% Free Developer Tier)
+    // MARK: - 3. Google Gemini (Free Tier)
     private func streamGemini(
         key: String,
         prompt: String,
@@ -266,7 +266,12 @@ public actor AIGateway {
             throw NSError(domain: "GeminiAPI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google Gemini API key is missing."])
         }
 
-        let fullUserMsg = context != nil ? "\(system)\n\nDocument Context:\n\(context!)\n\nUser Question:\n\(prompt)" : "\(system)\n\n\(prompt)"
+        var promptText = prompt
+        if let ctx = context?.trimmingCharacters(in: .whitespacesAndNewlines), !ctx.isEmpty, !ctx.contains("Word Count: 0 words") {
+            promptText = "Document Context:\n\(ctx)\n\nUser Request: \(prompt)"
+        }
+        let fullUserMsg = "\(system)\n\n\(promptText)"
+
         let body: [String: Any] = [
             "contents": [
                 [
@@ -321,7 +326,10 @@ public actor AIGateway {
                    let parts = content["parts"] as? [[String: Any]],
                    let firstPart = parts.first,
                    let text = firstPart["text"] as? String {
-                    onToken(text)
+                    for word in text.split(separator: " ") {
+                        onToken(String(word) + " ")
+                        try? await Task.sleep(nanoseconds: 12_000_000)
+                    }
                     return
                 }
             } catch {

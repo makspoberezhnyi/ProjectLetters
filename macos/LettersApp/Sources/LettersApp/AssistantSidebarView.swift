@@ -24,6 +24,7 @@ public struct AssistantSidebarView: View {
     @State private var isTestingConnection: Bool = false
     @State private var testResult: (success: Bool, message: String)? = nil
     @State private var showingKeyConfig: Bool = false
+    @State private var sidebarWidth: CGFloat = 390
     @State private var hoveredCardId: String? = nil
 
     public init(
@@ -53,56 +54,88 @@ public struct AssistantSidebarView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // 1. Header with Provider Selector, Key Status & Close Button
-            copilotHeader
+        HStack(spacing: 0) {
+            // Smooth Left-Edge Drag Resize Handle
+            resizeHandle
 
-            Divider()
-                .background(StudioTheme.border)
+            VStack(spacing: 0) {
+                // 1. Header with Provider Selector, Key Status & Close Button
+                copilotHeader
 
-            // 2. Active Context Strip (Selection vs Full Document)
-            contextStatusStrip
+                Divider()
+                    .background(StudioTheme.border)
 
-            Divider()
-                .background(StudioTheme.border.opacity(0.6))
+                // 2. Active Context Strip (Selection vs Full Document)
+                contextStatusStrip
 
-            // 3. Main Body: Empty State Prompt Cards OR Live Chat Stream
-            ZStack {
-                if messages.isEmpty {
-                    emptyStatePromptCards
-                } else {
-                    chatHistoryStream
+                Divider()
+                    .background(StudioTheme.border.opacity(0.6))
+
+                // 3. Main Body: Empty State Prompt Cards OR Live Chat Stream
+                ZStack {
+                    if messages.isEmpty {
+                        emptyStatePromptCards
+                    } else {
+                        chatHistoryStream
+                    }
                 }
+
+                Divider()
+                    .background(StudioTheme.border)
+
+                // 4. Floating Glass Prompt Input Bar
+                copilotInputBar
             }
-
-            Divider()
-                .background(StudioTheme.border)
-
-            // 4. Floating Glass Prompt Input Bar
-            copilotInputBar
+            .background(.ultraThinMaterial)
+            .background(StudioTheme.panelBackground.opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                StudioTheme.luminousPurple.opacity(0.5),
+                                StudioTheme.luminousBlue.opacity(0.2),
+                                Color.white.opacity(0.06)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.4), radius: 28, x: 0, y: 12)
         }
-        .frame(width: 370)
-        .background(.ultraThinMaterial)
-        .background(StudioTheme.panelBackground.opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            StudioTheme.luminousPurple.opacity(0.5),
-                            StudioTheme.luminousBlue.opacity(0.2),
-                            Color.white.opacity(0.06)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .shadow(color: Color.black.opacity(0.4), radius: 28, x: 0, y: 12)
+        .frame(width: sidebarWidth)
         .sheet(isPresented: $showingKeyConfig) {
             keyConfigSheet
+        }
+    }
+
+    private var resizeHandle: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: 10)
+                .contentShape(Rectangle())
+
+            Capsule()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 3, height: 32)
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    let newWidth = sidebarWidth - value.translation.width
+                    sidebarWidth = max(280, min(800, newWidth))
+                }
+        )
+        .onHover { hovering in
+            if hovering {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
         }
     }
 
@@ -128,18 +161,9 @@ public struct AssistantSidebarView: View {
             }
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text("Letters Copilot")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.primary)
-
-                    Text(selectedProvider.badgeLabel)
-                        .font(.system(size: 8, weight: .black))
-                        .foregroundColor(badgeColor(for: selectedProvider))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(badgeColor(for: selectedProvider).opacity(0.18), in: Capsule())
-                }
+                Text("Letters Copilot")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.primary)
 
                 Text(selectedProvider.defaultModel)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -156,7 +180,7 @@ public struct AssistantSidebarView: View {
                         selectedProvider = provider
                     } label: {
                         HStack {
-                            Text("[\(provider.badgeLabel)] \(provider.rawValue)")
+                            Text(provider.rawValue)
                             if provider == selectedProvider {
                                 Image(systemName: "checkmark")
                             }
@@ -1240,8 +1264,7 @@ public struct AssistantSidebarView: View {
             } catch {
                 await MainActor.run {
                     if let idx = messages.firstIndex(where: { $0.id == assistantMsgId }) {
-                        let fallbackResult = generateSmartLocalFormatting(prompt: prompt, context: docContext)
-                        messages[idx].content = fallbackResult
+                        messages[idx].content = "⚠️ [Letters Copilot Error]: \(error.localizedDescription)"
                     }
                 }
             }
