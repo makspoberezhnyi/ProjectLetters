@@ -15,8 +15,14 @@ public struct AssistantSidebarView: View {
     @State private var messages: [AIChatMessage] = []
     @State private var inputPrompt: String = ""
     @State private var isGenerating: Bool = false
-    @State private var selectedProvider: AIProvider = .anthropic
-    @State private var apiKeyInput: String = ""
+    @State private var selectedProvider: AIProvider = .google
+    @State private var configTab: String = "google"
+    @State private var geminiKeyInput: String = ""
+    @State private var anthropicKeyInput: String = ""
+    @State private var openAIKeyInput: String = ""
+    @State private var localOllamaModels: [String] = []
+    @State private var isTestingConnection: Bool = false
+    @State private var testResult: (success: Bool, message: String)? = nil
     @State private var showingKeyConfig: Bool = false
     @State private var hoveredCardId: String? = nil
 
@@ -127,17 +133,18 @@ public struct AssistantSidebarView: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.primary)
 
-                    Text("PRO")
+                    Text(selectedProvider.badgeLabel)
                         .font(.system(size: 8, weight: .black))
-                        .foregroundColor(StudioTheme.luminousPurple)
+                        .foregroundColor(badgeColor(for: selectedProvider))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(StudioTheme.luminousPurple.opacity(0.18), in: Capsule())
+                        .background(badgeColor(for: selectedProvider).opacity(0.18), in: Capsule())
                 }
 
                 Text(selectedProvider.defaultModel)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -149,7 +156,7 @@ public struct AssistantSidebarView: View {
                         selectedProvider = provider
                     } label: {
                         HStack {
-                            Text(provider.rawValue)
+                            Text("[\(provider.badgeLabel)] \(provider.rawValue)")
                             if provider == selectedProvider {
                                 Image(systemName: "checkmark")
                             }
@@ -157,12 +164,12 @@ public struct AssistantSidebarView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Circle()
                         .fill(providerStatusColor)
                         .frame(width: 6, height: 6)
 
-                    Text(selectedProvider.rawValue)
+                    Text(shortProviderTitle(selectedProvider))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.primary)
 
@@ -180,18 +187,18 @@ public struct AssistantSidebarView: View {
             }
             .menuStyle(.borderlessButton)
 
-            // API Key Settings Button
+            // AI Provider & Key Settings Button
             Button {
                 showingKeyConfig = true
             } label: {
-                Image(systemName: "key.fill")
+                Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(selectedProvider.requiresAPIKey && AIGateway.shared.getKey(provider: selectedProvider) == nil ? StudioTheme.luminousAmber : .secondary)
                     .frame(width: 24, height: 24)
                     .background(Color.primary.opacity(0.05), in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Configure API Keys (BYOK)")
+            .help("Configure AI Providers & Keys")
 
             // Close Drawer Button
             if let onClose = onClose {
@@ -206,6 +213,25 @@ public struct AssistantSidebarView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private func shortProviderTitle(_ provider: AIProvider) -> String {
+        switch provider {
+        case .google: return "Google Gemini"
+        case .claudeCLI: return "Claude Pro"
+        case .ollama: return "Local Ollama"
+        case .anthropic: return "Claude API"
+        case .openAI: return "GPT-4o API"
+        }
+    }
+
+    private func badgeColor(for provider: AIProvider) -> Color {
+        switch provider {
+        case .google: return StudioTheme.luminousCyan
+        case .claudeCLI: return StudioTheme.luminousPurple
+        case .ollama: return StudioTheme.luminousEmerald
+        case .anthropic, .openAI: return StudioTheme.luminousAmber
+        }
     }
 
     private var providerStatusColor: Color {
@@ -693,66 +719,452 @@ public struct AssistantSidebarView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Key Configuration Sheet
+    // MARK: - Key & AI Provider Configuration Sheet
     private var keyConfigSheet: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            // Sheet Header
             HStack {
-                Image(systemName: "key.fill")
-                    .foregroundColor(StudioTheme.luminousAmber)
-                Text("BYOK API Key Credentials")
-                    .font(.headline)
+                HStack(spacing: 8) {
+                    Image(systemName: "cpu.fill")
+                        .foregroundColor(StudioTheme.luminousPurple)
+                        .font(.system(size: 16))
+                    Text("AI Models & Subscription Profiles")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                }
+
                 Spacer()
+
                 Button("Done") {
                     showingKeyConfig = false
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
 
-            Text("Keys are encrypted with Apple Keychain Services and never logged or transmitted anywhere except direct AI cloud provider endpoints.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Category Segmented Picker
+            Picker("Profile", selection: $configTab) {
+                Text("Google (100% Free)").tag("google")
+                Text("Claude Pro (Local)").tag("claude")
+                Text("M-Series (Ollama)").tag("ollama")
+                Text("Cloud BYOK").tag("byok")
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("\(selectedProvider.rawValue) Key:")
-                    .font(.subheadline.bold())
+            // Tab Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if configTab == "google" {
+                        googleConfigTab
+                    } else if configTab == "claude" {
+                        claudeProConfigTab
+                    } else if configTab == "ollama" {
+                        ollamaConfigTab
+                    } else {
+                        byokCloudConfigTab
+                    }
 
-                SecureField("Enter API Key (sk-...)", text: $apiKeyInput)
-                    .textFieldStyle(.roundedBorder)
+                    // Live Test Result Strip
+                    if isTestingConnection {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Testing AI connection...")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                    } else if let testResult = testResult {
+                        HStack(spacing: 8) {
+                            Image(systemName: testResult.success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .foregroundColor(testResult.success ? StudioTheme.luminousEmerald : StudioTheme.luminousAmber)
+                            Text(testResult.message)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.primary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background((testResult.success ? StudioTheme.luminousEmerald : StudioTheme.luminousAmber).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                .padding(20)
+            }
+        }
+        .frame(width: 520, height: 480)
+        .onAppear {
+            loadExistingKeys()
+            refreshOllamaModels()
+        }
+    }
+
+    // MARK: - 1. Google Gemini (100% Free) Tab
+    private var googleConfigTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(StudioTheme.luminousCyan.opacity(0.18))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(StudioTheme.luminousCyan)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Google Gemini 2.0 Flash")
+                        .font(.subheadline.bold())
+                    Text("100% Free Tier • No credit card required")
+                        .font(.caption)
+                        .foregroundColor(StudioTheme.luminousCyan)
+                }
+
+                Spacer()
+
+                Button {
+                    if let url = URL(string: "https://aistudio.google.com/app/apikey") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Get Free Key")
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            Text("Google AI Studio offers a completely free API tier for Gemini models (up to 15 RPM / 1,500 requests per day). Generate your free key in 30 seconds and paste it below.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineSpacing(2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Google AI Studio API Key:")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
 
                 HStack {
-                    Button("Save to Keychain") {
+                    SecureField("AIzaSy...", text: $geminiKeyInput)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("Save") {
                         Task {
-                            try? await AIGateway.shared.storeKey(provider: selectedProvider, key: apiKeyInput)
-                            apiKeyInput = ""
-                            showingKeyConfig = false
-                            onToast?("✓ Saved \(selectedProvider.rawValue) key to Keychain")
+                            try? await AIGateway.shared.storeKey(provider: .google, key: geminiKeyInput)
+                            selectedProvider = .google
+                            onToast?("✓ Saved Google Gemini key")
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(apiKeyInput.isEmpty)
+                    .disabled(geminiKeyInput.isEmpty)
 
-                    if AIGateway.shared.getKey(provider: selectedProvider) != nil {
-                        Button("Remove Key", role: .destructive) {
+                    if AIGateway.shared.getKey(provider: .google) != nil {
+                        Button("Remove", role: .destructive) {
                             Task {
-                                try? await AIGateway.shared.storeKey(provider: selectedProvider, key: "")
-                                showingKeyConfig = false
-                                onToast?("Removed \(selectedProvider.rawValue) key")
+                                try? await AIGateway.shared.storeKey(provider: .google, key: "")
+                                geminiKeyInput = ""
+                                onToast?("Removed Google key")
                             }
                         }
                         .buttonStyle(.bordered)
                     }
                 }
             }
-            .padding(14)
-            .background(StudioTheme.surfaceHighlight, in: RoundedRectangle(cornerRadius: 10))
 
-            Spacer()
+            Button {
+                runConnectionTest(for: .google)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "play.circle.fill")
+                    Text("Test Gemini Connection")
+                }
+                .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .padding(20)
-        .frame(width: 420, height: 300)
+    }
+
+    // MARK: - 2. Claude Pro Subscription Tab
+    private var claudeProConfigTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(StudioTheme.luminousPurple.opacity(0.18))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(StudioTheme.luminousPurple)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Claude Pro Web Subscription")
+                        .font(.subheadline.bold())
+                    Text("Zero extra API tokens • Uses your existing account")
+                        .font(.caption)
+                        .foregroundColor(StudioTheme.luminousPurple)
+                }
+            }
+
+            Text("Letters connects to your existing Claude Pro subscription via Anthropic's official `claude` CLI terminal process on macOS.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineSpacing(2)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Quick 1-Time Setup in Terminal:")
+                    .font(.caption.bold())
+                    .foregroundColor(.primary)
+
+                HStack {
+                    Text("1. Run: npm install -g @anthropic-ai/claude-code\n2. Run: claude (Log in with your Claude Pro browser account)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+
+                    Button {
+                        let pb = NSPasteboard.general
+                        pb.clearContents()
+                        pb.setString("npm install -g @anthropic-ai/claude-code && claude", forType: .string)
+                        onToast?("✓ Copied CLI command to clipboard")
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    selectedProvider = .claudeCLI
+                    runConnectionTest(for: .claudeCLI)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.circle.fill")
+                        Text("Test Claude Pro CLI Bridge")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+
+                Button {
+                    let mcpConfig = AIGateway.shared.exportClaudeDesktopMCPConfig()
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(mcpConfig, forType: .string)
+                    onToast?("✓ Copied Claude Desktop MCP JSON config")
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "app.connected.to.app.below.fill")
+                        Text("Copy Claude Desktop MCP Config")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    // MARK: - 3. Local M-Series (Ollama) Tab
+    private var ollamaConfigTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(StudioTheme.luminousEmerald.opacity(0.18))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "desktopcomputer")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(StudioTheme.luminousEmerald)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Local M-Series / Apple Silicon")
+                        .font(.subheadline.bold())
+                    Text("100% Private & Offline • Llama 3.2 & DeepSeek R1")
+                        .font(.caption)
+                        .foregroundColor(StudioTheme.luminousEmerald)
+                }
+            }
+
+            Text("Run state-of-the-art open models directly on your Mac's unified memory and Neural Engine via Ollama (zero network transmission).")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineSpacing(2)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Detected Local Ollama Models:")
+                        .font(.caption.bold())
+                        .foregroundColor(.primary)
+
+                    Spacer()
+
+                    Button("Refresh") {
+                        refreshOllamaModels()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundColor(StudioTheme.luminousBlue)
+                }
+
+                if localOllamaModels.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("No active Ollama models found at http://127.0.0.1:11434")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                        Text("Install Ollama from ollama.com and run: `ollama run llama3.2`")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.secondary.opacity(0.8))
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(localOllamaModels, id: \.self) { model in
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(StudioTheme.luminousEmerald)
+                                    .font(.system(size: 10))
+                                Text(model)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+
+            Button {
+                selectedProvider = .ollama
+                runConnectionTest(for: .ollama)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "play.circle.fill")
+                    Text("Test Local Ollama Connection")
+                }
+                .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+    }
+
+    // MARK: - 4. Cloud BYOK Tab
+    private var byokCloudConfigTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Direct Developer Cloud API Keys")
+                .font(.subheadline.bold())
+
+            Text("Keys are encrypted with Apple Keychain Services and sent directly to Anthropic or OpenAI API endpoints.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // Anthropic Key
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Anthropic Claude API Key (sk-ant-...):")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    SecureField("sk-ant-...", text: $anthropicKeyInput)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("Save") {
+                        Task {
+                            try? await AIGateway.shared.storeKey(provider: .anthropic, key: anthropicKeyInput)
+                            onToast?("✓ Saved Anthropic API key")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(anthropicKeyInput.isEmpty)
+
+                    Button("Test") {
+                        runConnectionTest(for: .anthropic)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            // OpenAI Key
+            VStack(alignment: .leading, spacing: 6) {
+                Text("OpenAI GPT-4o API Key (sk-...):")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    SecureField("sk-...", text: $openAIKeyInput)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("Save") {
+                        Task {
+                            try? await AIGateway.shared.storeKey(provider: .openAI, key: openAIKeyInput)
+                            onToast?("✓ Saved OpenAI API key")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(openAIKeyInput.isEmpty)
+
+                    Button("Test") {
+                        runConnectionTest(for: .openAI)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    private func loadExistingKeys() {
+        if let gKey = AIGateway.shared.getKey(provider: .google) {
+            geminiKeyInput = gKey
+        }
+        if let aKey = AIGateway.shared.getKey(provider: .anthropic) {
+            anthropicKeyInput = aKey
+        }
+        if let oKey = AIGateway.shared.getKey(provider: .openAI) {
+            openAIKeyInput = oKey
+        }
+    }
+
+    private func refreshOllamaModels() {
+        Task {
+            let models = await AIGateway.shared.fetchLocalOllamaModels()
+            await MainActor.run {
+                self.localOllamaModels = models
+            }
+        }
+    }
+
+    private func runConnectionTest(for provider: AIProvider) {
+        isTestingConnection = true
+        testResult = nil
+        Task {
+            let res = await AIGateway.shared.testConnection(provider: provider)
+            await MainActor.run {
+                self.isTestingConnection = false
+                self.testResult = (res.0, res.1)
+            }
+        }
     }
 
     // MARK: - Logic & Actions

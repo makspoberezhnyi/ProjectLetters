@@ -1,27 +1,39 @@
 import Foundation
 import Security
+import AppKit
 
 public enum AIProvider: String, CaseIterable, Identifiable, Sendable {
-    case anthropic = "Anthropic"
-    case openAI = "OpenAI"
-    case google = "Google Gemini"
-    case ollama = "Ollama (Local LLM)"
+    case google = "Google Gemini (Free Tier)"
+    case claudeCLI = "Claude Pro (Local CLI)"
+    case ollama = "Local On-Device (Ollama / M-Series)"
+    case anthropic = "Anthropic Claude (API Key)"
+    case openAI = "OpenAI GPT-4o (API Key)"
 
     public var id: String { rawValue }
 
     public var defaultModel: String {
         switch self {
+        case .google: return "gemini-2.0-flash"
+        case .claudeCLI: return "claude-3-5-sonnet (CLI Session)"
+        case .ollama: return "llama3.2 / deepseek-r1"
         case .anthropic: return "claude-3-5-sonnet-20241022"
         case .openAI: return "gpt-4o"
-        case .google: return "gemini-2.0-flash"
-        case .ollama: return "llama3.2"
         }
     }
 
     public var requiresAPIKey: Bool {
         switch self {
-        case .ollama: return false
+        case .claudeCLI, .ollama: return false
         default: return true
+        }
+    }
+
+    public var badgeLabel: String {
+        switch self {
+        case .google: return "100% FREE"
+        case .claudeCLI: return "PRO ACCOUNT"
+        case .ollama: return "OFFLINE / LOCAL"
+        case .anthropic, .openAI: return "BYOK API"
         }
     }
 }
@@ -45,7 +57,7 @@ public actor AIGateway {
 
     private let keychainService = "com.letters.ai.credentials"
 
-    public func storeKey(provider: AIProvider, key: String) throws {
+    public nonisolated func storeKey(provider: AIProvider, key: String) throws {
         let account = provider.rawValue
         let data = Data(key.utf8)
 
@@ -72,7 +84,7 @@ public actor AIGateway {
         }
     }
 
-    public func getKey(provider: AIProvider) -> String? {
+    public nonisolated func getKey(provider: AIProvider) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
@@ -89,6 +101,7 @@ public actor AIGateway {
         return String(data: data, encoding: .utf8)
     }
 
+    // MARK: - Streaming Entrypoint
     public func streamCompletion(
         prompt: String,
         contextText: String?,
@@ -96,25 +109,103 @@ public actor AIGateway {
         systemPrompt: String = "You are Letters Assistant, an expert academic and professional document copilot. Provide direct, insightful assistance.",
         onToken: @Sendable (String) -> Void
     ) async throws {
-        if provider.requiresAPIKey {
+        switch provider {
+        case .google:
             guard let key = getKey(provider: provider), !key.isEmpty else {
-                throw NSError(domain: "LettersAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "No API key configured for \(provider.rawValue). Click the key icon to configure."])
+                throw NSError(domain: "LettersAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "No Google Gemini API key configured. Click the key icon to get a free key in 30 seconds."])
             }
-            switch provider {
-            case .anthropic:
-                try await streamAnthropic(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
-            case .openAI:
-                try await streamOpenAI(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
-            case .google:
-                try await streamGemini(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
-            case .ollama:
+            try await streamGemini(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+
+        case .claudeCLI:
+            try await streamClaudeCLI(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+
+        case .ollama:
+            try await streamOllama(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+
+        case .anthropic:
+            guard let key = getKey(provider: provider), !key.isEmpty else {
+                throw NSError(domain: "LettersAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "No Anthropic API key configured."])
+            }
+            try await streamAnthropic(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+
+        case .openAI:
+            guard let key = getKey(provider: provider), !key.isEmpty else {
+                throw NSError(domain: "LettersAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "No OpenAI API key configured."])
+            }
+            try await streamOpenAI(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+        }
+    }
+
+    // MARK: - 1. Claude CLI / Local Subscription Bridge
+    private func streamClaudeCLI(
+        prompt: String,
+        context: String?,
+        system: String,
+        onToken: @Sendable (String) -> Void
+    ) async throws {
+        let possiblePaths = [
+            "/usr/local/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "\(NSHomeDirectory())/.npm-global/bin/claude",
+            "\(NSHomeDirectory())/.nvm/versions/node/\(getNVMNodeVersion())/bin/claude",
+            "/usr/bin/claude"
+        ]
+
+        var claudePath: String? = nil
+        for p in possiblePaths {
+            if FileManager.default.isExecutableFile(atPath: p) {
+                claudePath = p
                 break
             }
-        } else {
-            if provider == .ollama {
-                try await streamOllama(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
-            }
         }
+
+        guard let executable = claudePath else {
+            throw NSError(
+                domain: "ClaudeCLI",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Claude CLI not found. Install it in Terminal with: 'npm install -g @anthropic-ai/claude-code' and run 'claude' to log in with your Claude Pro subscription."]
+            )
+        }
+
+        let fullPrompt = context != nil ? "System Instructions: \(system)\n\nDocument Context:\n\(context!)\n\nUser Request:\n\(prompt)" : "\(system)\n\n\(prompt)"
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = ["-p", fullPrompt, "--output-format", "text"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        try process.run()
+
+        let handle = pipe.fileHandleForReading
+        for try await line in handle.bytes.lines {
+            onToken(line + "\n")
+        }
+        process.waitUntilExit()
+    }
+
+    private func getNVMNodeVersion() -> String {
+        return "v20.0.0"
+    }
+
+    // MARK: - 2. Local Ollama Models & Discovery
+    public func fetchLocalOllamaModels() async -> [String] {
+        guard let url = URL(string: "http://127.0.0.1:11434/api/tags") else { return [] }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                return []
+            }
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let models = json["models"] as? [[String: Any]] {
+                return models.compactMap { $0["name"] as? String }
+            }
+        } catch {
+            return []
+        }
+        return []
     }
 
     private func streamOllama(
@@ -141,7 +232,7 @@ public actor AIGateway {
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "OllamaAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Ollama not reachable at http://127.0.0.1:11434. Make sure Ollama is running locally."])
+            throw NSError(domain: "OllamaAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Ollama not reachable at http://127.0.0.1:11434. Make sure Ollama is running locally on your Mac."])
         }
 
         for try await line in bytes.lines {
@@ -160,6 +251,55 @@ public actor AIGateway {
         }
     }
 
+    // MARK: - 3. Google Gemini (100% Free Developer Tier)
+    private func streamGemini(
+        key: String,
+        prompt: String,
+        context: String?,
+        system: String,
+        onToken: @Sendable (String) -> Void
+    ) async throws {
+        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=\(key)&alt=sse"
+        guard let url = URL(string: endpoint) else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let fullUserMsg = context != nil ? "\(system)\n\nDocument Context:\n\(context!)\n\nUser Question:\n\(prompt)" : "\(system)\n\n\(prompt)"
+        let body: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": fullUserMsg]
+                    ]
+                ]
+            ]
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "GeminiAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Invalid Google Gemini API key or request error. Verify your key from aistudio.google.com."])
+        }
+
+        for try await line in bytes.lines {
+            if line.hasPrefix("data: ") {
+                let payload = line.dropFirst(6)
+                if let data = payload.data(using: .utf8),
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let candidates = obj["candidates"] as? [[String: Any]],
+                   let first = candidates.first,
+                   let content = first["content"] as? [String: Any],
+                   let parts = content["parts"] as? [[String: Any]],
+                   let firstPart = parts.first,
+                   let text = firstPart["text"] as? String {
+                    onToken(text)
+                }
+            }
+        }
+    }
+
+    // MARK: - 4. Anthropic & OpenAI BYOK
     private func streamAnthropic(
         key: String,
         prompt: String,
@@ -188,7 +328,7 @@ public actor AIGateway {
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "AnthropicAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Anthropic API error"])
+            throw NSError(domain: "AnthropicAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Anthropic API key error. Check your key and credits on console.anthropic.com."])
         }
 
         for try await line in bytes.lines {
@@ -230,7 +370,7 @@ public actor AIGateway {
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "OpenAIAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "OpenAI API error"])
+            throw NSError(domain: "OpenAIAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "OpenAI API key error. Check your key on platform.openai.com."])
         }
 
         for try await line in bytes.lines {
@@ -249,50 +389,32 @@ public actor AIGateway {
         }
     }
 
-    private func streamGemini(
-        key: String,
-        prompt: String,
-        context: String?,
-        system: String,
-        onToken: @Sendable (String) -> Void
-    ) async throws {
-        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=\(key)&alt=sse"
-        guard let url = URL(string: endpoint) else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let fullUserMsg = context != nil ? "\(system)\n\nDocument Context:\n\(context!)\n\nUser Question:\n\(prompt)" : "\(system)\n\n\(prompt)"
-        let body: [String: Any] = [
-            "contents": [
-                [
-                    "parts": [
-                        ["text": fullUserMsg]
-                    ]
-                ]
-            ]
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "GeminiAPI", code: 500, userInfo: [NSLocalizedDescriptionKey: "Gemini API error"])
-        }
-
-        for try await line in bytes.lines {
-            if line.hasPrefix("data: ") {
-                let payload = line.dropFirst(6)
-                if let data = payload.data(using: .utf8),
-                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let candidates = obj["candidates"] as? [[String: Any]],
-                   let first = candidates.first,
-                   let content = first["content"] as? [String: Any],
-                   let parts = content["parts"] as? [[String: Any]],
-                   let firstPart = parts.first,
-                   let text = firstPart["text"] as? String {
-                    onToken(text)
-                }
+    // MARK: - 5. Claude Desktop MCP Config Exporter
+    public nonisolated func exportClaudeDesktopMCPConfig() -> String {
+        return """
+        {
+          "mcpServers": {
+            "projectletters": {
+              "command": "/Applications/Letters.app/Contents/MacOS/Letters",
+              "args": ["--mcp-server"]
             }
+          }
+        }
+        """
+    }
+
+    // MARK: - 6. Test Key Connection
+    public func testConnection(provider: AIProvider) async -> (Bool, String) {
+        do {
+            try await streamCompletion(
+                prompt: "Reply with the single word 'OK'",
+                contextText: nil,
+                provider: provider,
+                onToken: { _ in }
+            )
+            return (true, "✓ Connected successfully to \(provider.rawValue)")
+        } catch {
+            return (false, "⚠️ Connection failed: \(error.localizedDescription)")
         }
     }
 }

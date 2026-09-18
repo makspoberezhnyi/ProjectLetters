@@ -462,6 +462,10 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.drawsBackground = false
         textView.focusRingType = .none
 
+        if #available(macOS 15.0, *) {
+            textView.writingToolsBehavior = .complete
+        }
+
         let font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = NSMutableParagraphStyle()
         switch alignment {
