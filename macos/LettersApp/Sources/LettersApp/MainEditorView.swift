@@ -97,6 +97,17 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showAIDrawer: Bool = false
     @State private var showOutlineDrawer: Bool = false
 
+    // Modern Dark Floating Island & Cover Banner States
+    @State private var coverBannerConfig: CoverBannerConfig = CoverBannerConfig(
+        isEnabled: true,
+        preset: .desertDunes,
+        iconSymbol: "✨",
+        categoryTag: "SPECIFICATION",
+        customTitle: "Letters Product Specification"
+    )
+    @State private var showIslandSidebar: Bool = true
+    @State private var showDocumentTimeline: Bool = false
+
     public init() {}
 
     private var wordCount: Int {
@@ -127,8 +138,24 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Sleek Minimalist Top Navigation Bar (Clean Document Header)
+            // 1. Sleek Minimalist Glass Top Navigation Bar
             HStack(spacing: 12) {
+                // Left Island Sidebar Toggle Button
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        showIslandSidebar.toggle()
+                    }
+                }) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(showIslandSidebar ? .accentColor : .primary.opacity(0.75))
+                        .frame(width: 28, height: 28)
+                        .background(showIslandSidebar ? Color.accentColor.opacity(0.15) : Color.clear)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Floating Island Navigator (⌥⌘1)")
+
                 // Document Title & Page Status
                 HStack(spacing: 8) {
                     Image(systemName: "doc.text.fill")
@@ -138,7 +165,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     TextField("Document Title", text: $documentTitle)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 180, maxWidth: 360)
+                        .frame(minWidth: 180, maxWidth: 320)
 
                     Text("• \(pageSize.rawValue)")
                         .font(.system(size: 11, weight: .medium))
@@ -146,6 +173,91 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 }
 
                 Spacer()
+
+                // Quick Action Center & Navigation Toggles
+                HStack(spacing: 8) {
+                    // Editorial Cover Banner Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            coverBannerConfig.isEnabled.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: coverBannerConfig.isEnabled ? "photo.fill" : "photo")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Cover")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(coverBannerConfig.isEnabled ? StudioTheme.luminousAmber.opacity(0.18) : Color.primary.opacity(0.06))
+                        .foregroundColor(coverBannerConfig.isEnabled ? StudioTheme.luminousAmber : .primary)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Toggle Editorial Hero Cover Banner (⌥⌘C)")
+
+                    // Reading Flow Timeline Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showDocumentTimeline.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Timeline")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(showDocumentTimeline ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
+                        .foregroundColor(showDocumentTimeline ? StudioTheme.luminousCyan : .primary)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Toggle Reading Flow & Section Timeline (⌥⌘T)")
+
+                    Divider()
+                        .frame(height: 16)
+
+                    // AI Copilot Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showAIDrawer.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("AI Copilot")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(showAIDrawer ? StudioTheme.luminousPurple.opacity(0.2) : Color.primary.opacity(0.06))
+                        .foregroundColor(showAIDrawer ? StudioTheme.luminousPurple : .primary)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Toggle AI Copilot Companion (⌘J)")
+
+                    // Command Center Button
+                    Button(action: { showCommandPalette.toggle() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "command")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("K")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.06))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open Command Center (⌘K)")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -157,71 +269,91 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 alignment: .bottom
             )
 
-            // 2. Wide Main Workspace Canvas with Attached Left Vertical Rail & Drawers
+            // 2. Wide Main Workspace Canvas with Floating Islands & Timeline
             HStack(spacing: 0) {
-                // Attached Left Vertical Studio Tool Rail
-                StudioLeftAttachedRail(
-                    activeTool: $activeTool,
-                    pageSize: $pageSize,
-                    marginPreset: $marginPreset,
-                    margins: $margins,
-                    showMarginGuides: $showMarginGuides,
-                    showCropMarks: $showCropMarks,
-                    showOutlineDrawer: $showOutlineDrawer,
-                    showFindReplace: $showFindReplace,
-                    onInsertTable: {
-                        handleToolAction(.table)
-                    },
-                    onInsertSection: {
-                        handleToolAction(.text)
-                    },
-                    onAddSource: {
-                        showingAddSourceSheet = true
-                    },
-                    onInsertImage: {
-                        insertImageAction()
-                    },
-                    onInsertVideo: {
-                        showingAddVideoSheet = true
-                    },
-                    onInsertPageBreak: {
-                        insertPageBreakAction()
-                    },
-                    onInsertTOC: {
-                        insertTOCAction()
-                    },
-                    onInsertBibliography: {
-                        insertBibliographyAction()
-                    },
-                    onInsertBulletList: {
-                        insertBulletListAction()
-                    },
-                    onInsertNumberedList: {
-                        insertNumberedListAction()
-                    }
-                )
-
-                // Optional Sliding Left Outline / Pages Drawer
-                if showOutlineDrawer {
-                    StudioPagesNavigator(rawText: $rawText, selectedPage: $selectedPage)
-                        .transition(.move(edge: .leading))
-                }
-
                 // Center Canvas & Multi-Page Viewport
                 GeometryReader { geometry in
-                    ZStack(alignment: .bottom) {
+                    ZStack(alignment: .topLeading) {
                         ScrollView([.vertical, .horizontal]) {
                             VStack(spacing: 36) {
+                                // Optional Editorial Hero Cover Banner
+                                if coverBannerConfig.isEnabled {
+                                    StudioCoverBannerView(
+                                        config: $coverBannerConfig,
+                                        documentTitle: $documentTitle,
+                                        sheetWidth: currentSheetWidth * zoomScale,
+                                        onBannerToggled: {
+                                            showToast(coverBannerConfig.isEnabled ? "Cover enabled" : "Cover disabled")
+                                        }
+                                    )
+                                    .frame(width: currentSheetWidth * zoomScale)
+                                    .padding(.bottom, 8)
+                                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                                }
+
                                 // Multi-Page Sheet Rendering
                                 ForEach(0..<documentPages.count, id: \.self) { pageIndex in
                                     documentPageSheet(pageIndex: pageIndex)
                                 }
                             }
                             .padding(.top, 28)
-                            .padding(.bottom, 100)
+                            .padding(.bottom, 120)
                             .frame(minWidth: max(geometry.size.width, currentSheetWidth * zoomScale + 120), alignment: .center)
                         }
                         .background(StudioTheme.canvasBackground)
+
+                        // Floating Left Island Sidebar Overlay
+                        if showIslandSidebar {
+                            VStack {
+                                StudioFloatingSidebar(
+                                    isPresented: $showIslandSidebar,
+                                    rawText: $rawText,
+                                    selectedPage: $selectedPage,
+                                    sources: $document.sources,
+                                    tables: $studioTables,
+                                    images: $studioImages,
+                                    videos: $studioVideos,
+                                    showAIDrawer: $showAIDrawer,
+                                    showCommandPalette: $showCommandPalette,
+                                    onInsertSection: { handleToolAction(.text) },
+                                    onInsertTable: { handleToolAction(.table) },
+                                    onAddSource: { showingAddSourceSheet = true },
+                                    onInsertPageBreak: { insertPageBreakAction() },
+                                    onToast: { msg in showToast(msg) }
+                                )
+                                Spacer()
+                            }
+                            .padding(.leading, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 16)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            .zIndex(10)
+                        }
+
+                        // Floating Right Document Timeline Overlay
+                        if showDocumentTimeline {
+                            VStack {
+                                HStack {
+                                    Spacer()
+                                    StudioDocumentTimelineView(
+                                        isPresented: $showDocumentTimeline,
+                                        rawText: $rawText,
+                                        wordCount: wordCount,
+                                        characterCount: characterCount,
+                                        readingTimeMinutes: readingTimeMinutes,
+                                        onSelectHeading: { heading in
+                                            showToast("Jumped to: \(heading)")
+                                        }
+                                    )
+                                }
+                                Spacer()
+                            }
+                            .padding(.trailing, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 16)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .zIndex(10)
+                        }
 
                         // 3. Floating Draggable Header & Footer / Page Numbering HUD (Double-click activation)
                         if isEditingHeaderFooter {
@@ -253,66 +385,86 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                         // 5. Floating Find & Replace Bar Overlay (⌘F)
                         if showFindReplace {
-                            FindReplaceBar(
-                                isPresented: $showFindReplace,
-                                rawText: $rawText,
-                                onToast: { msg in showToast(msg) }
-                            )
-                            .padding(.bottom, 80)
+                            VStack {
+                                Spacer()
+                                FindReplaceBar(
+                                    isPresented: $showFindReplace,
+                                    rawText: $rawText,
+                                    onToast: { msg in showToast(msg) }
+                                )
+                                .padding(.bottom, 80)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(18)
                         }
 
                         // Bottom Edge Hover Detection Strip (triggers bottom bar reveal)
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(height: 64)
-                            .contentShape(Rectangle())
+                        VStack {
+                            Spacer()
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(height: 64)
+                                .contentShape(Rectangle())
+                                .onHover { hovered in
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                        isBottomBarHovered = hovered
+                                    }
+                                }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .zIndex(12)
+
+                        // Floating Studio Bottom Bar (Stats, Citations, Scale, AI) - Auto-hides when pointer is not at the bottom
+                        VStack {
+                            Spacer()
+                            StudioFloatingBottomBar(
+                                wordCount: wordCount,
+                                characterCount: characterCount,
+                                readingTimeMinutes: readingTimeMinutes,
+                                citationStyle: $activeCitationStyle,
+                                zoomScale: $zoomScale,
+                                showAIDrawer: $showAIDrawer,
+                                onToast: { msg in showToast(msg) }
+                            )
+                            .padding(.bottom, 20)
+                            .opacity(isBottomBarHovered ? 1.0 : 0.0)
+                            .offset(y: isBottomBarHovered ? 0 : 25)
+                            .scaleEffect(isBottomBarHovered ? 1.0 : 0.96)
+                            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isBottomBarHovered)
                             .onHover { hovered in
                                 withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                                     isBottomBarHovered = hovered
                                 }
                             }
-
-                        // 4. Floating Studio Bottom Bar (Stats, Citations, Scale, AI) - Auto-hides when pointer is not at the bottom
-                        StudioFloatingBottomBar(
-                            wordCount: wordCount,
-                            characterCount: characterCount,
-                            readingTimeMinutes: readingTimeMinutes,
-                            citationStyle: $activeCitationStyle,
-                            zoomScale: $zoomScale,
-                            showAIDrawer: $showAIDrawer,
-                            onToast: { msg in showToast(msg) }
-                        )
-                        .padding(.bottom, 20)
-                        .opacity(isBottomBarHovered ? 1.0 : 0.0)
-                        .offset(y: isBottomBarHovered ? 0 : 25)
-                        .scaleEffect(isBottomBarHovered ? 1.0 : 0.96)
-                        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isBottomBarHovered)
-                        .onHover { hovered in
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                isBottomBarHovered = hovered
-                            }
+                            .allowsHitTesting(isBottomBarHovered)
                         }
-                        .allowsHitTesting(isBottomBarHovered)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .zIndex(14)
 
                         // Floating Toast Notification
                         if let msg = toastMessage {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text(msg)
-                                    .font(.subheadline.bold())
+                            VStack {
+                                Spacer()
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text(msg)
+                                        .font(.subheadline.bold())
+                                }
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 10)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
+                                .padding(.bottom, 72)
                             }
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 10)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
-                            .padding(.bottom, 72)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(25)
                         }
                     }
                 }
@@ -523,10 +675,22 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     .keyboardShortcut("j", modifiers: [.command])
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showOutlineDrawer.toggle()
+                        showIslandSidebar.toggle()
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("1", modifiers: [.command, .option])
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showDocumentTimeline.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("t", modifiers: [.command, .option])
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        coverBannerConfig.isEnabled.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("c", modifiers: [.command, .option])
                 Button(action: saveDocumentAsLetters) { EmptyView() }
                     .keyboardShortcut("s", modifiers: [.command])
                 Button(action: newDocumentAction) { EmptyView() }
@@ -1377,7 +1541,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
             fontSize: Double(fontSize),
             lineSpacing: Double(lineSpacing),
             paragraphSpacing: Double(paragraphSpacing),
-            headerFooter: headerFooterConfig
+            headerFooter: headerFooterConfig,
+            coverBanner: coverBannerConfig
         )
 
         guard let data = try? bundle.encodeToData() else {
@@ -1437,6 +1602,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     lineSpacing = CGFloat(bundle.lineSpacing)
                     paragraphSpacing = CGFloat(bundle.paragraphSpacing)
                     headerFooterConfig = bundle.headerFooter
+                    coverBannerConfig = bundle.coverBanner
                     showToast("✓ Opened .letters document: \(url.lastPathComponent)")
                 } else if ext == "md" || ext == "txt" {
                     let content = try String(contentsOf: url, encoding: .utf8)

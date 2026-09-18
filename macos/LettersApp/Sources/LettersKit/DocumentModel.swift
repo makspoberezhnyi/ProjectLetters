@@ -479,6 +479,64 @@ public struct HeaderFooterConfig: Codable, Sendable, Hashable {
     }
 }
 
+public enum CoverBannerPreset: String, Codable, CaseIterable, Sendable {
+    case desertDunes = "Desert Dunes"
+    case appleAurora = "Apple Aurora"
+    case midnightIndigo = "Midnight Indigo"
+    case solarFlare = "Solar Flare"
+    case emeraldForest = "Emerald Forest"
+    case minimalMonochrome = "Minimal Dark"
+    case none = "None"
+
+    public var isVisual: Bool {
+        self != .none
+    }
+}
+
+public struct CoverBannerConfig: Codable, Sendable, Equatable {
+    public var isEnabled: Bool
+    public var preset: CoverBannerPreset
+    public var iconSymbol: String
+    public var categoryTag: String
+    public var customTitle: String
+    public var height: Double
+
+    public init(
+        isEnabled: Bool = false,
+        preset: CoverBannerPreset = .desertDunes,
+        iconSymbol: String = "sparkles",
+        categoryTag: String = "Studio Document",
+        customTitle: String = "",
+        height: Double = 180.0
+    ) {
+        self.isEnabled = isEnabled
+        self.preset = preset
+        self.iconSymbol = iconSymbol
+        self.categoryTag = categoryTag
+        self.customTitle = customTitle
+        self.height = height
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case isEnabled = "is_enabled"
+        case preset
+        case iconSymbol = "icon_symbol"
+        case categoryTag = "category_tag"
+        case customTitle = "custom_title"
+        case height
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
+        self.preset = try container.decodeIfPresent(CoverBannerPreset.self, forKey: .preset) ?? .desertDunes
+        self.iconSymbol = try container.decodeIfPresent(String.self, forKey: .iconSymbol) ?? "sparkles"
+        self.categoryTag = try container.decodeIfPresent(String.self, forKey: .categoryTag) ?? "Studio Document"
+        self.customTitle = try container.decodeIfPresent(String.self, forKey: .customTitle) ?? ""
+        self.height = try container.decodeIfPresent(Double.self, forKey: .height) ?? 180.0
+    }
+}
+
 public struct DocumentModel: Codable, Sendable {
     public var title: String
     public var blocks: [BlockElement]
@@ -486,6 +544,7 @@ public struct DocumentModel: Codable, Sendable {
     public var pageSize: PageSizePreset
     public var margins: PageMargins
     public var headerFooter: HeaderFooterConfig
+    public var coverBanner: CoverBannerConfig
 
     public init(
         title: String = "Untitled Document",
@@ -493,7 +552,8 @@ public struct DocumentModel: Codable, Sendable {
         sources: [String: Source] = [:],
         pageSize: PageSizePreset = .letter,
         margins: PageMargins = PageMargins(),
-        headerFooter: HeaderFooterConfig = HeaderFooterConfig()
+        headerFooter: HeaderFooterConfig = HeaderFooterConfig(),
+        coverBanner: CoverBannerConfig = CoverBannerConfig()
     ) {
         self.title = title
         self.blocks = blocks
@@ -501,10 +561,11 @@ public struct DocumentModel: Codable, Sendable {
         self.pageSize = pageSize
         self.margins = margins
         self.headerFooter = headerFooter
+        self.coverBanner = coverBanner
     }
 
     enum CodingKeys: String, CodingKey {
-        case title, blocks, sources, pageSize, margins, headerFooter
+        case title, blocks, sources, pageSize, margins, headerFooter, coverBanner
     }
 
     public init(from decoder: Decoder) throws {
@@ -515,6 +576,7 @@ public struct DocumentModel: Codable, Sendable {
         self.pageSize = try container.decodeIfPresent(PageSizePreset.self, forKey: .pageSize) ?? .letter
         self.margins = try container.decodeIfPresent(PageMargins.self, forKey: .margins) ?? PageMargins()
         self.headerFooter = try container.decodeIfPresent(HeaderFooterConfig.self, forKey: .headerFooter) ?? HeaderFooterConfig()
+        self.coverBanner = try container.decodeIfPresent(CoverBannerConfig.self, forKey: .coverBanner) ?? CoverBannerConfig()
     }
 }
 

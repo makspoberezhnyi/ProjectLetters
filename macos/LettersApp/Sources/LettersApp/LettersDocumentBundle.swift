@@ -136,6 +136,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var paragraphSpacing: Double
     public var textAlignmentString: String
     public var headerFooter: HeaderFooterConfig
+    public var coverBanner: CoverBannerConfig
     public var createdAt: Date
     public var modifiedAt: Date
 
@@ -155,7 +156,8 @@ public struct LettersDocumentBundle: Codable, Sendable {
         lineSpacing: Double = 1.15,
         paragraphSpacing: Double = 12.0,
         textAlignmentString: String = "leading",
-        headerFooter: HeaderFooterConfig = HeaderFooterConfig()
+        headerFooter: HeaderFooterConfig = HeaderFooterConfig(),
+        coverBanner: CoverBannerConfig = CoverBannerConfig()
     ) {
         self.version = Self.currentVersion
         self.title = title
@@ -174,12 +176,13 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.paragraphSpacing = paragraphSpacing
         self.textAlignmentString = textAlignmentString
         self.headerFooter = headerFooter
+        self.coverBanner = coverBanner
         self.createdAt = Date()
         self.modifiedAt = Date()
     }
 
     enum CodingKeys: String, CodingKey {
-        case version, title, rawText, tables, images, videos, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, headerFooter, createdAt, modifiedAt
+        case version, title, rawText, tables, images, videos, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, headerFooter, coverBanner, createdAt, modifiedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -201,6 +204,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.paragraphSpacing = try container.decodeIfPresent(Double.self, forKey: .paragraphSpacing) ?? 12.0
         self.textAlignmentString = try container.decodeIfPresent(String.self, forKey: .textAlignmentString) ?? "leading"
         self.headerFooter = try container.decodeIfPresent(HeaderFooterConfig.self, forKey: .headerFooter) ?? HeaderFooterConfig()
+        self.coverBanner = try container.decodeIfPresent(CoverBannerConfig.self, forKey: .coverBanner) ?? CoverBannerConfig()
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt) ?? Date()
     }

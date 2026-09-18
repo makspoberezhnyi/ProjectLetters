@@ -237,14 +237,21 @@ public struct FloatingActionMenu: View {
                 onCommandPalette()
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4.5)
+        .background(.ultraThickMaterial, in: Capsule())
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 0.8)
+            Capsule()
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), Color.white.opacity(0.06)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.8
+                )
         )
-        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.25), radius: 14, x: 0, y: 6)
     }
 }
 
