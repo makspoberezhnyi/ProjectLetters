@@ -67,6 +67,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var headerFooterConfig: HeaderFooterConfig = HeaderFooterConfig()
     @State private var isEditingHeaderFooter: Bool = false
     @State private var activeHeaderFooterTarget: HeaderFooterTarget = .header
+    @State private var headerFooterToolbarPosition: HeaderFooterToolbarPosition = .adaptive
 
     // Rich Interactive Blocks State
     @State private var studioTables: [StudioTableData] = [
@@ -222,23 +223,44 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         }
                         .background(StudioTheme.canvasBackground)
 
-                        // 3. Floating Header & Footer / Page Numbering Control Bar (Double-click activation)
+                        // 3. Floating Adaptive Header & Footer / Page Numbering Control Bar (Double-click activation)
                         if isEditingHeaderFooter {
+                            let isTop = (headerFooterToolbarPosition == .top) || (headerFooterToolbarPosition == .adaptive && activeHeaderFooterTarget == .footer)
                             VStack {
+                                if !isTop {
+                                    Spacer()
+                                }
                                 StudioHeaderFooterToolbar(
                                     config: $headerFooterConfig,
                                     isEditing: $isEditingHeaderFooter,
-                                    activeTarget: $activeHeaderFooterTarget
+                                    activeTarget: $activeHeaderFooterTarget,
+                                    position: $headerFooterToolbarPosition
                                 )
-                                .padding(.top, 16)
-                                .transition(.move(edge: .top).combined(with: .opacity))
-                                Spacer()
+                                .padding(.top, isTop ? 14 : 0)
+                                .padding(.bottom, isTop ? 0 : 74)
+                                .transition(isTop ? .move(edge: .top).combined(with: .opacity) : .move(edge: .bottom).combined(with: .opacity))
+
+                                if isTop {
+                                    Spacer()
+                                }
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            .zIndex(10)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isTop ? .top : .bottom)
+                            .zIndex(20)
                         }
 
-                        // 4. Floating Find & Replace Bar Overlay (⌘F)
+                        // 4. Floating Text Selection Quick Format HUD (Adaptive bottom placement)
+                        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isEditingHeaderFooter {
+                            VStack {
+                                Spacer()
+                                floatingSelectionActionMenu
+                                    .padding(.bottom, 74)
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .zIndex(15)
+                        }
+
+                        // 5. Floating Find & Replace Bar Overlay (⌘F)
                         if showFindReplace {
                             FindReplaceBar(
                                 isPresented: $showFindReplace,
@@ -1620,11 +1642,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     isEditing: $isEditingHeaderFooter,
                     activeTarget: $activeHeaderFooterTarget
                 )
-
-                // 7. Floating contextual selection menu
-                if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    floatingSelectionActionMenu
-                }
             }
             .frame(width: currentSheetWidth, height: currentSheetHeight)
             .scaleEffect(zoomScale, anchor: .top)
@@ -1885,9 +1902,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 showCommandPalette = true
             }
         )
-        .padding(.top, 16)
-        .padding(.leading, max(20, currentSheetWidth / 2 - 200))
-        .transition(.scale.combined(with: .opacity))
     }
 
     private func extractTextChunks(from pageContent: String) -> [String] {

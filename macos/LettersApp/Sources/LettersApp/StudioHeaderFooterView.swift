@@ -312,13 +312,34 @@ public struct StudioFooterView: View {
     }
 }
 
+public enum HeaderFooterToolbarPosition: String, CaseIterable, Identifiable {
+    case adaptive = "Adaptive"
+    case top = "Top"
+    case bottom = "Bottom"
+
+    public var id: String { rawValue }
+}
+
 public struct StudioHeaderFooterToolbar: View {
     @Binding var config: HeaderFooterConfig
     @Binding var isEditing: Bool
     @Binding var activeTarget: HeaderFooterTarget
+    var position: Binding<HeaderFooterToolbarPosition>? = nil
+
+    public init(
+        config: Binding<HeaderFooterConfig>,
+        isEditing: Binding<Bool>,
+        activeTarget: Binding<HeaderFooterTarget>,
+        position: Binding<HeaderFooterToolbarPosition>? = nil
+    ) {
+        self._config = config
+        self._isEditing = isEditing
+        self._activeTarget = activeTarget
+        self.position = position
+    }
 
     public var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             // Target Picker (Header vs Footer)
             Picker("Edit Target", selection: $activeTarget) {
                 ForEach(HeaderFooterTarget.allCases) { target in
@@ -326,15 +347,15 @@ public struct StudioHeaderFooterToolbar: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 130)
+            .frame(width: 120)
 
             Divider()
                 .frame(height: 16)
 
             // Page Number Position Picker
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Image(systemName: "number.square")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10.5))
                     .foregroundColor(.secondary)
 
                 Menu {
@@ -345,14 +366,14 @@ public struct StudioHeaderFooterToolbar: View {
                     }
                 } label: {
                     HStack(spacing: 3) {
-                        Text("Pos: \(config.pageNumberPosition.rawValue)")
-                            .font(.system(size: 11, weight: .medium))
+                        Text(config.pageNumberPosition.rawValue)
+                            .font(.system(size: 10.5, weight: .medium))
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 7, weight: .bold))
+                            .font(.system(size: 6.5, weight: .bold))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3.5)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
                     .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
                 }
                 .menuStyle(.borderlessButton)
@@ -361,7 +382,7 @@ public struct StudioHeaderFooterToolbar: View {
             }
 
             // Page Number Format Picker
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Menu {
                     ForEach(PageNumberFormat.allCases, id: \.self) { fmt in
                         Button(fmt.rawValue) {
@@ -370,14 +391,14 @@ public struct StudioHeaderFooterToolbar: View {
                     }
                 } label: {
                     HStack(spacing: 3) {
-                        Text("Format: \(config.pageNumberFormat.rawValue)")
-                            .font(.system(size: 11, weight: .medium))
+                        Text(config.pageNumberFormat.rawValue)
+                            .font(.system(size: 10.5, weight: .medium))
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 7, weight: .bold))
+                            .font(.system(size: 6.5, weight: .bold))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3.5)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
                     .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
                 }
                 .menuStyle(.borderlessButton)
@@ -388,32 +409,32 @@ public struct StudioHeaderFooterToolbar: View {
             // Starting Page Stepper
             HStack(spacing: 2) {
                 Text("Start:")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9.5, weight: .medium))
                     .foregroundColor(.secondary)
 
                 Button {
                     if config.startingPageNumber > 0 { config.startingPageNumber -= 1 }
                 } label: {
                     Text("−")
-                        .font(.system(size: 11, weight: .bold))
-                        .frame(width: 14, height: 18)
+                        .font(.system(size: 10.5, weight: .bold))
+                        .frame(width: 14, height: 16)
                 }
                 .buttonStyle(.plain)
 
                 Text("\(config.startingPageNumber)")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .frame(width: 16)
+                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .frame(width: 14)
 
                 Button {
                     config.startingPageNumber += 1
                 } label: {
                     Text("+")
-                        .font(.system(size: 11, weight: .bold))
-                        .frame(width: 14, height: 18)
+                        .font(.system(size: 10.5, weight: .bold))
+                        .frame(width: 14, height: 16)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 4)
             .padding(.vertical, 2)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
             .help("Starting Page Number (Offset)")
@@ -423,13 +444,14 @@ public struct StudioHeaderFooterToolbar: View {
 
             // Different First Page Checkbox
             Toggle(isOn: $config.differentFirstPage) {
-                Text("Diff First Page")
-                    .font(.system(size: 11, weight: .medium))
+                Text("Diff First")
+                    .font(.system(size: 10.5, weight: .medium))
             }
             .toggleStyle(.checkbox)
             .help("Hide header and footer on the title / cover page")
 
-            Spacer()
+            Divider()
+                .frame(height: 16)
 
             // Quick Token Menu
             Menu {
@@ -448,15 +470,36 @@ public struct StudioHeaderFooterToolbar: View {
             } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "plus.circle")
-                    Text("Insert Field")
+                    Text("Field")
                 }
-                .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3.5)
+                .font(.system(size: 10.5, weight: .medium))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
+
+            // Optional Position Flip Button
+            if let pos = position {
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        switch pos.wrappedValue {
+                        case .adaptive: pos.wrappedValue = .top
+                        case .top: pos.wrappedValue = .bottom
+                        case .bottom: pos.wrappedValue = .adaptive
+                        }
+                    }
+                } label: {
+                    Image(systemName: pos.wrappedValue == .top ? "arrow.down.to.line" : (pos.wrappedValue == .bottom ? "arrow.up.to.line" : "arrow.up.and.down"))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(4)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Dock Position (Current: \(pos.wrappedValue.rawValue))")
+            }
 
             // Close / Done Button
             Button {
@@ -464,27 +507,28 @@ public struct StudioHeaderFooterToolbar: View {
                     isEditing = false
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Image(systemName: "checkmark.circle.fill")
                     Text("Done")
                 }
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10.5, weight: .semibold))
                 .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3.5)
                 .background(Color.accentColor, in: Capsule())
             }
             .buttonStyle(.plain)
             .help("Close Header & Footer Editor (Esc)")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(Color.primary.opacity(0.12), lineWidth: 0.8)
         )
         .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 5)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func appendToken(_ token: String) {
