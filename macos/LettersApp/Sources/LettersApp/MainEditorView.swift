@@ -107,6 +107,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     )
     @State private var showIslandSidebar: Bool = true
     @State private var showDocumentTimeline: Bool = false
+    @State private var showPageDesignInspector: Bool = false
 
     public init() {}
 
@@ -220,6 +221,27 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                     Divider()
                         .frame(height: 16)
+
+                    // Page Design Inspector Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showPageDesignInspector.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "paintpalette.fill")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Design")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(showPageDesignInspector ? StudioTheme.luminousPurple.opacity(0.2) : Color.primary.opacity(0.06))
+                        .foregroundColor(showPageDesignInspector ? StudioTheme.luminousPurple : .primary)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Toggle Page Design & Style Inspector (⌥⌘D)")
 
                     // AI Copilot Toggle
                     Button(action: {
@@ -474,6 +496,36 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .zIndex(15)
                         }
 
+                        // Floating Right Page Design & Style Inspector
+                        if showPageDesignInspector {
+                            VStack {
+                                HStack {
+                                    Spacer()
+                                    StudioPageDesignView(
+                                        isPresented: $showPageDesignInspector,
+                                        coverBannerConfig: $coverBannerConfig,
+                                        pageSize: $pageSize,
+                                        marginPreset: $marginPreset,
+                                        margins: $margins,
+                                        fontFamily: $fontFamily,
+                                        fontSize: $fontSize,
+                                        lineSpacing: $lineSpacing,
+                                        paragraphSpacing: $paragraphSpacing,
+                                        activeCitationStyle: $activeCitationStyle,
+                                        showMarginGuides: $showMarginGuides,
+                                        showCropMarks: $showCropMarks,
+                                        onToast: { msg in showToast(msg) }
+                                    )
+                                }
+                                Spacer()
+                            }
+                            .padding(.trailing, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 16)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .zIndex(16)
+                        }
+
                         // Floating Toast Notification
                         if let msg = toastMessage {
                             VStack {
@@ -706,6 +758,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("c", modifiers: [.command, .option])
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showPageDesignInspector.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("d", modifiers: [.command, .option])
                 Button(action: saveDocumentAsLetters) { EmptyView() }
                     .keyboardShortcut("s", modifiers: [.command])
                 Button(action: newDocumentAction) { EmptyView() }
