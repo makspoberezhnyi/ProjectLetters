@@ -63,6 +63,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showMarginGuides: Bool = true
     @State private var showCropMarks: Bool = true
 
+    // Header & Footer Configuration State
+    @State private var headerFooterConfig: HeaderFooterConfig = HeaderFooterConfig()
+    @State private var isEditingHeaderFooter: Bool = false
+    @State private var activeHeaderFooterTarget: HeaderFooterTarget = .header
+
     // Rich Interactive Blocks State
     @State private var studioTables: [StudioTableData] = [
         StudioTableData(
@@ -217,7 +222,23 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         }
                         .background(StudioTheme.canvasBackground)
 
-                        // 3. Floating Find & Replace Bar Overlay (⌘F)
+                        // 3. Floating Header & Footer / Page Numbering Control Bar (Double-click activation)
+                        if isEditingHeaderFooter {
+                            VStack {
+                                StudioHeaderFooterToolbar(
+                                    config: $headerFooterConfig,
+                                    isEditing: $isEditingHeaderFooter,
+                                    activeTarget: $activeHeaderFooterTarget
+                                )
+                                .padding(.top, 16)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .zIndex(10)
+                        }
+
+                        // 4. Floating Find & Replace Bar Overlay (⌘F)
                         if showFindReplace {
                             FindReplaceBar(
                                 isPresented: $showFindReplace,
@@ -935,14 +956,47 @@ Letters is a next-generation desktop publishing and document studio combining gr
             return true
         }
 
-        // 8. Find (e.g. "find keyword")
+        // 8. Header & Footer (e.g. "header", "edit header", "footer", "edit footer", "page number", "page numbers", "exit header", "close header")
+        if lower == "header" || lower == "edit header" || lower == "headers" {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                activeHeaderFooterTarget = .header
+                isEditingHeaderFooter = true
+            }
+            showToast("✓ Header editor activated")
+            return true
+        }
+        if lower == "footer" || lower == "edit footer" || lower == "footers" {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                activeHeaderFooterTarget = .footer
+                isEditingHeaderFooter = true
+            }
+            showToast("✓ Footer editor activated")
+            return true
+        }
+        if lower == "page number" || lower == "page numbers" || lower == "pagenum" || lower == "numbering" {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                activeHeaderFooterTarget = .footer
+                isEditingHeaderFooter = true
+            }
+            showToast("✓ Page numbering settings opened")
+            return true
+        }
+        if lower == "close header" || lower == "close footer" || lower == "done header" || lower == "exit header" {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                isEditingHeaderFooter = false
+            }
+            showToast("✓ Header & footer editor closed")
+            return true
+        }
+
+        // 9. Find (e.g. "find keyword")
         if lower.hasPrefix("find ") {
             showFindReplace = true
             showToast("✓ Search opened for: \(trimmed.dropFirst(5))")
             return true
         }
 
-        // 9. AI prompt execution
+        // 10. AI prompt execution
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             showAIDrawer = true
         }
@@ -1127,6 +1181,28 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 showCropMarks.toggle()
                 showToast(showCropMarks ? "✓ Crop Marks Enabled" : "Crop Marks Hidden")
             },
+            CommandItem(title: "Edit Running Header", subtitle: "Customize running header text, dynamic tokens, and alignment", icon: "arrow.up.to.line", category: .layout, shortcut: "⌥⌘H", keywords: ["header", "running header", "title", "top", "token"]) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    activeHeaderFooterTarget = .header
+                    isEditingHeaderFooter = true
+                }
+            },
+            CommandItem(title: "Edit Running Footer", subtitle: "Customize footer content and dynamic page number positioning", icon: "arrow.down.to.line", category: .layout, shortcut: "⌥⌘F", keywords: ["footer", "running footer", "bottom", "page number"]) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    activeHeaderFooterTarget = .footer
+                    isEditingHeaderFooter = true
+                }
+            },
+            CommandItem(title: "Configure Page Numbering", subtitle: "Select numbering format (X of Y, Roman, Page X) and placement", icon: "number.square", category: .layout, keywords: ["page numbers", "numbering", "pagination", "format", "roman", "footer"]) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    activeHeaderFooterTarget = .footer
+                    isEditingHeaderFooter = true
+                }
+            },
+            CommandItem(title: "Toggle Different First Page", subtitle: "Suppress running headers and footers on document title cover", icon: "doc.text", category: .layout, keywords: ["first page", "cover", "title page", "suppress", "header", "footer"]) {
+                headerFooterConfig.differentFirstPage.toggle()
+                showToast(headerFooterConfig.differentFirstPage ? "✓ Different First Page Enabled" : "Different First Page Disabled")
+            },
 
             // === AI Copilot & Intelligent Assistant ===
             CommandItem(title: "Toggle AI Copilot Assistant", subtitle: "Open native BYOK intelligence drawer", icon: "sparkles", category: .ai, shortcut: "⌘J", keywords: ["ai", "copilot", "chat", "assistant"]) {
@@ -1266,7 +1342,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
             fontFamily: fontFamily,
             fontSize: Double(fontSize),
             lineSpacing: Double(lineSpacing),
-            paragraphSpacing: Double(paragraphSpacing)
+            paragraphSpacing: Double(paragraphSpacing),
+            headerFooter: headerFooterConfig
         )
 
         guard let data = try? bundle.encodeToData() else {
@@ -1325,6 +1402,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     fontSize = CGFloat(bundle.fontSize)
                     lineSpacing = CGFloat(bundle.lineSpacing)
                     paragraphSpacing = CGFloat(bundle.paragraphSpacing)
+                    headerFooterConfig = bundle.headerFooter
                     showToast("✓ Opened .letters document: \(url.lastPathComponent)")
                 } else if ext == "md" || ext == "txt" {
                     let content = try String(contentsOf: url, encoding: .utf8)
@@ -1498,19 +1576,17 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
                     .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
 
-                // 2. Running Header (Title & Subtitle)
-                HStack {
-                    Text(documentTitle)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
-                    Spacer()
-                    Text("Project Letters Studio")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                }
-                .padding(.horizontal, margins.left)
-                .padding(.top, margins.top / 2 - 6)
-                .frame(width: currentSheetWidth)
+                // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
+                StudioHeaderView(
+                    config: $headerFooterConfig,
+                    pageIndex: pageIndex,
+                    totalPages: documentPages.count,
+                    documentTitle: documentTitle,
+                    margins: margins,
+                    sheetWidth: currentSheetWidth,
+                    isEditing: $isEditingHeaderFooter,
+                    activeTarget: $activeHeaderFooterTarget
+                )
 
                 // 3. Margin Guides Overlay
                 if showMarginGuides {
@@ -1532,19 +1608,18 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 // 5. Document Content (Dynamic In-Flow TextKit 2 Segments + Tables + Media)
                 documentCanvasContent(pageIndex: pageIndex)
 
-                // 6. Running Footer (Page X of Y)
-                HStack {
-                    Text("Confidential • Project Letters")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                    Spacer()
-                    Text("Page \(pageIndex + 1) of \(documentPages.count)")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
-                }
-                .padding(.horizontal, margins.left)
-                .padding(.bottom, margins.bottom / 2 - 6)
-                .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .bottom)
+                // 6. Running Footer (Page Numbers & Interactive In-Place Double-Click Editor)
+                StudioFooterView(
+                    config: $headerFooterConfig,
+                    pageIndex: pageIndex,
+                    totalPages: documentPages.count,
+                    documentTitle: documentTitle,
+                    margins: margins,
+                    sheetWidth: currentSheetWidth,
+                    sheetHeight: currentSheetHeight,
+                    isEditing: $isEditingHeaderFooter,
+                    activeTarget: $activeHeaderFooterTarget
+                )
 
                 // 7. Floating contextual selection menu
                 if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

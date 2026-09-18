@@ -135,6 +135,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var lineSpacing: Double
     public var paragraphSpacing: Double
     public var textAlignmentString: String
+    public var headerFooter: HeaderFooterConfig
     public var createdAt: Date
     public var modifiedAt: Date
 
@@ -153,7 +154,8 @@ public struct LettersDocumentBundle: Codable, Sendable {
         fontSize: Double = 15.0,
         lineSpacing: Double = 1.15,
         paragraphSpacing: Double = 12.0,
-        textAlignmentString: String = "leading"
+        textAlignmentString: String = "leading",
+        headerFooter: HeaderFooterConfig = HeaderFooterConfig()
     ) {
         self.version = Self.currentVersion
         self.title = title
@@ -171,8 +173,36 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
         self.textAlignmentString = textAlignmentString
+        self.headerFooter = headerFooter
         self.createdAt = Date()
         self.modifiedAt = Date()
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case version, title, rawText, tables, images, videos, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, headerFooter, createdAt, modifiedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? Self.currentVersion
+        self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Untitled Document"
+        self.rawText = try container.decodeIfPresent(String.self, forKey: .rawText) ?? ""
+        self.tables = try container.decodeIfPresent([StudioTableData].self, forKey: .tables) ?? []
+        self.images = try container.decodeIfPresent([StudioImageBlock].self, forKey: .images) ?? []
+        self.videos = try container.decodeIfPresent([StudioVideoBlock].self, forKey: .videos) ?? []
+        self.sources = try container.decodeIfPresent([String: Source].self, forKey: .sources) ?? [:]
+        self.citationStyle = try container.decodeIfPresent(CitationStyle.self, forKey: .citationStyle) ?? .apa7
+        self.pageSizePreset = try container.decodeIfPresent(PageSizePreset.self, forKey: .pageSizePreset) ?? .letter
+        self.marginPreset = try container.decodeIfPresent(MarginPreset.self, forKey: .marginPreset) ?? .normal
+        self.margins = try container.decodeIfPresent(PageMargins.self, forKey: .margins) ?? PageMargins()
+        self.fontFamily = try container.decodeIfPresent(String.self, forKey: .fontFamily) ?? "Default Serif (Georgia)"
+        self.fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 15.0
+        self.lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 1.15
+        self.paragraphSpacing = try container.decodeIfPresent(Double.self, forKey: .paragraphSpacing) ?? 12.0
+        self.textAlignmentString = try container.decodeIfPresent(String.self, forKey: .textAlignmentString) ?? "leading"
+        self.headerFooter = try container.decodeIfPresent(HeaderFooterConfig.self, forKey: .headerFooter) ?? HeaderFooterConfig()
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        self.modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt) ?? Date()
     }
 
     public func encodeToData() throws -> Data {

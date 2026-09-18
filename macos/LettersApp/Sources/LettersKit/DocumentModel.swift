@@ -305,25 +305,216 @@ public enum MarginPreset: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum PageNumberPosition: String, Codable, CaseIterable, Sendable {
+    case footerRight = "Footer Right"
+    case footerCenter = "Footer Center"
+    case footerLeft = "Footer Left"
+    case headerRight = "Header Right"
+    case headerCenter = "Header Center"
+    case headerLeft = "Header Left"
+    case none = "None (Hidden)"
+
+    public var isHeader: Bool {
+        self == .headerRight || self == .headerCenter || self == .headerLeft
+    }
+
+    public var isFooter: Bool {
+        self == .footerRight || self == .footerCenter || self == .footerLeft
+    }
+}
+
+public enum PageNumberFormat: String, Codable, CaseIterable, Sendable {
+    case pageXofY = "Page X of Y"
+    case xOfY = "X / Y"
+    case pageX = "Page X"
+    case plain = "X (Plain Number)"
+    case dash = "— X — (Em-dash)"
+    case romanLower = "i, ii, iii (Roman Lower)"
+    case romanUpper = "I, II, III (Roman Upper)"
+
+    public func format(page: Int, totalPages: Int) -> String {
+        switch self {
+        case .pageXofY:
+            return "Page \(page) of \(max(1, totalPages))"
+        case .xOfY:
+            return "\(page) / \(max(1, totalPages))"
+        case .pageX:
+            return "Page \(page)"
+        case .plain:
+            return "\(page)"
+        case .dash:
+            return "— \(page) —"
+        case .romanLower:
+            return Self.toRoman(page).lowercased()
+        case .romanUpper:
+            return Self.toRoman(page)
+        }
+    }
+
+    private static func toRoman(_ number: Int) -> String {
+        guard number > 0 else { return "\(number)" }
+        let decimals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
+        let numerals = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
+        var result = ""
+        var num = number
+        for i in 0..<decimals.count {
+            while num >= decimals[i] {
+                result += numerals[i]
+                num -= decimals[i]
+            }
+        }
+        return result
+    }
+}
+
+public struct HeaderFooterConfig: Codable, Sendable, Hashable {
+    public var headerLeftText: String
+    public var headerCenterText: String
+    public var headerRightText: String
+
+    public var footerLeftText: String
+    public var footerCenterText: String
+    public var footerRightText: String
+
+    public var pageNumberPosition: PageNumberPosition
+    public var pageNumberFormat: PageNumberFormat
+    public var startingPageNumber: Int
+    public var differentFirstPage: Bool
+    public var isHeaderVisible: Bool
+    public var isFooterVisible: Bool
+
+    public init(
+        headerLeftText: String = "",
+        headerCenterText: String = "",
+        headerRightText: String = "Project Letters Studio",
+        footerLeftText: String = "Confidential • Project Letters",
+        footerCenterText: String = "",
+        footerRightText: String = "",
+        pageNumberPosition: PageNumberPosition = .footerRight,
+        pageNumberFormat: PageNumberFormat = .pageXofY,
+        startingPageNumber: Int = 1,
+        differentFirstPage: Bool = false,
+        isHeaderVisible: Bool = true,
+        isFooterVisible: Bool = true
+    ) {
+        self.headerLeftText = headerLeftText
+        self.headerCenterText = headerCenterText
+        self.headerRightText = headerRightText
+        self.footerLeftText = footerLeftText
+        self.footerCenterText = footerCenterText
+        self.footerRightText = footerRightText
+        self.pageNumberPosition = pageNumberPosition
+        self.pageNumberFormat = pageNumberFormat
+        self.startingPageNumber = startingPageNumber
+        self.differentFirstPage = differentFirstPage
+        self.isHeaderVisible = isHeaderVisible
+        self.isFooterVisible = isFooterVisible
+    }
+
+    public func evaluateHeader(slot: Slot, pageIndex: Int, totalPages: Int, documentTitle: String) -> String {
+        let pageNum = startingPageNumber + pageIndex
+        let isFirstPage = (pageIndex == 0)
+        if differentFirstPage && isFirstPage { return "" }
+        if !isHeaderVisible { return "" }
+
+        let customText: String
+        switch slot {
+        case .left: customText = headerLeftText.isEmpty ? documentTitle : headerLeftText
+        case .center: customText = headerCenterText
+        case .right: customText = headerRightText
+        }
+
+        let evaluated = replaceTokens(in: customText, page: pageNum, totalPages: totalPages, title: documentTitle)
+
+        // Inject page number if configured in this slot
+        if (slot == .left && pageNumberPosition == .headerLeft) ||
+           (slot == .center && pageNumberPosition == .headerCenter) ||
+           (slot == .right && pageNumberPosition == .headerRight) {
+            let numStr = pageNumberFormat.format(page: pageNum, totalPages: totalPages)
+            return evaluated.isEmpty ? numStr : "\(evaluated) • \(numStr)"
+        }
+
+        return evaluated
+    }
+
+    public func evaluateFooter(slot: Slot, pageIndex: Int, totalPages: Int, documentTitle: String) -> String {
+        let pageNum = startingPageNumber + pageIndex
+        let isFirstPage = (pageIndex == 0)
+        if differentFirstPage && isFirstPage { return "" }
+        if !isFooterVisible { return "" }
+
+        let customText: String
+        switch slot {
+        case .left: customText = footerLeftText
+        case .center: customText = footerCenterText
+        case .right: customText = footerRightText
+        }
+
+        let evaluated = replaceTokens(in: customText, page: pageNum, totalPages: totalPages, title: documentTitle)
+
+        // Inject page number if configured in this slot
+        if (slot == .left && pageNumberPosition == .footerLeft) ||
+           (slot == .center && pageNumberPosition == .footerCenter) ||
+           (slot == .right && pageNumberPosition == .footerRight) {
+            let numStr = pageNumberFormat.format(page: pageNum, totalPages: totalPages)
+            return evaluated.isEmpty ? numStr : "\(evaluated) • \(numStr)"
+        }
+
+        return evaluated
+    }
+
+    private func replaceTokens(in text: String, page: Int, totalPages: Int, title: String) -> String {
+        var str = text
+        str = str.replacingOccurrences(of: "{page}", with: "\(page)")
+        str = str.replacingOccurrences(of: "{pages}", with: "\(max(1, totalPages))")
+        str = str.replacingOccurrences(of: "{total}", with: "\(max(1, totalPages))")
+        str = str.replacingOccurrences(of: "{title}", with: title)
+        let dateStr = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .none)
+        str = str.replacingOccurrences(of: "{date}", with: dateStr)
+        return str
+    }
+
+    public enum Slot {
+        case left, center, right
+    }
+}
+
 public struct DocumentModel: Codable, Sendable {
     public var title: String
     public var blocks: [BlockElement]
     public var sources: [String: Source]
     public var pageSize: PageSizePreset
     public var margins: PageMargins
+    public var headerFooter: HeaderFooterConfig
 
     public init(
         title: String = "Untitled Document",
         blocks: [BlockElement] = [],
         sources: [String: Source] = [:],
         pageSize: PageSizePreset = .letter,
-        margins: PageMargins = PageMargins()
+        margins: PageMargins = PageMargins(),
+        headerFooter: HeaderFooterConfig = HeaderFooterConfig()
     ) {
         self.title = title
         self.blocks = blocks
         self.sources = sources
         self.pageSize = pageSize
         self.margins = margins
+        self.headerFooter = headerFooter
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case title, blocks, sources, pageSize, margins, headerFooter
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Untitled Document"
+        self.blocks = try container.decodeIfPresent([BlockElement].self, forKey: .blocks) ?? []
+        self.sources = try container.decodeIfPresent([String: Source].self, forKey: .sources) ?? [:]
+        self.pageSize = try container.decodeIfPresent(PageSizePreset.self, forKey: .pageSize) ?? .letter
+        self.margins = try container.decodeIfPresent(PageMargins.self, forKey: .margins) ?? PageMargins()
+        self.headerFooter = try container.decodeIfPresent(HeaderFooterConfig.self, forKey: .headerFooter) ?? HeaderFooterConfig()
     }
 }
 
