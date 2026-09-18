@@ -363,7 +363,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
             .padding(20)
         }
         .sheet(isPresented: $showCommandPalette) {
-            CommandPaletteView(isPresented: $showCommandPalette, commands: paletteCommands)
+            CommandPaletteView(
+                isPresented: $showCommandPalette,
+                commands: paletteCommands,
+                onExecuteDirectCLI: executeDirectCLICommand
+            )
         }
         .sheet(isPresented: $showingSettingsSheet) {
             SettingsView(
@@ -650,6 +654,98 @@ Letters is a next-generation desktop publishing and document studio combining gr
         showToast("✓ Strikethrough toggled")
     }
 
+    private func insertSectionHeadingAction(level: Int = 1, customTitle: String? = nil) {
+        let title = customTitle ?? (level == 1 ? "Title" : level == 2 ? "Section Heading" : "Subsection")
+        let hashes = String(repeating: "#", count: max(1, min(6, level)))
+        let item = "\n\n\(hashes) \(title)\n\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Heading \(level)")
+    }
+
+    private func insertChecklistAction() {
+        let item = "\n- [ ] Task item\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Checklist Item")
+    }
+
+    private func insertBlockquoteAction() {
+        let item = "\n> Quoted text block\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Blockquote")
+    }
+
+    private func insertCodeBlockAction() {
+        let item = "\n```swift\n// Code snippet\n```\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Code Block")
+    }
+
+    private func insertDividerAction() {
+        let item = "\n\n---\n\n"
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else {
+            rawText += item
+        }
+        showToast("✓ Inserted Horizontal Divider")
+    }
+
+    private func insertDateTimeAction() {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let str = formatter.string(from: Date())
+        if selectionRange.location <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: str)
+        } else {
+            rawText += str
+        }
+        showToast("✓ Inserted Date/Time: \(str)")
+    }
+
+    private func transformTextSelection(mode: String) {
+        guard !selectedText.isEmpty else {
+            showToast("⚠️ Select text first to transform case")
+            return
+        }
+        let transformed: String
+        switch mode {
+        case "upper": transformed = selectedText.uppercased()
+        case "lower": transformed = selectedText.lowercased()
+        case "capitalized": transformed = selectedText.capitalized
+        default: transformed = selectedText
+        }
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: transformed)
+        } else {
+            rawText = rawText.replacingOccurrences(of: selectedText, with: transformed)
+        }
+        showToast("✓ Transformed Text: \(mode)")
+    }
+
     private func setLineSpacingAction(_ spacing: CGFloat) {
         lineSpacing = spacing
         editorController.applyLineSpacing(spacing, paragraphSpacing: paragraphSpacing)
@@ -758,54 +854,329 @@ Letters is a next-generation desktop publishing and document studio combining gr
         showingAddSourceSheet = true
     }
 
+    private func executeDirectCLICommand(_ query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let lower = trimmed.lowercased()
+
+        // 1. Font Size (e.g. "size 24", "font 18", "pt 14")
+        if lower.hasPrefix("size ") || lower.hasPrefix("font ") || lower.hasPrefix("pt ") {
+            let parts = lower.components(separatedBy: " ")
+            if parts.count >= 2, let pt = Double(parts[1]), pt >= 6 && pt <= 144 {
+                setFontSizeAction(CGFloat(pt))
+                return true
+            }
+        }
+
+        // 2. Font Family (e.g. "font georgia", "font sf pro", "font times")
+        if lower.hasPrefix("font ") {
+            let arg = lower.replacingOccurrences(of: "font ", with: "").trimmingCharacters(in: .whitespaces)
+            if arg.contains("georgia") { setFontFamilyAction("Default Serif (Georgia)"); return true }
+            if arg.contains("times") { setFontFamilyAction("Times New Roman"); return true }
+            if arg.contains("sf") || arg.contains("san") { setFontFamilyAction("SF Pro"); return true }
+            if arg.contains("helvetica") { setFontFamilyAction("Helvetica"); return true }
+            if arg.contains("charter") { setFontFamilyAction("Charter"); return true }
+            if arg.contains("menlo") || arg.contains("mono") { setFontFamilyAction("Menlo (Monospace)"); return true }
+            if arg.contains("courier") { setFontFamilyAction("Courier"); return true }
+        }
+
+        // 3. Zoom (e.g. "zoom 125", "zoom 100")
+        if lower.hasPrefix("zoom ") {
+            let parts = lower.components(separatedBy: " ")
+            if parts.count >= 2, let z = Double(parts[1]), z >= 25 && z <= 500 {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    zoomScale = CGFloat(z / 100.0)
+                }
+                showToast("✓ Zoom: \(Int(z))%")
+                return true
+            }
+        }
+
+        // 4. Margins (e.g. "margins narrow", "margins standard", "margin 0.5")
+        if lower.hasPrefix("margin") {
+            if lower.contains("narrow") { marginPreset = .narrow; showToast("✓ Margins: Narrow"); return true }
+            if lower.contains("wide") { marginPreset = .wide; showToast("✓ Margins: Wide"); return true }
+            if lower.contains("moderate") { marginPreset = .moderate; showToast("✓ Margins: Moderate"); return true }
+            if lower.contains("standard") || lower.contains("normal") { marginPreset = .normal; showToast("✓ Margins: Normal"); return true }
+        }
+
+        // 5. Page Size (e.g. "page a4", "page letter", "page legal")
+        if lower.hasPrefix("page ") {
+            if lower.contains("a4") { pageSize = .a4; showToast("✓ Page Size: A4"); return true }
+            if lower.contains("letter") { pageSize = .letter; showToast("✓ Page Size: US Letter"); return true }
+            if lower.contains("legal") { pageSize = .legal; showToast("✓ Page Size: US Legal"); return true }
+            if lower.contains("exec") { pageSize = .executive; showToast("✓ Page Size: Executive"); return true }
+        }
+
+        // 6. Line Spacing (e.g. "line 1.5", "spacing 2", "leading 1.25")
+        if lower.hasPrefix("line ") || lower.hasPrefix("spacing ") || lower.hasPrefix("leading ") {
+            let parts = lower.components(separatedBy: " ")
+            if parts.count >= 2, let sp = Double(parts[1]), sp >= 0.8 && sp <= 4.0 {
+                setLineSpacingAction(CGFloat(sp))
+                return true
+            }
+        }
+
+        // 7. Headings (e.g. "h1 Intro", "h2 Methods", "title Overview")
+        if lower.hasPrefix("h1 ") {
+            insertSectionHeadingAction(level: 1, customTitle: String(trimmed.dropFirst(3)))
+            return true
+        }
+        if lower.hasPrefix("h2 ") {
+            insertSectionHeadingAction(level: 2, customTitle: String(trimmed.dropFirst(3)))
+            return true
+        }
+        if lower.hasPrefix("h3 ") {
+            insertSectionHeadingAction(level: 3, customTitle: String(trimmed.dropFirst(3)))
+            return true
+        }
+        if lower.hasPrefix("title ") {
+            insertSectionHeadingAction(level: 1, customTitle: String(trimmed.dropFirst(6)))
+            return true
+        }
+
+        // 8. Find (e.g. "find keyword")
+        if lower.hasPrefix("find ") {
+            showFindReplace = true
+            showToast("✓ Search opened for: \(trimmed.dropFirst(5))")
+            return true
+        }
+
+        // 9. AI prompt execution
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            showAIDrawer = true
+        }
+        showToast("✨ AI Copilot prompted: \"\(trimmed)\"")
+        return true
+    }
+
     private var paletteCommands: [CommandItem] {
         [
-            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document", icon: "tray.and.arrow.down.fill", shortcut: "⌘S") {
+            // === File & Document Operations ===
+            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document archive", icon: "tray.and.arrow.down.fill", category: .file, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
                 saveDocumentAsLetters()
             },
-            CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md", icon: "folder", shortcut: "⌘O") {
+            CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md file from disk", icon: "folder", category: .file, shortcut: "⌘O", keywords: ["open", "import", "browse", "load"]) {
                 openDocument()
             },
-            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless DOCX file", icon: "doc.fill", shortcut: "⌘⇧S") {
+            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word document", icon: "doc.fill", category: .file, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
                 saveDocumentAsDocx()
             },
-            CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF", icon: "arrow.down.doc") {
+            CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF ready for printing", icon: "arrow.down.doc", category: .file, shortcut: "⌘⌥E", keywords: ["pdf", "vector", "export", "print"]) {
                 exportDocumentAsPDF()
             },
-            CommandItem(title: "Print Document", subtitle: "Native macOS Print dialog", icon: "printer", shortcut: "⌘P") {
+            CommandItem(title: "Print Document", subtitle: "Open native macOS Print setup & pagination dialog", icon: "printer", category: .file, shortcut: "⌘P", keywords: ["print", "paper", "dialog"]) {
                 printDocument()
             },
-            CommandItem(title: "Find & Replace", subtitle: "Search and replace text in document", icon: "magnifyingglass", shortcut: "⌘F") {
-                showFindReplace.toggle()
+            CommandItem(title: "Document Statistics & Word Count", subtitle: "\(wordCount) words, \(characterCount) chars, \(documentPages.count) pages", icon: "chart.bar.doc.horizontal", category: .file, shortcut: "⌘I", keywords: ["stats", "words", "count", "info"]) {
+                showToast("📊 \(wordCount) words • \(characterCount) chars • \(documentPages.count) pages")
             },
-            CommandItem(title: "Insert Smart Table", subtitle: "Embed interactive calculation table", icon: "tablecells", shortcut: "⌘T") {
+            CommandItem(title: "Clear Document (New File)", subtitle: "Reset text, tables, figures, and sources", icon: "trash", category: .file, keywords: ["clear", "reset", "empty", "new"]) {
+                newDocumentAction()
+            },
+
+            // === Formatting & Typography ===
+            CommandItem(title: "Toggle Bold", subtitle: "Make selected text bold", icon: "bold", category: .format, shortcut: "⌘B", keywords: ["bold", "weight", "heavy"]) {
+                toggleBoldAction()
+            },
+            CommandItem(title: "Toggle Italic", subtitle: "Make selected text italic", icon: "italic", category: .format, shortcut: "⌘I", keywords: ["italic", "oblique", "slant"]) {
+                toggleItalicAction()
+            },
+            CommandItem(title: "Toggle Underline", subtitle: "Underline selected text", icon: "underline", category: .format, shortcut: "⌘U", keywords: ["underline"]) {
+                toggleUnderlineAction()
+            },
+            CommandItem(title: "Toggle Strikethrough", subtitle: "Cross out selected text", icon: "strikethrough", category: .format, shortcut: "⇧⌘X", keywords: ["strike", "strikethrough", "cross"]) {
+                toggleStrikethroughAction()
+            },
+            CommandItem(title: "Align Left", subtitle: "Set text alignment to leading edge", icon: "text.alignleft", category: .format, shortcut: "⌘{", keywords: ["align", "left", "leading"]) {
+                setAlignmentAction(.leading)
+            },
+            CommandItem(title: "Align Center", subtitle: "Center text horizontally", icon: "text.aligncenter", category: .format, shortcut: "⌘|", keywords: ["align", "center"]) {
+                setAlignmentAction(.center)
+            },
+            CommandItem(title: "Align Right", subtitle: "Set text alignment to trailing edge", icon: "text.alignright", category: .format, shortcut: "⌘}", keywords: ["align", "right", "trailing"]) {
+                setAlignmentAction(.trailing)
+            },
+            CommandItem(title: "Line Spacing: 1.0 (Single)", subtitle: "Compact single line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "single", "leading"]) {
+                setLineSpacingAction(1.0)
+            },
+            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern document spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "standard", "leading"]) {
+                setLineSpacingAction(1.15)
+            },
+            CommandItem(title: "Line Spacing: 1.5 (1.5x)", subtitle: "Academic 1.5x line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "academic", "leading"]) {
+                setLineSpacingAction(1.5)
+            },
+            CommandItem(title: "Line Spacing: 2.0 (Double)", subtitle: "Double line spacing for manuscripts", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "double", "leading"]) {
+                setLineSpacingAction(2.0)
+            },
+            CommandItem(title: "Font: Georgia (Default Serif)", subtitle: "Classic editorial serif typeface", icon: "textformat", category: .format, keywords: ["font", "georgia", "serif"]) {
+                setFontFamilyAction("Default Serif (Georgia)")
+            },
+            CommandItem(title: "Font: SF Pro (San Francisco)", subtitle: "Clean modern Apple sans-serif", icon: "textformat", category: .format, keywords: ["font", "sf pro", "sans"]) {
+                setFontFamilyAction("SF Pro")
+            },
+            CommandItem(title: "Font: Times New Roman", subtitle: "Standard academic journal typeface", icon: "textformat", category: .format, keywords: ["font", "times", "academic"]) {
+                setFontFamilyAction("Times New Roman")
+            },
+            CommandItem(title: "Font: Helvetica Neue", subtitle: "Swiss modernist sans-serif", icon: "textformat", category: .format, keywords: ["font", "helvetica", "swiss"]) {
+                setFontFamilyAction("Helvetica")
+            },
+            CommandItem(title: "Font: Charter", subtitle: "High readability Bitstream serif", icon: "textformat", category: .format, keywords: ["font", "charter", "serif"]) {
+                setFontFamilyAction("Charter")
+            },
+            CommandItem(title: "Font: Menlo Monospace", subtitle: "Fixed-width code and tabular font", icon: "character.textbox", category: .format, keywords: ["font", "menlo", "mono", "code"]) {
+                setFontFamilyAction("Menlo (Monospace)")
+            },
+            CommandItem(title: "Transform to UPPERCASE", subtitle: "Convert selection to uppercase letters", icon: "textformat.size.larger", category: .format, keywords: ["case", "upper", "capitalize"]) {
+                transformTextSelection(mode: "upper")
+            },
+            CommandItem(title: "Transform to lowercase", subtitle: "Convert selection to lowercase letters", icon: "textformat.size.smaller", category: .format, keywords: ["case", "lower"]) {
+                transformTextSelection(mode: "lower")
+            },
+            CommandItem(title: "Transform to Title Case", subtitle: "Capitalize first letter of each word", icon: "textformat", category: .format, keywords: ["case", "title", "capitalize"]) {
+                transformTextSelection(mode: "capitalized")
+            },
+
+            // === Insert Structural Elements ===
+            CommandItem(title: "Insert Heading 1 (Title)", subtitle: "Top level document section title (#)", icon: "text.quote", category: .insert, shortcut: "⌘⌥1", keywords: ["h1", "title", "heading"]) {
+                insertSectionHeadingAction(level: 1)
+            },
+            CommandItem(title: "Insert Heading 2 (Section)", subtitle: "Major section heading (##)", icon: "text.quote", category: .insert, shortcut: "⌘⌥2", keywords: ["h2", "section", "heading"]) {
+                insertSectionHeadingAction(level: 2)
+            },
+            CommandItem(title: "Insert Heading 3 (Subsection)", subtitle: "Subsection heading (###)", icon: "text.quote", category: .insert, shortcut: "⌘⌥3", keywords: ["h3", "subsection", "heading"]) {
+                insertSectionHeadingAction(level: 3)
+            },
+            CommandItem(title: "Insert Smart Table", subtitle: "Embed interactive calculation table with formulas", icon: "tablecells", category: .insert, shortcut: "⌘T", keywords: ["table", "grid", "spreadsheet", "formula"]) {
                 handleToolAction(.table)
             },
-            CommandItem(title: "Insert Image Figure", subtitle: "Add photo with compression and crop options", icon: "photo") {
+            CommandItem(title: "Insert Bulleted List", subtitle: "Add bulleted list item (•)", icon: "list.bullet", category: .insert, shortcut: "⇧⌘8", keywords: ["bullet", "list", "item"]) {
+                insertBulletListAction()
+            },
+            CommandItem(title: "Insert Numbered List", subtitle: "Add ordered numbered item (1.)", icon: "list.number", category: .insert, shortcut: "⇧⌘7", keywords: ["number", "ordered", "list"]) {
+                insertNumberedListAction()
+            },
+            CommandItem(title: "Insert Task / Checklist", subtitle: "Interactive markdown check box (- [ ])", icon: "checkmark.square", category: .insert, keywords: ["task", "checklist", "todo", "box"]) {
+                insertChecklistAction()
+            },
+            CommandItem(title: "Insert Blockquote", subtitle: "Styled pull quote with vertical rule (>)", icon: "quote.opening", category: .insert, keywords: ["quote", "blockquote", "callout"]) {
+                insertBlockquoteAction()
+            },
+            CommandItem(title: "Insert Code Block", subtitle: "Monospaced syntax block (```)", icon: "chevron.left.forwardslash.chevron.right", category: .insert, keywords: ["code", "snippet", "block"]) {
+                insertCodeBlockAction()
+            },
+            CommandItem(title: "Insert Image Figure", subtitle: "Add image with aspect ratio and caption", icon: "photo", category: .insert, keywords: ["image", "picture", "photo", "figure"]) {
                 insertImageAction()
             },
-            CommandItem(title: "Embed Video", subtitle: "Add YouTube / Vimeo video card", icon: "play.rectangle") {
+            CommandItem(title: "Embed Video Card", subtitle: "Add YouTube or Vimeo player card", icon: "play.rectangle", category: .insert, keywords: ["video", "youtube", "vimeo", "media"]) {
                 showingAddVideoSheet = true
             },
-            CommandItem(title: "Insert Page Break", subtitle: "Start a new page sheet", icon: "pagebreak", shortcut: "⌘↵") {
+            CommandItem(title: "Add Bibliographic Citation", subtitle: "Link source author, year, and DOI/URL", icon: "quote.bubble", category: .insert, keywords: ["cite", "citation", "source", "reference", "bibliography"]) {
+                showingAddSourceSheet = true
+            },
+            CommandItem(title: "Insert Formatted Bibliography", subtitle: "Dynamic [[bibliography]] works cited block", icon: "books.vertical", category: .insert, keywords: ["bibliography", "works cited", "references"]) {
+                insertBibliographyAction()
+            },
+            CommandItem(title: "Insert Table of Contents", subtitle: "Dynamic [[toc]] page reference listing", icon: "list.bullet.indent", category: .insert, keywords: ["toc", "table of contents", "outline"]) {
+                insertTOCAction()
+            },
+            CommandItem(title: "Insert Page Break", subtitle: "Force document onto new page sheet", icon: "pagebreak", category: .insert, shortcut: "⌘↵", keywords: ["page", "break", "sheet"]) {
                 insertPageBreakAction()
             },
-            CommandItem(title: "Toggle AI Copilot", subtitle: "Open BYOK assistant drawer", icon: "sparkles", shortcut: "⌘J") {
+            CommandItem(title: "Insert Horizontal Divider", subtitle: "Visual separator rule (---)", icon: "divide", category: .insert, keywords: ["divider", "line", "rule", "separator"]) {
+                insertDividerAction()
+            },
+            CommandItem(title: "Insert Current Date & Time", subtitle: "Stamp current timestamp into document", icon: "clock", category: .insert, keywords: ["date", "time", "stamp", "now"]) {
+                insertDateTimeAction()
+            },
+
+            // === Page Setup & Layout ===
+            CommandItem(title: "Page Format: A4 (210 × 297 mm)", subtitle: "International standard document size", icon: "doc", category: .layout, keywords: ["a4", "format", "size", "iso"]) {
+                pageSize = .a4
+                showToast("✓ Page Format: A4")
+            },
+            CommandItem(title: "Page Format: US Letter (8.5 × 11 in)", subtitle: "North American standard paper size", icon: "doc", category: .layout, keywords: ["letter", "format", "size", "us"]) {
+                pageSize = .letter
+                showToast("✓ Page Format: US Letter")
+            },
+            CommandItem(title: "Page Format: US Legal (8.5 × 14 in)", subtitle: "Extended legal document format", icon: "doc", category: .layout, keywords: ["legal", "format", "size"]) {
+                pageSize = .legal
+                showToast("✓ Page Format: US Legal")
+            },
+            CommandItem(title: "Page Format: Executive", subtitle: "Compact 7.25 × 10.5 in executive format", icon: "doc", category: .layout, keywords: ["executive", "format", "size"]) {
+                pageSize = .executive
+                showToast("✓ Page Format: Executive")
+            },
+            CommandItem(title: "Margins: Standard (1 inch / 72 pt)", subtitle: "Balanced standard print margins", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "standard", "1 inch"]) {
+                marginPreset = .normal
+                showToast("✓ Margins: Standard (72 pt)")
+            },
+            CommandItem(title: "Margins: Narrow (0.5 inch / 36 pt)", subtitle: "Maximized printable canvas area", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "narrow", "0.5 inch"]) {
+                marginPreset = .narrow
+                showToast("✓ Margins: Narrow (36 pt)")
+            },
+            CommandItem(title: "Margins: Wide (1.5 inch / 108 pt)", subtitle: "Spacious margins for annotations and notes", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "wide", "spacious"]) {
+                marginPreset = .wide
+                showToast("✓ Margins: Wide (108 pt)")
+            },
+            CommandItem(title: "Toggle Margin Guides", subtitle: "Show or hide canvas guideline borders", icon: "square.dashed", category: .layout, keywords: ["margin", "guides", "rulers", "border"]) {
+                showMarginGuides.toggle()
+                showToast(showMarginGuides ? "✓ Margin Guides Enabled" : "Margin Guides Hidden")
+            },
+            CommandItem(title: "Toggle Crop Marks", subtitle: "Display commercial printer alignment crop marks", icon: "crop", category: .layout, keywords: ["crop", "marks", "print", "bleed"]) {
+                showCropMarks.toggle()
+                showToast(showCropMarks ? "✓ Crop Marks Enabled" : "Crop Marks Hidden")
+            },
+
+            // === AI Copilot & Intelligent Assistant ===
+            CommandItem(title: "Toggle AI Copilot Assistant", subtitle: "Open native BYOK intelligence drawer", icon: "sparkles", category: .ai, shortcut: "⌘J", keywords: ["ai", "copilot", "chat", "assistant"]) {
                 showAIDrawer.toggle()
             },
-            CommandItem(title: "Zoom In (+)", subtitle: "Enlarge workspace canvas scale", icon: "plus.magnifyingglass", shortcut: "⌘+") {
+            CommandItem(title: "AI Polish Tone & Academic Flow", subtitle: "Refine phrasing and eliminate passive voice", icon: "wand.and.stars", category: .ai, keywords: ["polish", "academic", "tone", "flow", "refine"]) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showAIDrawer = true }
+                showToast("✨ AI Copilot ready to polish")
+            },
+            CommandItem(title: "AI Instant Translation", subtitle: "Translate selected passage into target language", icon: "translate", category: .ai, keywords: ["translate", "language", "offline", "bilingual"]) {
+                Task {
+                    if let res = try? await TranslationService.shared.translate(text: selectedText.isEmpty ? rawText : selectedText) {
+                        if !selectedText.isEmpty && selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
+                            let ns = rawText as NSString
+                            rawText = ns.replacingCharacters(in: selectionRange, with: res)
+                        }
+                        showToast("✓ Translated with Offline Engine")
+                    }
+                }
+            },
+            CommandItem(title: "AI Explain Selected Concept", subtitle: "Get an in-depth breakdown of selected text", icon: "brain.head.profile", category: .ai, keywords: ["explain", "understand", "summary", "concept"]) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showAIDrawer = true }
+                showToast("✨ AI Copilot explaining selection")
+            },
+            CommandItem(title: "AI Generate Table of Contents", subtitle: "Analyze document and build hierarchical TOC", icon: "sparkles.rectangle.stack", category: .ai, keywords: ["ai", "toc", "structure", "outline"]) {
+                insertTOCAction()
+            },
+
+            // === View, Canvas & Tools ===
+            CommandItem(title: "Find & Replace", subtitle: "Search for terms across all page sheets", icon: "magnifyingglass", category: .view, shortcut: "⌘F", keywords: ["find", "search", "replace", "locate"]) {
+                showFindReplace.toggle()
+            },
+            CommandItem(title: "Toggle Outline Navigator Drawer", subtitle: "Sidebar table of contents and structure tree", icon: "sidebar.left", category: .view, keywords: ["outline", "sidebar", "navigator", "drawer"]) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showOutlineDrawer.toggle()
+                }
+            },
+            CommandItem(title: "Zoom In (+)", subtitle: "Enlarge workspace canvas scale (+15%)", icon: "plus.magnifyingglass", category: .view, shortcut: "⌘+", keywords: ["zoom", "in", "enlarge", "scale"]) {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                     zoomScale = min(2.5, zoomScale + 0.15)
                 }
                 showToast("✓ Zoom: \(Int(zoomScale * 100))%")
             },
-            CommandItem(title: "Zoom Out (-)", subtitle: "Reduce workspace canvas scale", icon: "minus.magnifyingglass", shortcut: "⌘-") {
+            CommandItem(title: "Zoom Out (-)", subtitle: "Reduce workspace canvas scale (-15%)", icon: "minus.magnifyingglass", category: .view, shortcut: "⌘-", keywords: ["zoom", "out", "shrink", "scale"]) {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                     zoomScale = max(0.5, zoomScale - 0.15)
                 }
                 showToast("✓ Zoom: \(Int(zoomScale * 100))%")
             },
-            CommandItem(title: "Reset Zoom (100%)", subtitle: "Set canvas scale to standard 100%", icon: "arrow.counterclockwise", shortcut: "⌘0") {
+            CommandItem(title: "Reset Zoom (100%)", subtitle: "Set canvas scale to standard 100%", icon: "arrow.counterclockwise", category: .view, shortcut: "⌘0", keywords: ["zoom", "reset", "100", "actual"]) {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                     zoomScale = 1.0
                 }
@@ -1434,6 +1805,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
             },
             onCite: {
                 insertCitationForSelection()
+            },
+            onCommandPalette: {
+                showCommandPalette = true
             }
         )
         .padding(.top, 16)

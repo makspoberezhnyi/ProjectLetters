@@ -25,6 +25,7 @@ public struct FloatingActionMenu: View {
     var onTranslate: () -> Void
     var onExplain: () -> Void
     var onCite: () -> Void
+    var onCommandPalette: () -> Void
 
     public init(
         selectedText: String,
@@ -46,7 +47,8 @@ public struct FloatingActionMenu: View {
         onPolish: @escaping () -> Void = {},
         onTranslate: @escaping () -> Void = {},
         onExplain: @escaping () -> Void = {},
-        onCite: @escaping () -> Void = {}
+        onCite: @escaping () -> Void = {},
+        onCommandPalette: @escaping () -> Void = {}
     ) {
         self.selectedText = selectedText
         self.fontFamily = fontFamily
@@ -68,6 +70,7 @@ public struct FloatingActionMenu: View {
         self.onTranslate = onTranslate
         self.onExplain = onExplain
         self.onCite = onCite
+        self.onCommandPalette = onCommandPalette
     }
 
     private func shortFontName(_ name: String) -> String {
@@ -82,32 +85,32 @@ public struct FloatingActionMenu: View {
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             // 1. Font Family Dropdown Menu
             Menu {
-                Button("Georgia") { onSetFontFamily("Default Serif (Georgia)") }
+                Button("Georgia (Serif)") { onSetFontFamily("Default Serif (Georgia)") }
                 Button("Times New Roman") { onSetFontFamily("Times New Roman") }
-                Button("SF Pro") { onSetFontFamily("SF Pro") }
-                Button("Helvetica") { onSetFontFamily("Helvetica") }
+                Button("SF Pro (San Francisco)") { onSetFontFamily("SF Pro") }
+                Button("Helvetica Neue") { onSetFontFamily("Helvetica") }
                 Button("Charter") { onSetFontFamily("Charter") }
                 Button("Menlo (Monospace)") { onSetFontFamily("Menlo (Monospace)") }
                 Button("Courier") { onSetFontFamily("Courier") }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Text(shortFontName(fontFamily))
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: 7, weight: .bold))
                         .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 7)
+                .padding(.horizontal, 6)
                 .padding(.vertical, 4)
                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("Font: \(fontFamily)")
+            .help("Font Family: \(fontFamily)")
 
             // 2. Font Size Stepper & Quick Menu
             HStack(spacing: 1) {
@@ -146,10 +149,10 @@ public struct FloatingActionMenu: View {
             .padding(.horizontal, 2)
             .padding(.vertical, 1)
             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .help("Font Size (\(Int(fontSize)) pt)")
+            .help("Font Size: \(Int(fontSize)) pt")
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
 
             // 3. Bold, Italic, Underline, Strikethrough
             HStack(spacing: 2) {
@@ -162,30 +165,30 @@ public struct FloatingActionMenu: View {
                 HUDToggleButton(icon: "underline", isActive: isUnderline, shortcut: "Underline (⌘U)") {
                     onUnderline()
                 }
-                HUDToggleButton(icon: "strikethrough", isActive: false, shortcut: "Strikethrough") {
+                HUDToggleButton(icon: "strikethrough", isActive: false, shortcut: "Strikethrough (⇧⌘X)") {
                     onStrikethrough()
                 }
             }
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
 
             // 4. Alignment Menu
             Menu {
-                Button { onSetAlignment(.leading) } label: { Label("Align Left", systemImage: "text.alignleft") }
-                Button { onSetAlignment(.center) } label: { Label("Align Center", systemImage: "text.aligncenter") }
-                Button { onSetAlignment(.trailing) } label: { Label("Align Right", systemImage: "text.alignright") }
+                Button { onSetAlignment(.leading) } label: { Label("Align Left (⌘{)", systemImage: "text.alignleft") }
+                Button { onSetAlignment(.center) } label: { Label("Align Center (⌘|)", systemImage: "text.aligncenter") }
+                Button { onSetAlignment(.trailing) } label: { Label("Align Right (⌘})", systemImage: "text.alignright") }
             } label: {
                 Image(systemName: textAlignment == .leading ? "text.alignleft" : (textAlignment == .center ? "text.aligncenter" : "text.alignright"))
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 24, height: 22)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .font(.system(size: 11, weight: .medium))
+                    .frame(width: 22, height: 22)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help("Text Alignment")
 
-            // 5. Line Spacing / Leading Menu
+            // 5. Line Spacing Menu
             Menu {
                 Button("1.0 (Single)") { onSetLineSpacing(1.0) }
                 Button("1.15 (Standard)") { onSetLineSpacing(1.15) }
@@ -195,57 +198,53 @@ public struct FloatingActionMenu: View {
             } label: {
                 HStack(spacing: 2) {
                     Image(systemName: "arrow.up.and.down.text.horizontal")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                     Text(String(format: "%.2g", lineSpacing))
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 }
-                .padding(.horizontal, 5)
+                .padding(.horizontal, 4)
                 .padding(.vertical, 4)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("Line Spacing (\(String(format: "%.2g", lineSpacing)))")
+            .help("Line Spacing: \(String(format: "%.2g", lineSpacing))x")
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
 
-            // 6. AI & Citation Tools
-            HStack(spacing: 4) {
-                Button(action: onPolish) {
-                    Label("Polish", systemImage: "wand.and.stars")
-                        .font(.system(size: 11, weight: .medium))
+            // 6. AI & Intelligent Tools (Clean Icon Actions with Tooltips)
+            HStack(spacing: 3) {
+                HUDActionButton(icon: "wand.and.stars", color: .purple, help: "AI Polish & Academic Flow") {
+                    onPolish()
                 }
-                .help("AI Academic & Flow Polish")
-
-                Button(action: onTranslate) {
-                    Label("Translate", systemImage: "translate")
-                        .font(.system(size: 11, weight: .medium))
+                HUDActionButton(icon: "translate", color: .blue, help: "Instant Translate") {
+                    onTranslate()
                 }
-                .help("Offline Translation")
-
-                Button(action: onExplain) {
-                    Label("Explain", systemImage: "sparkles")
-                        .font(.system(size: 11, weight: .medium))
+                HUDActionButton(icon: "sparkles", color: .orange, help: "AI Explain Concept") {
+                    onExplain()
                 }
-                .help("AI Contextual Explanation")
-
-                Button(action: onCite) {
-                    Label("Cite", systemImage: "quote.bubble")
-                        .font(.system(size: 11, weight: .medium))
+                HUDActionButton(icon: "quote.bubble", color: .teal, help: "Insert Linked Citation") {
+                    onCite()
                 }
-                .help("Insert Linked Source Citation")
             }
-            .buttonStyle(.plain)
+
+            Divider()
+                .frame(height: 14)
+
+            // 7. Command Center Launch
+            HUDActionButton(icon: "command", color: .accentColor, help: "Open Command Center (⌘K)") {
+                onCommandPalette()
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 0.8)
         )
-        .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 4)
     }
 }
 
@@ -255,15 +254,48 @@ struct HUDToggleButton: View {
     let shortcut: String
     let action: () -> Void
 
+    @State private var isHovered: Bool = false
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: isActive ? .bold : .medium))
-                .foregroundColor(isActive ? .accentColor : .primary)
+                .foregroundColor(isActive ? .accentColor : (isHovered ? .primary : .secondary))
                 .frame(width: 22, height: 22)
-                .background(isActive ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .background(
+                    isActive
+                        ? Color.accentColor.opacity(0.18)
+                        : (isHovered ? Color.primary.opacity(0.08) : Color.primary.opacity(0.04)),
+                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                )
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
         .help(shortcut)
+    }
+}
+
+struct HUDActionButton: View {
+    let icon: String
+    var color: Color = .primary
+    let help: String
+    let action: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(isHovered ? color : .secondary)
+                .frame(width: 22, height: 22)
+                .background(
+                    isHovered ? color.opacity(0.14) : Color.primary.opacity(0.04),
+                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(help)
     }
 }
