@@ -324,90 +324,126 @@ public struct StudioHeaderFooterToolbar: View {
     @Binding var config: HeaderFooterConfig
     @Binding var isEditing: Bool
     @Binding var activeTarget: HeaderFooterTarget
-    var position: Binding<HeaderFooterToolbarPosition>? = nil
+
+    @State private var dragOffset: CGSize = .zero
+    @State private var currentPosition: CGSize = .zero
 
     public init(
         config: Binding<HeaderFooterConfig>,
         isEditing: Binding<Bool>,
-        activeTarget: Binding<HeaderFooterTarget>,
-        position: Binding<HeaderFooterToolbarPosition>? = nil
+        activeTarget: Binding<HeaderFooterTarget>
     ) {
         self._config = config
         self._isEditing = isEditing
         self._activeTarget = activeTarget
-        self.position = position
     }
 
     public var body: some View {
-        HStack(spacing: 9) {
-            // Target Picker (Header vs Footer)
-            Picker("Edit Target", selection: $activeTarget) {
-                ForEach(HeaderFooterTarget.allCases) { target in
-                    Text(target.rawValue).tag(target)
+        HStack(spacing: 8) {
+            // Drag Handle Indicator
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.8))
+                .frame(width: 12, height: 20)
+                .contentShape(Rectangle())
+                .help("Drag to move toolbar anywhere")
+
+            // Custom Compact Switcher (Header vs Footer)
+            HStack(spacing: 1) {
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        activeTarget = .header
+                    }
+                } label: {
+                    Text("Header")
+                        .font(.system(size: 10, weight: activeTarget == .header ? .bold : .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            activeTarget == .header
+                                ? Color.accentColor.opacity(0.2)
+                                : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                        .foregroundColor(activeTarget == .header ? .accentColor : .secondary)
                 }
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        activeTarget = .footer
+                    }
+                } label: {
+                    Text("Footer")
+                        .font(.system(size: 10, weight: activeTarget == .footer ? .bold : .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            activeTarget == .footer
+                                ? Color.accentColor.opacity(0.2)
+                                : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                        .foregroundColor(activeTarget == .footer ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .pickerStyle(.segmented)
-            .frame(width: 120)
+            .padding(2)
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
 
-            // Page Number Position Picker
-            HStack(spacing: 3) {
-                Image(systemName: "number.square")
-                    .font(.system(size: 10.5))
-                    .foregroundColor(.secondary)
-
-                Menu {
-                    ForEach(PageNumberPosition.allCases, id: \.self) { pos in
-                        Button(pos.rawValue) {
-                            config.pageNumberPosition = pos
-                        }
+            // Page Number Position Picker Menu
+            Menu {
+                ForEach(PageNumberPosition.allCases, id: \.self) { pos in
+                    Button(pos.rawValue) {
+                        config.pageNumberPosition = pos
                     }
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(config.pageNumberPosition.rawValue)
-                            .font(.system(size: 10.5, weight: .medium))
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 6.5, weight: .bold))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Page Number Placement")
-            }
-
-            // Page Number Format Picker
-            HStack(spacing: 3) {
-                Menu {
-                    ForEach(PageNumberFormat.allCases, id: \.self) { fmt in
-                        Button(fmt.rawValue) {
-                            config.pageNumberFormat = fmt
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(config.pageNumberFormat.rawValue)
-                            .font(.system(size: 10.5, weight: .medium))
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 6.5, weight: .bold))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "number.square")
+                        .font(.system(size: 9))
+                    Text(config.pageNumberPosition.rawValue)
+                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 6, weight: .bold))
+                        .foregroundColor(.secondary)
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Page Number Format Style")
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Page Number Placement")
+
+            // Page Number Format Picker Menu
+            Menu {
+                ForEach(PageNumberFormat.allCases, id: \.self) { fmt in
+                    Button(fmt.rawValue) {
+                        config.pageNumberFormat = fmt
+                    }
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(config.pageNumberFormat.rawValue)
+                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 6, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Page Number Format Style")
 
             // Starting Page Stepper
-            HStack(spacing: 2) {
+            HStack(spacing: 1) {
                 Text("Start:")
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundColor(.secondary)
@@ -416,90 +452,61 @@ public struct StudioHeaderFooterToolbar: View {
                     if config.startingPageNumber > 0 { config.startingPageNumber -= 1 }
                 } label: {
                     Text("−")
-                        .font(.system(size: 10.5, weight: .bold))
-                        .frame(width: 14, height: 16)
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 12, height: 14)
                 }
                 .buttonStyle(.plain)
 
                 Text("\(config.startingPageNumber)")
-                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .frame(width: 14)
 
                 Button {
                     config.startingPageNumber += 1
                 } label: {
                     Text("+")
-                        .font(.system(size: 10.5, weight: .bold))
-                        .frame(width: 14, height: 16)
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 12, height: 14)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 4))
             .help("Starting Page Number (Offset)")
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
 
             // Different First Page Checkbox
             Toggle(isOn: $config.differentFirstPage) {
                 Text("Diff First")
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
             }
             .toggleStyle(.checkbox)
             .help("Hide header and footer on the title / cover page")
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 14)
 
             // Quick Token Menu
             Menu {
-                Button("Insert {page} (Current Page)") {
-                    appendToken("{page}")
-                }
-                Button("Insert {pages} (Total Pages)") {
-                    appendToken("{pages}")
-                }
-                Button("Insert {title} (Document Title)") {
-                    appendToken("{title}")
-                }
-                Button("Insert {date} (Current Date)") {
-                    appendToken("{date}")
-                }
+                Button("Insert {page} (Current Page)") { appendToken("{page}") }
+                Button("Insert {pages} (Total Pages)") { appendToken("{pages}") }
+                Button("Insert {title} (Document Title)") { appendToken("{title}") }
+                Button("Insert {date} (Current Date)") { appendToken("{date}") }
             } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "plus.circle")
                     Text("Field")
                 }
-                .font(.system(size: 10.5, weight: .medium))
+                .font(.system(size: 10, weight: .medium))
                 .padding(.horizontal, 5)
                 .padding(.vertical, 3)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-
-            // Optional Position Flip Button
-            if let pos = position {
-                Button {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                        switch pos.wrappedValue {
-                        case .adaptive: pos.wrappedValue = .top
-                        case .top: pos.wrappedValue = .bottom
-                        case .bottom: pos.wrappedValue = .adaptive
-                        }
-                    }
-                } label: {
-                    Image(systemName: pos.wrappedValue == .top ? "arrow.down.to.line" : (pos.wrappedValue == .bottom ? "arrow.up.to.line" : "arrow.up.and.down"))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(4)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 4))
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Dock Position (Current: \(pos.wrappedValue.rawValue))")
-            }
 
             // Close / Done Button
             Button {
@@ -511,24 +518,36 @@ public struct StudioHeaderFooterToolbar: View {
                     Image(systemName: "checkmark.circle.fill")
                     Text("Done")
                 }
-                .font(.system(size: 10.5, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.white)
-                .padding(.horizontal, 9)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 3.5)
                 .background(Color.accentColor, in: Capsule())
             }
             .buttonStyle(.plain)
             .help("Close Header & Footer Editor (Esc)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.ultraThickMaterial, in: Capsule())
         .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            Capsule()
                 .stroke(Color.primary.opacity(0.12), lineWidth: 0.8)
         )
-        .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 5)
-        .fixedSize(horizontal: true, vertical: false)
+        .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
+        .fixedSize()
+        .offset(x: currentPosition.width + dragOffset.width, y: currentPosition.height + dragOffset.height)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    currentPosition.width += value.translation.width
+                    currentPosition.height += value.translation.height
+                    dragOffset = .zero
+                }
+        )
     }
 
     private func appendToken(_ token: String) {

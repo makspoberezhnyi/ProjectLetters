@@ -67,7 +67,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var headerFooterConfig: HeaderFooterConfig = HeaderFooterConfig()
     @State private var isEditingHeaderFooter: Bool = false
     @State private var activeHeaderFooterTarget: HeaderFooterTarget = .header
-    @State private var headerFooterToolbarPosition: HeaderFooterToolbarPosition = .adaptive
 
     // Rich Interactive Blocks State
     @State private var studioTables: [StudioTableData] = [
@@ -223,28 +222,19 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         }
                         .background(StudioTheme.canvasBackground)
 
-                        // 3. Floating Adaptive Header & Footer / Page Numbering Control Bar (Double-click activation)
+                        // 3. Floating Draggable Header & Footer / Page Numbering HUD (Double-click activation)
                         if isEditingHeaderFooter {
-                            let isTop = (headerFooterToolbarPosition == .top) || (headerFooterToolbarPosition == .adaptive && activeHeaderFooterTarget == .footer)
                             VStack {
-                                if !isTop {
-                                    Spacer()
-                                }
                                 StudioHeaderFooterToolbar(
                                     config: $headerFooterConfig,
                                     isEditing: $isEditingHeaderFooter,
-                                    activeTarget: $activeHeaderFooterTarget,
-                                    position: $headerFooterToolbarPosition
+                                    activeTarget: $activeHeaderFooterTarget
                                 )
-                                .padding(.top, isTop ? 14 : 0)
-                                .padding(.bottom, isTop ? 0 : 74)
-                                .transition(isTop ? .move(edge: .top).combined(with: .opacity) : .move(edge: .bottom).combined(with: .opacity))
-
-                                if isTop {
-                                    Spacer()
-                                }
+                                .padding(.top, 16)
+                                Spacer()
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isTop ? .top : .bottom)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             .zIndex(20)
                         }
 
