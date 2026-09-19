@@ -437,9 +437,10 @@ public struct AssistantSidebarView: View {
                             .background(Color.white.opacity(0.08))
 
                         HStack(spacing: 6) {
+                            let docReadyText = extractCleanDocumentContent(from: msg.content)
                             if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 Button {
-                                    applyTextToSelection(content: cleanText)
+                                    applyTextToSelection(content: docReadyText)
                                 } label: {
                                     HStack(spacing: 3) {
                                         Image(systemName: "selection.pin.in.out")
@@ -455,7 +456,7 @@ public struct AssistantSidebarView: View {
                             }
 
                             Button {
-                                appendToDocument(content: cleanText)
+                                appendToDocument(content: docReadyText)
                             } label: {
                                 HStack(spacing: 3) {
                                     Image(systemName: "plus.circle")
@@ -474,8 +475,8 @@ public struct AssistantSidebarView: View {
                             Button {
                                 let pasteboard = NSPasteboard.general
                                 pasteboard.clearContents()
-                                pasteboard.setString(cleanText, forType: .string)
-                                onToast?("✓ Copied to clipboard")
+                                pasteboard.setString(docReadyText, forType: .string)
+                                onToast?("✓ Copied document content")
                             } label: {
                                 Image(systemName: "doc.on.doc")
                                     .font(.system(size: 10))
@@ -484,7 +485,7 @@ public struct AssistantSidebarView: View {
                                     .background(Color.primary.opacity(0.05), in: Circle())
                             }
                             .buttonStyle(.plain)
-                            .help("Copy text")
+                            .help("Copy clean document content")
                         }
                     }
                 }
@@ -946,6 +947,51 @@ public struct AssistantSidebarView: View {
     }
 
     // MARK: - Helper Parsing Methods
+    private func extractCleanDocumentContent(from text: String) -> String {
+        // 1. If explicit [CONTENT]...[/CONTENT] tags exist, extract precisely that
+        if let startTag = text.range(of: "[CONTENT]"),
+           let endTag = text.range(of: "[/CONTENT]", range: startTag.upperBound..<text.endIndex) {
+            let inner = text[startTag.upperBound..<endTag.lowerBound]
+            return inner.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // 2. Strip out all [ACTION:...] tags
+        var clean = extractDisplayableContent(from: text)
+
+        // 3. Strip common bot conversational preambles
+        let preamblePatterns = [
+            "^\\s*(Here (is|are|'s) (the|your|a|an)?\\s*[^:\\n]+:?\\s*\\n+)",
+            "^\\s*(Certainly!?|Sure!?|Of course!?|Absolutely!?|Here you go!?)\\s*(Here (is|are|'s) [^:\\n]+:?\\s*\\n*)?",
+            "^\\s*(Below is (the|a|an)?\\s*[^:\\n]+:?\\s*\\n+)",
+            "^\\s*(I have (prepared|created|generated|summarized|written|compiled)\\s*[^:\\n]+:?\\s*\\n+)"
+        ]
+
+        for pat in preamblePatterns {
+            if let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) {
+                let ns = clean as NSString
+                if let match = regex.firstMatch(in: clean, options: [], range: NSRange(location: 0, length: min(ns.length, 300))) {
+                    clean = ns.replacingCharacters(in: match.range, with: "")
+                }
+            }
+        }
+
+        // 4. Strip common bot conversational postambles
+        let postamblePatterns = [
+            "(\\n+\\s*(Let me know if you (need|would like|want)|Hope this helps!?|Feel free to ask|Would you like me to|If you need anything else).*$)"
+        ]
+
+        for pat in postamblePatterns {
+            if let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) {
+                let ns = clean as NSString
+                if let match = regex.firstMatch(in: clean, options: [], range: NSRange(location: 0, length: ns.length)) {
+                    clean = ns.replacingCharacters(in: match.range, with: "")
+                }
+            }
+        }
+
+        return clean.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func extractDisplayableContent(from text: String) -> String {
         // Strip out [ACTION:...] markers for clean display
         var clean = text
