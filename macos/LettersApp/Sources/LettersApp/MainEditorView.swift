@@ -95,6 +95,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var lineSpacing: CGFloat = 1.15
     @State private var paragraphSpacing: CGFloat = 12.0
 
+    // Live Selection Attributes (Tracks cursor/selection without modifying document defaults)
+    @State private var selectionAttributes: EditorSelectionAttributes? = nil
+
     @State private var showAIDrawer: Bool = false
     @State private var showOutlineDrawer: Bool = false
 
@@ -970,6 +973,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         studioImages = []
         studioVideos = []
         document.sources = [:]
+        selectionAttributes = nil
         showToast("✓ Created New Document")
     }
 
@@ -1186,46 +1190,34 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func toggleBoldAction() {
         editorController.toggleBold()
         if let attrs = editorController.currentSelectionAttributes() {
-            self.isBold = attrs.isBold
-            self.isItalic = attrs.isItalic
-            self.isUnderline = attrs.isUnderline
-            self.fontFamily = attrs.fontFamily
-            self.fontSize = attrs.fontSize
-            self.textAlignment = attrs.alignment
+            self.selectionAttributes = attrs
+            showToast(attrs.isBold ? "✓ Bold enabled" : "Bold disabled")
         } else {
             isBold.toggle()
+            showToast(isBold ? "✓ Bold enabled" : "Bold disabled")
         }
-        showToast(isBold ? "✓ Bold enabled" : "Bold disabled")
     }
 
     private func toggleItalicAction() {
         editorController.toggleItalic()
         if let attrs = editorController.currentSelectionAttributes() {
-            self.isBold = attrs.isBold
-            self.isItalic = attrs.isItalic
-            self.isUnderline = attrs.isUnderline
-            self.fontFamily = attrs.fontFamily
-            self.fontSize = attrs.fontSize
-            self.textAlignment = attrs.alignment
+            self.selectionAttributes = attrs
+            showToast(attrs.isItalic ? "✓ Italic enabled" : "Italic disabled")
         } else {
             isItalic.toggle()
+            showToast(isItalic ? "✓ Italic enabled" : "Italic disabled")
         }
-        showToast(isItalic ? "✓ Italic enabled" : "Italic disabled")
     }
 
     private func toggleUnderlineAction() {
         editorController.toggleUnderline()
         if let attrs = editorController.currentSelectionAttributes() {
-            self.isBold = attrs.isBold
-            self.isItalic = attrs.isItalic
-            self.isUnderline = attrs.isUnderline
-            self.fontFamily = attrs.fontFamily
-            self.fontSize = attrs.fontSize
-            self.textAlignment = attrs.alignment
+            self.selectionAttributes = attrs
+            showToast(attrs.isUnderline ? "✓ Underline enabled" : "Underline disabled")
         } else {
             isUnderline.toggle()
+            showToast(isUnderline ? "✓ Underline enabled" : "Underline disabled")
         }
-        showToast(isUnderline ? "✓ Underline enabled" : "Underline disabled")
     }
 
     private func setAlignmentAction(_ align: TextAlignment) {
@@ -1236,25 +1228,18 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setFontFamilyAction(_ font: String) {
-        fontFamily = font
-        editorController.applyFontFamily(font, size: fontSize)
+        let sizeToApply = selectionAttributes?.fontSize ?? fontSize
+        editorController.applyFontFamily(font, size: sizeToApply)
         if let attrs = editorController.currentSelectionAttributes() {
-            self.isBold = attrs.isBold
-            self.isItalic = attrs.isItalic
-            self.isUnderline = attrs.isUnderline
-            self.fontSize = attrs.fontSize
+            self.selectionAttributes = attrs
         }
         showToast("✓ Font: \(font)")
     }
 
     private func setFontSizeAction(_ size: CGFloat) {
-        fontSize = size
         editorController.applyFontSize(size)
         if let attrs = editorController.currentSelectionAttributes() {
-            self.isBold = attrs.isBold
-            self.isItalic = attrs.isItalic
-            self.isUnderline = attrs.isUnderline
-            self.fontFamily = attrs.fontFamily
+            self.selectionAttributes = attrs
         }
         showToast("✓ Font Size: \(Int(size)) pt")
     }
@@ -2054,11 +2039,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     margins: PageMargins(),
                     pageIndex: pageIndex,
                     onSelectionChanged: { _, _, attrs in
-                        self.isBold = attrs.isBold
-                        self.isItalic = attrs.isItalic
-                        self.isUnderline = attrs.isUnderline
-                        self.fontFamily = attrs.fontFamily
-                        self.fontSize = attrs.fontSize
+                        self.selectionAttributes = attrs
                     }
                 )
                 .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
@@ -2094,11 +2075,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 margins: PageMargins(),
                                 pageIndex: pageIndex,
                                 onSelectionChanged: { _, _, attrs in
-                                    self.isBold = attrs.isBold
-                                    self.isItalic = attrs.isItalic
-                                    self.isUnderline = attrs.isUnderline
-                                    self.fontFamily = attrs.fontFamily
-                                    self.fontSize = attrs.fontSize
+                                    self.selectionAttributes = attrs
                                 }
                             )
                             .frame(width: printableWidth, height: h, alignment: .topLeading)
@@ -2198,12 +2175,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private var floatingSelectionActionMenu: some View {
         FloatingActionMenu(
             selectedText: selectedText,
-            fontFamily: fontFamily,
-            fontSize: fontSize,
-            isBold: isBold,
-            isItalic: isItalic,
-            isUnderline: isUnderline,
-            textAlignment: textAlignment,
+            fontFamily: selectionAttributes?.fontFamily ?? fontFamily,
+            fontSize: selectionAttributes?.fontSize ?? fontSize,
+            isBold: selectionAttributes?.isBold ?? isBold,
+            isItalic: selectionAttributes?.isItalic ?? isItalic,
+            isUnderline: selectionAttributes?.isUnderline ?? isUnderline,
+            textAlignment: selectionAttributes?.alignment ?? textAlignment,
             lineSpacing: lineSpacing,
             onBold: {
                 toggleBoldAction()

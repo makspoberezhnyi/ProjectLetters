@@ -634,6 +634,11 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.actionController = controller
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
+        context.coordinator.lastAppliedFontFamily = fontFamily
+        context.coordinator.lastAppliedFontSize = fontSize
+        context.coordinator.lastAppliedLineSpacing = lineSpacing
+        context.coordinator.lastAppliedParagraphSpacing = paragraphSpacing
+        context.coordinator.lastAppliedAlignment = alignment
         controller?.textView = textView
         controller?.register(pageIndex: pageIndex, textView: textView)
         context.coordinator.isUpdatingProgrammatically = false
@@ -642,6 +647,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     }
 
     public func updateNSView(_ textView: StudioTextView, context: Context) {
+        context.coordinator.parent = self
         textView.pageIndex = pageIndex
         textView.actionController = controller
         controller?.register(pageIndex: pageIndex, textView: textView)
@@ -649,11 +655,19 @@ public struct TextKit2EditorView: NSViewRepresentable {
             context.coordinator.textView = textView
         }
 
-        // Only update text when changed externally from SwiftUI/File loading
-        if textView.string != text {
+        let typographyChanged = context.coordinator.lastAppliedFontFamily != fontFamily ||
+            context.coordinator.lastAppliedFontSize != fontSize ||
+            context.coordinator.lastAppliedLineSpacing != lineSpacing ||
+            context.coordinator.lastAppliedParagraphSpacing != paragraphSpacing ||
+            context.coordinator.lastAppliedAlignment != alignment
+
+        // Only update text when changed externally from SwiftUI/File loading or when typography settings changed
+        if textView.string != text || typographyChanged {
             context.coordinator.isUpdatingProgrammatically = true
             let selected = textView.selectedRange()
-            textView.string = text
+            if textView.string != text {
+                textView.string = text
+            }
             if let storage = textView.textStorage {
                 Self.applyTypographyStyling(
                     to: storage,
@@ -666,9 +680,14 @@ public struct TextKit2EditorView: NSViewRepresentable {
                     paragraphSpacing: paragraphSpacing
                 )
             }
-            if selected.location + selected.length <= (text as NSString).length {
+            if selected.location + selected.length <= (textView.string as NSString).length {
                 textView.setSelectedRange(selected)
             }
+            context.coordinator.lastAppliedFontFamily = fontFamily
+            context.coordinator.lastAppliedFontSize = fontSize
+            context.coordinator.lastAppliedLineSpacing = lineSpacing
+            context.coordinator.lastAppliedParagraphSpacing = paragraphSpacing
+            context.coordinator.lastAppliedAlignment = alignment
             context.coordinator.isUpdatingProgrammatically = false
         }
     }
@@ -791,9 +810,19 @@ public struct TextKit2EditorView: NSViewRepresentable {
         var parent: TextKit2EditorView
         weak var textView: NSTextView?
         var isUpdatingProgrammatically = false
+        var lastAppliedFontFamily: String = ""
+        var lastAppliedFontSize: CGFloat = 0
+        var lastAppliedLineSpacing: CGFloat = 0
+        var lastAppliedParagraphSpacing: CGFloat = 0
+        var lastAppliedAlignment: TextAlignment = .leading
 
         init(_ parent: TextKit2EditorView) {
             self.parent = parent
+            self.lastAppliedFontFamily = parent.fontFamily
+            self.lastAppliedFontSize = parent.fontSize
+            self.lastAppliedLineSpacing = parent.lineSpacing
+            self.lastAppliedParagraphSpacing = parent.paragraphSpacing
+            self.lastAppliedAlignment = parent.alignment
         }
 
         public func textDidChange(_ notification: Notification) {
