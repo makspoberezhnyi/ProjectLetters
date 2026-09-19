@@ -168,6 +168,32 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let charsPerLine = max(25, Int(printableWidth / avgCharWidth))
         let singleLineHeight = fontSize * lineSpacing * 1.3
 
+        func estimateBlockHeight(_ text: String) -> CGFloat {
+            if text.starts(with: "[[table:") {
+                return 180
+            } else if text.starts(with: "[[image:") {
+                return 220
+            } else if text.starts(with: "[[video:") {
+                return 220
+            } else if text.starts(with: "[[toc]]") {
+                return 150
+            } else if text.starts(with: "[[bibliography]]") {
+                return 180
+            } else if text.starts(with: "# ") {
+                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine - 10))))
+                return CGFloat(lines) * (fontSize * 1.5 * 1.3) + paragraphSpacing + 8
+            } else if text.starts(with: "## ") {
+                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine - 5))))
+                return CGFloat(lines) * (fontSize * 1.3 * 1.3) + paragraphSpacing + 6
+            } else if text.starts(with: "### ") {
+                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine))))
+                return CGFloat(lines) * (fontSize * 1.15 * 1.3) + paragraphSpacing + 4
+            } else {
+                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine))))
+                return CGFloat(lines) * singleLineHeight + paragraphSpacing
+            }
+        }
+
         for section in hardSections {
             let cleanSection = section.trimmingCharacters(in: .whitespacesAndNewlines)
             if cleanSection.isEmpty { continue }
@@ -177,43 +203,49 @@ Letters is a next-generation desktop publishing and document studio combining gr
             var currentHeight: CGFloat = 0
 
             for para in paragraphs {
-                let trimmed = para.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty { continue }
+                var remainingText = para.trimmingCharacters(in: .whitespacesAndNewlines)
+                if remainingText.isEmpty { continue }
 
-                // Calculate block height
-                let paraHeight: CGFloat
-                if trimmed.starts(with: "[[table:") {
-                    paraHeight = 180
-                } else if trimmed.starts(with: "[[image:") {
-                    paraHeight = 220
-                } else if trimmed.starts(with: "[[video:") {
-                    paraHeight = 220
-                } else if trimmed.starts(with: "[[toc]]") {
-                    paraHeight = 150
-                } else if trimmed.starts(with: "[[bibliography]]") {
-                    paraHeight = 180
-                } else if trimmed.starts(with: "# ") {
-                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine - 10))))
-                    paraHeight = CGFloat(lines) * (fontSize * 1.5 * 1.3) + paragraphSpacing + 8
-                } else if trimmed.starts(with: "## ") {
-                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine - 5))))
-                    paraHeight = CGFloat(lines) * (fontSize * 1.3 * 1.3) + paragraphSpacing + 6
-                } else if trimmed.starts(with: "### ") {
-                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine))))
-                    paraHeight = CGFloat(lines) * (fontSize * 1.15 * 1.3) + paragraphSpacing + 4
-                } else {
-                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine))))
-                    paraHeight = CGFloat(lines) * singleLineHeight + paragraphSpacing
-                }
+                while !remainingText.isEmpty {
+                    let paraHeight = estimateBlockHeight(remainingText)
 
-                // If this paragraph exceeds remaining page space, start a new page
-                if currentHeight + paraHeight > printableHeight && !currentPageParagraphs.isEmpty {
-                    allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
-                    currentPageParagraphs = [trimmed]
-                    currentHeight = paraHeight
-                } else {
-                    currentPageParagraphs.append(trimmed)
-                    currentHeight += paraHeight
+                    if currentHeight + paraHeight <= printableHeight {
+                        currentPageParagraphs.append(remainingText)
+                        currentHeight += paraHeight
+                        remainingText = ""
+                    } else if !currentPageParagraphs.isEmpty {
+                        // Flush current page
+                        allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
+                        currentPageParagraphs = []
+                        currentHeight = 0
+                    } else {
+                        // Current page is empty but this single paragraph is larger than printableHeight
+                        let maxLines = max(3, Int((printableHeight - currentHeight) / singleLineHeight))
+                        let maxChars = maxLines * charsPerLine
+                        if remainingText.count > maxChars {
+                            let searchIdx = remainingText.index(remainingText.startIndex, offsetBy: min(remainingText.count, maxChars))
+                            let sub = remainingText[..<searchIdx]
+                            let splitPos: String.Index
+                            if let lastDot = sub.range(of: ". ", options: .backwards) {
+                                splitPos = remainingText.index(after: lastDot.upperBound)
+                            } else if let lastSpace = sub.range(of: " ", options: .backwards) {
+                                splitPos = lastSpace.lowerBound
+                            } else {
+                                splitPos = searchIdx
+                            }
+                            let head = String(remainingText[..<splitPos]).trimmingCharacters(in: .whitespacesAndNewlines)
+                            let tail = String(remainingText[splitPos...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                            currentPageParagraphs.append(head)
+                            allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
+                            currentPageParagraphs = []
+                            currentHeight = 0
+                            remainingText = tail
+                        } else {
+                            currentPageParagraphs.append(remainingText)
+                            currentHeight += paraHeight
+                            remainingText = ""
+                        }
+                    }
                 }
             }
 
@@ -2201,11 +2233,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 }
             }
         }
-        .padding(.top, margins.top)
-        .padding(.bottom, margins.bottom)
-        .padding(.horizontal, margins.left)
-        .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
-        .clipped()
+        .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
+        .offset(x: margins.left, y: margins.top)
     }
 
     @ViewBuilder

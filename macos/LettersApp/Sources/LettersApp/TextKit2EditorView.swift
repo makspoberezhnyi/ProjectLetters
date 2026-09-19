@@ -376,6 +376,17 @@ public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: 
 public class StudioTextView: NSTextView {
     public weak var actionController: EditorActionController?
 
+    public override var isFlipped: Bool { true }
+
+    public override func setFrameSize(_ newSize: NSSize) {
+        var size = newSize
+        if let superview = self.superview, superview.bounds.height > 0 {
+            size.height = max(size.height, superview.bounds.height)
+            size.width = superview.bounds.width
+        }
+        super.setFrameSize(size)
+    }
+
     public override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
         if ok {
@@ -494,7 +505,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
-        textView.autoresizingMask = [.width]
+        textView.autoresizingMask = [.width, .height]
 
         if let layoutManager = textView.layoutManager {
             layoutManager.allowsNonContiguousLayout = true
