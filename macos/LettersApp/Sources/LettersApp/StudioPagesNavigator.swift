@@ -6,12 +6,19 @@ import LettersKit
 public struct StudioPagesNavigator: View {
     @Binding var rawText: String
     @Binding var selectedPage: Int
+    var documentPages: [String] = []
     @State private var activeTab: NavigatorTab = .pages
 
     enum NavigatorTab: String, CaseIterable {
         case pages = "Pages"
         case outline = "Outline"
         case assets = "Assets"
+    }
+
+    public init(rawText: Binding<String>, selectedPage: Binding<Int>, documentPages: [String] = []) {
+        self._rawText = rawText
+        self._selectedPage = selectedPage
+        self.documentPages = documentPages
     }
 
     public var body: some View {
@@ -29,15 +36,7 @@ public struct StudioPagesNavigator: View {
 
             if activeTab == .pages {
                 // Page Spreads / Thumbnails (Affinity Publisher Style)
-                let pageList = DocumentPaginator.paginate(
-                    rawText: rawText,
-                    sheetHeight: 792,
-                    sheetWidth: 612,
-                    margins: PageMargins(),
-                    fontSize: 15.0,
-                    lineSpacing: 1.15,
-                    paragraphSpacing: 12.0
-                ).map { $0.text }
+                let pageList = documentPages.isEmpty ? [rawText] : documentPages
 
                 ScrollView {
                     LazyVStack(spacing: 16) {

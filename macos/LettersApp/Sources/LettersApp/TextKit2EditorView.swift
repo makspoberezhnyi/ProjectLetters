@@ -41,14 +41,50 @@ public class EditorActionController: ObservableObject {
         pageViews[pageIndex] = textView
     }
 
-    public func focusPage(_ pageIndex: Int, at cursorLoc: Int = 0) {
+    public func hasPage(_ pageIndex: Int) -> Bool {
+        return pageViews[pageIndex] != nil
+    }
+
+    public func focusPage(_ pageIndex: Int, at cursorLoc: Int = 0, retries: Int = 8) {
         DispatchQueue.main.async {
-            guard let tv = self.pageViews[pageIndex] else { return }
-            tv.window?.makeFirstResponder(tv)
-            self.textView = tv
-            let length = (tv.string as NSString).length
-            let safeLoc = max(0, min(cursorLoc, length))
-            tv.setSelectedRange(NSRange(location: safeLoc, length: 0))
+            if let tv = self.pageViews[pageIndex] {
+                tv.window?.makeFirstResponder(tv)
+                self.textView = tv
+                let length = (tv.string as NSString).length
+                let safeLoc = max(0, min(cursorLoc, length))
+                tv.setSelectedRange(NSRange(location: safeLoc, length: 0))
+            } else if retries > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+                    self.focusPage(pageIndex, at: cursorLoc, retries: retries - 1)
+                }
+            }
+        }
+    }
+
+    public func focusPreviousPage(from pageIndex: Int, deleteTrailing: Bool = false) {
+        let prevPage = pageIndex - 1
+        guard prevPage >= 0 else { return }
+        DispatchQueue.main.async {
+            guard let prevTv = self.pageViews[prevPage] else { return }
+            prevTv.window?.makeFirstResponder(prevTv)
+            self.textView = prevTv
+            let len = (prevTv.string as NSString).length
+            if deleteTrailing && len > 0 {
+                prevTv.setSelectedRange(NSRange(location: len, length: 0))
+                prevTv.deleteBackward(nil)
+            } else {
+                prevTv.setSelectedRange(NSRange(location: len, length: 0))
+            }
+        }
+    }
+
+    public func focusNextPage(from pageIndex: Int) {
+        let nextPage = pageIndex + 1
+        DispatchQueue.main.async {
+            guard let nextTv = self.pageViews[nextPage] else { return }
+            nextTv.window?.makeFirstResponder(nextTv)
+            self.textView = nextTv
+            nextTv.setSelectedRange(NSRange(location: 0, length: 0))
         }
     }
 
@@ -391,6 +427,7 @@ public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: 
 
 public class StudioTextView: NSTextView {
     public weak var actionController: EditorActionController?
+    public var pageIndex: Int = 0
 
     public override var isFlipped: Bool { true }
 
@@ -411,6 +448,16 @@ public class StudioTextView: NSTextView {
     public override func scroll(_ point: NSPoint) {
         // Pin bounds origin to zero to prevent text from scrolling off the top of the sheet
         self.bounds.origin = .zero
+    }
+
+    public override func autoscroll(with event: NSEvent) -> Bool {
+        self.bounds.origin = .zero
+        return false
+    }
+
+    public override func scrollWheel(with event: NSEvent) {
+        // Forward scrollWheel to canvas scroll view so text never scrolls inside physical paper
+        self.nextResponder?.scrollWheel(with: event)
     }
 
     public override func layout() {
@@ -440,6 +487,30 @@ public class StudioTextView: NSTextView {
             self.insertText("\n\n---pagebreak---\n\n", replacementRange: self.selectedRange())
             return
         }
+
+        let sel = self.selectedRange()
+        let strLen = (self.string as NSString).length
+
+        // Backspace at beginning of page -> hop to end of previous page & delete
+        if event.keyCode == 51 && sel.location == 0 && sel.length == 0 && pageIndex > 0 {
+            actionController?.focusPreviousPage(from: pageIndex, deleteTrailing: true)
+            return
+        }
+
+        // Left arrow at beginning of page -> hop to end of previous page
+        if event.keyCode == 123 && sel.location == 0 && sel.length == 0 && pageIndex > 0 {
+            actionController?.focusPreviousPage(from: pageIndex, deleteTrailing: false)
+            return
+        }
+
+        // Right arrow at end of page -> hop to beginning of next page
+        if event.keyCode == 124 && sel.location == strLen && sel.length == 0 {
+            if let ac = actionController, ac.hasPage(pageIndex + 1) {
+                ac.focusNextPage(from: pageIndex)
+                return
+            }
+        }
+
         super.keyDown(with: event)
     }
 }
@@ -545,7 +616,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = true
+        textView.isVerticallyResizable = false
         textView.autoresizingMask = [.width, .height]
 
         if let layoutManager = textView.layoutManager {
@@ -564,6 +635,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
                 paragraphSpacing: paragraphSpacing
             )
         }
+        textView.pageIndex = pageIndex
+        textView.actionController = controller
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
         controller?.textView = textView
@@ -574,6 +647,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     }
 
     public func updateNSView(_ textView: StudioTextView, context: Context) {
+        textView.pageIndex = pageIndex
         textView.actionController = controller
         controller?.register(pageIndex: pageIndex, textView: textView)
         if context.coordinator.textView == nil {

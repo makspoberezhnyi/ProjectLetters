@@ -44,6 +44,7 @@ public struct StudioFloatingSidebar: View {
     @Binding var showAIDrawer: Bool
     @Binding var showCommandPalette: Bool
 
+    var documentPages: [String]
     var onInsertSection: () -> Void
     var onInsertTable: () -> Void
     var onAddSource: () -> Void
@@ -56,6 +57,7 @@ public struct StudioFloatingSidebar: View {
     public init(
         isPresented: Binding<Bool>,
         rawText: Binding<String>,
+        documentPages: [String] = [],
         selectedPage: Binding<Int>,
         sources: Binding<[String: Source]>,
         tables: Binding<[StudioTableData]>,
@@ -71,6 +73,7 @@ public struct StudioFloatingSidebar: View {
     ) {
         self._isPresented = isPresented
         self._rawText = rawText
+        self.documentPages = documentPages
         self._selectedPage = selectedPage
         self._sources = sources
         self._tables = tables
@@ -83,18 +86,6 @@ public struct StudioFloatingSidebar: View {
         self.onAddSource = onAddSource
         self.onInsertPageBreak = onInsertPageBreak
         self.onToast = onToast
-    }
-
-    private var documentPages: [String] {
-        DocumentPaginator.paginate(
-            rawText: rawText,
-            sheetHeight: 792,
-            sheetWidth: 612,
-            margins: PageMargins(),
-            fontSize: 15.0,
-            lineSpacing: 1.15,
-            paragraphSpacing: 12.0
-        ).map { $0.text }
     }
 
     public var body: some View {
