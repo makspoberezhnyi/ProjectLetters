@@ -14,23 +14,21 @@ public struct MainEditorView: View {
     )
 
     @State private var rawText: String = """
-Letters: Modern Document Studio
+# Letters: Modern Document Studio
 
 Letters is a next-generation desktop publishing and document studio combining graphic design precision with native Word (.docx) fidelity.
 
-1. Core Architecture & Native Engine
-• SwiftUI & TextKit 2 Viewport: Ultra-smooth layout and scrolling on massive 100+ page documents.
+## 1. Core Architecture & Native Engine
+• SwiftUI & TextKit 2 Viewport: Ultra-smooth layout and scrolling on multi-page documents.
 • Headless Rust Core: Lossless OpenXML (.docx) packaging and parsing with zero formatting degradation.
 • Universal BYOK AI Gateway: Direct cloud streaming with Anthropic Claude, OpenAI GPT-4o, and Google Gemini.
 
-2. Linked Sources & Dynamic Style Rules
+## 2. Linked Sources & Dynamic Style Rules
 • Citations store structured bibliographic metadata rather than flat static text.
 • Real-time re-rendering across APA 7, MLA 9, Chicago, and Bluebook legal standards.
 
-3. Dynamic Smart Tables & Formulas
+## 3. Dynamic Smart Tables & Formulas
 • Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
-
-[[table:budget]]
 """
 
     @State private var activeTool: StudioTool = .select
@@ -161,13 +159,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let hardSections = rawText.components(separatedBy: "---pagebreak---")
         var allPages: [String] = []
 
-        let usableHeight = max(200, sheetHeight - margins.top - margins.bottom - 48)
-        let printableWidth = max(200, sheetWidth - margins.left - margins.right)
-        let avgCharsPerLine = max(30, Int(printableWidth / (fontSize * 0.50)))
-        let lineHeight = fontSize * lineSpacing * 1.3
+        // Accurate printable area on this page format
+        let printableHeight = max(150, sheetHeight - margins.top - margins.bottom - 44)
+        let printableWidth = max(150, sheetWidth - margins.left - margins.right)
+
+        // Character count and line metrics for Georgia/Serif font
+        let avgCharWidth = max(5.0, fontSize * 0.48)
+        let charsPerLine = max(25, Int(printableWidth / avgCharWidth))
+        let singleLineHeight = fontSize * lineSpacing * 1.3
 
         for section in hardSections {
-            let paragraphs = section.components(separatedBy: "\n\n")
+            let cleanSection = section.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleanSection.isEmpty { continue }
+
+            let paragraphs = cleanSection.components(separatedBy: "\n\n")
             var currentPageParagraphs: [String] = []
             var currentHeight: CGFloat = 0
 
@@ -175,30 +180,34 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 let trimmed = para.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.isEmpty { continue }
 
-                // Estimate height of this block
+                // Calculate block height
                 let paraHeight: CGFloat
                 if trimmed.starts(with: "[[table:") {
-                    paraHeight = 160
+                    paraHeight = 180
                 } else if trimmed.starts(with: "[[image:") {
-                    paraHeight = 200
+                    paraHeight = 220
                 } else if trimmed.starts(with: "[[video:") {
-                    paraHeight = 200
+                    paraHeight = 220
                 } else if trimmed.starts(with: "[[toc]]") {
                     paraHeight = 150
                 } else if trimmed.starts(with: "[[bibliography]]") {
                     paraHeight = 180
                 } else if trimmed.starts(with: "# ") {
-                    paraHeight = 54
+                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine - 10))))
+                    paraHeight = CGFloat(lines) * (fontSize * 1.5 * 1.3) + paragraphSpacing + 8
                 } else if trimmed.starts(with: "## ") {
-                    paraHeight = 44
+                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine - 5))))
+                    paraHeight = CGFloat(lines) * (fontSize * 1.3 * 1.3) + paragraphSpacing + 6
                 } else if trimmed.starts(with: "### ") {
-                    paraHeight = 36
+                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine))))
+                    paraHeight = CGFloat(lines) * (fontSize * 1.15 * 1.3) + paragraphSpacing + 4
                 } else {
-                    let linesCount = max(1, Int(ceil(Double(trimmed.count) / Double(avgCharsPerLine))))
-                    paraHeight = CGFloat(linesCount) * lineHeight + paragraphSpacing
+                    let lines = max(1, Int(ceil(Double(trimmed.count) / Double(charsPerLine))))
+                    paraHeight = CGFloat(lines) * singleLineHeight + paragraphSpacing
                 }
 
-                if currentHeight + paraHeight > usableHeight && !currentPageParagraphs.isEmpty {
+                // If this paragraph exceeds remaining page space, start a new page
+                if currentHeight + paraHeight > printableHeight && !currentPageParagraphs.isEmpty {
                     allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
                     currentPageParagraphs = [trimmed]
                     currentHeight = paraHeight
@@ -214,6 +223,19 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
 
         return allPages.isEmpty ? [""] : allPages
+    }
+
+    private func getPageText(pageIndex: Int) -> String {
+        let pages = documentPages
+        guard pageIndex < pages.count else { return "" }
+        return pages[pageIndex]
+    }
+
+    private func setPageText(pageIndex: Int, newText: String) {
+        var pages = documentPages
+        guard pageIndex < pages.count else { return }
+        pages[pageIndex] = newText
+        rawText = pages.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.joined(separator: "\n\n")
     }
 
     public var body: some View {
@@ -2017,180 +2039,165 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : rawText
         let segments = parseCanvasSegments(for: pageStr, pageIndex: pageIndex)
         let printableWidth = max(100, currentSheetWidth - margins.left - margins.right)
+        let printableHeight = max(100, currentSheetHeight - margins.top - margins.bottom)
 
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(segments) { segment in
-                switch segment {
-                case .text(id: _, textIndex: let textIdx, initialContent: let initialChunk):
-                    let currentChunk = getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
-                    let displayChunk = currentChunk.isEmpty && !initialChunk.isEmpty ? initialChunk : currentChunk
-                    let minH: CGFloat = segments.count == 1 ? max(200, currentSheetHeight - margins.top - margins.bottom - 40) : calculateEditorHeight(for: displayChunk)
-
-                    TextKit2EditorView(
-                        text: Binding(
-                            get: {
-                                getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
-                            },
-                            set: { newVal in
-                                setTextChunk(pageIndex: pageIndex, textIndex: textIdx, newText: newVal)
-                            }
-                        ),
-                        selectedText: $selectedText,
-                        selectionRange: $selectionRange,
-                        controller: editorController,
-                        fontFamily: fontFamily,
-                        fontSize: fontSize,
-                        isBold: isBold,
-                        isItalic: isItalic,
-                        isUnderline: isUnderline,
-                        alignment: textAlignment,
-                        lineSpacing: lineSpacing,
-                        paragraphSpacing: paragraphSpacing,
-                        margins: PageMargins(),
-                        onSelectionChanged: { _, _, attrs in
-                            self.isBold = attrs.isBold
-                            self.isItalic = attrs.isItalic
-                            self.isUnderline = attrs.isUnderline
-                            self.fontFamily = attrs.fontFamily
-                            self.fontSize = attrs.fontSize
+        Group {
+            if segments.count == 1, case .text = segments[0] {
+                // Clean Single-Block Text Editor for this page (No inner spacing bugs)
+                TextKit2EditorView(
+                    text: Binding(
+                        get: {
+                            getPageText(pageIndex: pageIndex)
+                        },
+                        set: { newVal in
+                            setPageText(pageIndex: pageIndex, newText: newVal)
                         }
-                    )
-                    .frame(width: printableWidth)
-                    .frame(minHeight: minH, alignment: .topLeading)
-
-                case .table(id: _, tableId: let tableId):
-                    if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
-                        SmartTableView(
-                            tableData: $studioTables[idx],
-                            onDelete: {
-                                let idStr = studioTables[idx].id.uuidString
-                                studioTables.remove(at: idx)
-                                rawText = rawText.replacingOccurrences(of: "[[table:\(idStr)]]", with: "")
-                                rawText = rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
-                                showToast("✓ Deleted table")
-                            },
-                            onChange: {
-                                showToast("✓ Table updated")
-                            },
-                            onToast: { msg in
-                                showToast(msg)
-                            }
-                        )
+                    ),
+                    selectedText: $selectedText,
+                    selectionRange: $selectionRange,
+                    controller: editorController,
+                    fontFamily: fontFamily,
+                    fontSize: fontSize,
+                    isBold: isBold,
+                    isItalic: isItalic,
+                    isUnderline: isUnderline,
+                    alignment: textAlignment,
+                    lineSpacing: lineSpacing,
+                    paragraphSpacing: paragraphSpacing,
+                    margins: PageMargins(),
+                    onSelectionChanged: { _, _, attrs in
+                        self.isBold = attrs.isBold
+                        self.isItalic = attrs.isItalic
+                        self.isUnderline = attrs.isUnderline
+                        self.fontFamily = attrs.fontFamily
+                        self.fontSize = attrs.fontSize
                     }
+                )
+                .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
+            } else {
+                // Multi-Segment Page (Interleaved text and embedded figures/tables)
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(segments) { segment in
+                        switch segment {
+                        case .text(id: _, textIndex: let textIdx, initialContent: let initialChunk):
+                            let displayChunk = getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
+                            let h = calculateEditorHeight(for: displayChunk.isEmpty ? initialChunk : displayChunk)
 
-                case .image(id: _, imageId: let imageId):
-                    if let idx = studioImages.firstIndex(where: { $0.id == imageId }) {
-                        StudioImageView(
-                            imageBlock: $studioImages[idx],
-                            onDelete: {
-                                let idStr = studioImages[idx].id.uuidString
-                                studioImages.remove(at: idx)
-                                rawText = rawText.replacingOccurrences(of: "[[image:\(idStr)]]", with: "")
-                                showToast("✓ Deleted figure")
-                            },
-                            onChange: {
-                                showToast("✓ Figure updated")
-                            },
-                            onToast: { msg in
-                                showToast(msg)
+                            TextKit2EditorView(
+                                text: Binding(
+                                    get: {
+                                        getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
+                                    },
+                                    set: { newVal in
+                                        setTextChunk(pageIndex: pageIndex, textIndex: textIdx, newText: newVal)
+                                    }
+                                ),
+                                selectedText: $selectedText,
+                                selectionRange: $selectionRange,
+                                controller: editorController,
+                                fontFamily: fontFamily,
+                                fontSize: fontSize,
+                                isBold: isBold,
+                                isItalic: isItalic,
+                                isUnderline: isUnderline,
+                                alignment: textAlignment,
+                                lineSpacing: lineSpacing,
+                                paragraphSpacing: paragraphSpacing,
+                                margins: PageMargins(),
+                                onSelectionChanged: { _, _, attrs in
+                                    self.isBold = attrs.isBold
+                                    self.isItalic = attrs.isItalic
+                                    self.isUnderline = attrs.isUnderline
+                                    self.fontFamily = attrs.fontFamily
+                                    self.fontSize = attrs.fontSize
+                                }
+                            )
+                            .frame(width: printableWidth, height: h, alignment: .topLeading)
+
+                        case .table(id: _, tableId: let tableId):
+                            if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
+                                SmartTableView(
+                                    tableData: $studioTables[idx],
+                                    onDelete: {
+                                        let idStr = studioTables[idx].id.uuidString
+                                        studioTables.remove(at: idx)
+                                        rawText = rawText.replacingOccurrences(of: "[[table:\(idStr)]]", with: "")
+                                        rawText = rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
+                                        showToast("✓ Deleted table")
+                                    },
+                                    onChange: {
+                                        showToast("✓ Table updated")
+                                    },
+                                    onToast: { msg in
+                                        showToast(msg)
+                                    }
+                                )
                             }
-                        )
-                    }
 
-                case .video(id: _, videoId: let videoId):
-                    if let idx = studioVideos.firstIndex(where: { $0.id == videoId }) {
-                        StudioVideoView(
-                            videoBlock: $studioVideos[idx],
-                            onDelete: {
-                                let idStr = studioVideos[idx].id.uuidString
-                                studioVideos.remove(at: idx)
-                                rawText = rawText.replacingOccurrences(of: "[[video:\(idStr)]]", with: "")
-                                showToast("✓ Deleted video card")
-                            },
-                            onChange: {
-                                showToast("✓ Video updated")
-                            },
-                            onToast: { msg in
-                                showToast(msg)
+                        case .image(id: _, imageId: let imageId):
+                            if let idx = studioImages.firstIndex(where: { $0.id == imageId }) {
+                                StudioImageView(
+                                    imageBlock: $studioImages[idx],
+                                    onDelete: {
+                                        let idStr = studioImages[idx].id.uuidString
+                                        studioImages.remove(at: idx)
+                                        rawText = rawText.replacingOccurrences(of: "[[image:\(idStr)]]", with: "")
+                                        showToast("✓ Deleted figure")
+                                    },
+                                    onChange: {
+                                        showToast("✓ Figure updated")
+                                    },
+                                    onToast: { msg in
+                                        showToast(msg)
+                                    }
+                                )
                             }
-                        )
+
+                        case .video(id: _, videoId: let videoId):
+                            if let idx = studioVideos.firstIndex(where: { $0.id == videoId }) {
+                                StudioVideoView(
+                                    videoBlock: $studioVideos[idx],
+                                    onDelete: {
+                                        let idStr = studioVideos[idx].id.uuidString
+                                        studioVideos.remove(at: idx)
+                                        rawText = rawText.replacingOccurrences(of: "[[video:\(idStr)]]", with: "")
+                                        showToast("✓ Deleted video card")
+                                    },
+                                    onChange: {
+                                        showToast("✓ Video updated")
+                                    },
+                                    onToast: { msg in
+                                        showToast(msg)
+                                    }
+                                )
+                            }
+
+                        case .bibliography(id: _):
+                            DynamicBibliographyView(
+                                sources: document.sources,
+                                activeStyle: $activeCitationStyle,
+                                onDelete: {
+                                    rawText = rawText.replacingOccurrences(of: "[[bibliography]]", with: "")
+                                    showToast("✓ Deleted Bibliography section")
+                                },
+                                onToast: { msg in
+                                    showToast(msg)
+                                }
+                            )
+
+                        case .tableOfContents(id: _):
+                            DynamicTOCView(
+                                rawText: rawText,
+                                onDelete: {
+                                    rawText = rawText.replacingOccurrences(of: "[[toc]]", with: "")
+                                    showToast("✓ Deleted Table of Contents")
+                                },
+                                onToast: { msg in
+                                    showToast(msg)
+                                }
+                            )
+                        }
                     }
-
-                case .bibliography(id: _):
-                    DynamicBibliographyView(
-                        sources: document.sources,
-                        activeStyle: $activeCitationStyle,
-                        onDelete: {
-                            rawText = rawText.replacingOccurrences(of: "[[bibliography]]", with: "")
-                            showToast("✓ Deleted Bibliography section")
-                        },
-                        onToast: { msg in
-                            showToast(msg)
-                        }
-                    )
-
-                case .tableOfContents(id: _):
-                    DynamicTOCView(
-                        rawText: rawText,
-                        onDelete: {
-                            rawText = rawText.replacingOccurrences(of: "[[toc]]", with: "")
-                            showToast("✓ Deleted Table of Contents")
-                        },
-                        onToast: { msg in
-                            showToast(msg)
-                        }
-                    )
-                }
-            }
-
-            // Unreferenced Tables (placed naturally below if no inline marker)
-            if pageIndex == 0 {
-                ForEach(unreferencedTableIndices, id: \.self) { idx in
-                    SmartTableView(
-                        tableData: $studioTables[idx],
-                        onDelete: {
-                            studioTables.remove(at: idx)
-                            showToast("✓ Removed unreferenced table")
-                        },
-                        onChange: {
-                            showToast("✓ Table updated")
-                        },
-                        onToast: { msg in
-                            showToast(msg)
-                        }
-                    )
-                }
-
-                ForEach(unreferencedImageIndices, id: \.self) { idx in
-                    StudioImageView(
-                        imageBlock: $studioImages[idx],
-                        onDelete: {
-                            studioImages.remove(at: idx)
-                            showToast("✓ Removed unreferenced figure")
-                        },
-                        onChange: {
-                            showToast("✓ Figure updated")
-                        },
-                        onToast: { msg in
-                            showToast(msg)
-                        }
-                    )
-                }
-
-                ForEach(unreferencedVideoIndices, id: \.self) { idx in
-                    StudioVideoView(
-                        videoBlock: $studioVideos[idx],
-                        onDelete: {
-                            studioVideos.remove(at: idx)
-                            showToast("✓ Removed unreferenced video")
-                        },
-                        onChange: {
-                            showToast("✓ Video updated")
-                        },
-                        onToast: { msg in
-                            showToast(msg)
-                        }
-                    )
                 }
             }
         }

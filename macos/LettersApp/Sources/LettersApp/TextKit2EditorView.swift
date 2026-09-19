@@ -489,7 +489,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         ]
         textView.typingAttributes = typingAttrs
 
-        textView.textContainerInset = NSSize(width: 0, height: 2)
+        textView.textContainerInset = NSSize(width: 0, height: 0)
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
@@ -584,8 +584,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
             let matches = h1Regex.matches(in: string, options: [], range: fullRange)
             let h1Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.5, bold: true, italic: false)
             let h1Style = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
-            h1Style.paragraphSpacing = max(paragraphSpacing, 14)
-            h1Style.paragraphSpacingBefore = 10
+            h1Style.paragraphSpacing = max(paragraphSpacing, 10)
+            h1Style.paragraphSpacingBefore = 0
             for m in matches {
                 textStorage.addAttributes([
                     .font: h1Font,
@@ -600,8 +600,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
             let matches = h2Regex.matches(in: string, options: [], range: fullRange)
             let h2Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.3, bold: true, italic: false)
             let h2Style = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
-            h2Style.paragraphSpacing = max(paragraphSpacing, 10)
-            h2Style.paragraphSpacingBefore = 8
+            h2Style.paragraphSpacing = max(paragraphSpacing, 8)
+            h2Style.paragraphSpacingBefore = 0
             for m in matches {
                 textStorage.addAttributes([
                     .font: h2Font,
