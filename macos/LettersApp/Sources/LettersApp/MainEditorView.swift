@@ -163,6 +163,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setPageText(pageIndex: Int, newText: String) {
+        if let activeSize = editorController.currentSelectionAttributes()?.fontSize,
+           activeSize > 0,
+           abs(activeSize - fontSize) > 0.5,
+           !rawText.contains("# ") {
+            self.fontSize = activeSize
+        }
+
         let oldPageCount = documentPageSlices.count
         let slices = documentPageSlices
         guard pageIndex < slices.count else {
@@ -1228,6 +1235,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setFontFamilyAction(_ font: String) {
+        fontFamily = font
         let sizeToApply = selectionAttributes?.fontSize ?? fontSize
         editorController.applyFontFamily(font, size: sizeToApply)
         if let attrs = editorController.currentSelectionAttributes() {
@@ -1237,6 +1245,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setFontSizeAction(_ size: CGFloat) {
+        fontSize = size
         editorController.applyFontSize(size)
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -2168,6 +2177,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             }
         }
         .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
+        .clipped()
         .offset(x: margins.left, y: margins.top)
     }
 
