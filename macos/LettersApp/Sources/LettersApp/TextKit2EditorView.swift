@@ -387,6 +387,23 @@ public class StudioTextView: NSTextView {
         super.setFrameSize(size)
     }
 
+    public override func scrollRangeToVisible(_ range: NSRange) {
+        // In physical page canvas mode, bounds origin must stay strictly (0, 0)
+        self.bounds.origin = .zero
+    }
+
+    public override func scroll(_ point: NSPoint) {
+        // Pin bounds origin to zero to prevent text from scrolling off the top of the sheet
+        self.bounds.origin = .zero
+    }
+
+    public override func layout() {
+        super.layout()
+        if self.bounds.origin != .zero {
+            self.bounds.origin = .zero
+        }
+    }
+
     public override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
         if ok {
@@ -402,6 +419,11 @@ public class StudioTextView: NSTextView {
 
     public override func keyDown(with event: NSEvent) {
         actionController?.textView = self
+        // Command + Return = Insert Page Break
+        if event.modifierFlags.contains(.command) && (event.keyCode == 36 || event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\n") {
+            self.insertText("\n\n---pagebreak---\n\n", replacementRange: self.selectedRange())
+            return
+        }
         super.keyDown(with: event)
     }
 }
