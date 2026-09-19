@@ -28,6 +28,7 @@ public struct AssistantSidebarView: View {
     @State private var showingConnectSheet: Bool = false
     @State private var sidebarWidth: CGFloat = 390
     @State private var appliedActionIds: Set<String> = []
+    @FocusState private var isInputFocused: Bool
 
     public init(
         rawText: Binding<String> = .constant(""),
@@ -91,6 +92,7 @@ public struct AssistantSidebarView: View {
                         chatHistoryStream
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Divider()
                     .background(StudioTheme.border)
@@ -98,6 +100,7 @@ public struct AssistantSidebarView: View {
                 // 4. Floating Glass Prompt Input Bar
                 copilotInputBar
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.ultraThinMaterial)
             .background(StudioTheme.panelBackground.opacity(0.9))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -119,6 +122,7 @@ public struct AssistantSidebarView: View {
             .shadow(color: Color.black.opacity(0.4), radius: 28, x: 0, y: 12)
         }
         .frame(width: sidebarWidth)
+        .frame(maxHeight: .infinity)
         .sheet(isPresented: $showingConnectSheet) {
             connectClaudeSheet
         }
@@ -677,6 +681,7 @@ public struct AssistantSidebarView: View {
             TextField("Ask Claude or describe what to write or change...", text: $inputPrompt)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
+                .focused($isInputFocused)
                 .onSubmit {
                     sendMessage()
                 }
@@ -711,6 +716,10 @@ public struct AssistantSidebarView: View {
             }
             .buttonStyle(.plain)
             .disabled(inputPrompt.isEmpty && !isGenerating)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isInputFocused = true
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -993,8 +1002,12 @@ public struct AssistantSidebarView: View {
     }
 
     private func extractDisplayableContent(from text: String) -> String {
-        // Strip out [ACTION:...] markers for clean display
         var clean = text
+        // Strip out [CONTENT] and [/CONTENT] markers
+        clean = clean.replacingOccurrences(of: "[CONTENT]", with: "")
+        clean = clean.replacingOccurrences(of: "[/CONTENT]", with: "")
+
+        // Strip out [ACTION:...] markers for clean display
         while let rangeStart = clean.range(of: "[ACTION:") {
             if let rangeEnd = clean[rangeStart.lowerBound...].range(of: "]") {
                 let fullRange = rangeStart.lowerBound..<rangeEnd.upperBound

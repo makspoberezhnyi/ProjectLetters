@@ -466,64 +466,61 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                         // Floating Right AI Copilot Companion Island
                         if showAIDrawer {
-                            VStack {
-                                HStack {
-                                    Spacer()
-                                    AssistantSidebarView(
-                                        rawText: $rawText,
-                                        selectedText: $selectedText,
-                                        onInsertTable: { table in
-                                            studioTables.append(table)
-                                            let marker = "\n\n[[table:\(table.id.uuidString)]]\n\n"
-                                            if selectionRange.location <= (rawText as NSString).length {
-                                                let ns = rawText as NSString
-                                                rawText = ns.replacingCharacters(in: selectionRange, with: marker)
-                                            } else {
-                                                rawText += marker
-                                            }
-                                        },
-                                        onInsertSource: { source in
-                                            document.sources[source.id] = source
-                                            let citeTag = "(\(source.authors.first ?? "Author"), \(source.year != nil ? "\(source.year!)" : "n.d."))"
-                                            if selectionRange.location <= (rawText as NSString).length {
-                                                let ns = rawText as NSString
-                                                rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
-                                            } else {
-                                                rawText += " " + citeTag + " "
-                                            }
-                                        },
-                                        onInsertHeading: { level, title in
-                                            insertSectionHeadingAction(level: level, customTitle: title)
-                                        },
-                                        onSetMargins: { presetStr in
-                                            let lower = presetStr.lowercased()
-                                            if lower.contains("narrow") {
-                                                marginPreset = .narrow
-                                            } else if lower.contains("wide") {
-                                                marginPreset = .wide
-                                            } else {
-                                                marginPreset = .normal
-                                            }
-                                        },
-                                        onInsertPageBreak: {
-                                            insertPageBreakAction()
-                                        },
-                                        onInsertTOC: {
-                                            insertTOCAction()
-                                        },
-                                        onInsertBibliography: {
-                                            insertBibliographyAction()
-                                        },
-                                        onToast: { msg in showToast(msg) },
-                                        onClose: {
-                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                                showAIDrawer = false
-                                            }
-                                        },
-                                        currentDocumentContext: { buildDocumentAIContext() }
-                                    )
-                                }
+                            HStack {
                                 Spacer()
+                                AssistantSidebarView(
+                                    rawText: $rawText,
+                                    selectedText: $selectedText,
+                                    onInsertTable: { table in
+                                        studioTables.append(table)
+                                        let marker = "\n\n[[table:\(table.id.uuidString)]]\n\n"
+                                        if selectionRange.location <= (rawText as NSString).length {
+                                            let ns = rawText as NSString
+                                            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                                        } else {
+                                            rawText += marker
+                                        }
+                                    },
+                                    onInsertSource: { source in
+                                        document.sources[source.id] = source
+                                        let citeTag = "(\(source.authors.first ?? "Author"), \(source.year != nil ? "\(source.year!)" : "n.d."))"
+                                        if selectionRange.location <= (rawText as NSString).length {
+                                            let ns = rawText as NSString
+                                            rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
+                                        } else {
+                                            rawText += " " + citeTag + " "
+                                        }
+                                    },
+                                    onInsertHeading: { level, title in
+                                        insertSectionHeadingAction(level: level, customTitle: title)
+                                    },
+                                    onSetMargins: { presetStr in
+                                        let lower = presetStr.lowercased()
+                                        if lower.contains("narrow") {
+                                            marginPreset = .narrow
+                                        } else if lower.contains("wide") {
+                                            marginPreset = .wide
+                                        } else {
+                                            marginPreset = .normal
+                                        }
+                                    },
+                                    onInsertPageBreak: {
+                                        insertPageBreakAction()
+                                    },
+                                    onInsertTOC: {
+                                        insertTOCAction()
+                                    },
+                                    onInsertBibliography: {
+                                        insertBibliographyAction()
+                                    },
+                                    onToast: { msg in showToast(msg) },
+                                    onClose: {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            showAIDrawer = false
+                                        }
+                                    },
+                                    currentDocumentContext: { buildDocumentAIContext() }
+                                )
                             }
                             .padding(.trailing, 16)
                             .padding(.top, 16)
