@@ -152,8 +152,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         lineSpacing: CGFloat,
         paragraphSpacing: CGFloat
     ) -> [String] {
-        let clean = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.isEmpty {
+        if rawText.isEmpty {
             return [""]
         }
 
@@ -166,8 +165,21 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
         // Character count and line metrics for Georgia/Serif font
         let avgCharWidth = max(5.0, fontSize * 0.48)
-        let charsPerLine = max(25, Int(printableWidth / avgCharWidth))
+        let charsPerLine = max(20, Int(printableWidth / avgCharWidth))
         let singleLineHeight = fontSize * lineSpacing * 1.3
+
+        func calculateLines(for text: String) -> Int {
+            let lines = text.components(separatedBy: "\n")
+            var total = 0
+            for line in lines {
+                if line.isEmpty {
+                    total += 1
+                } else {
+                    total += max(1, Int(ceil(Double(line.count) / Double(charsPerLine))))
+                }
+            }
+            return max(1, total)
+        }
 
         func estimateBlockHeight(_ text: String) -> CGFloat {
             if text.starts(with: "[[table:") {
@@ -181,77 +193,58 @@ Letters is a next-generation desktop publishing and document studio combining gr
             } else if text.starts(with: "[[bibliography]]") {
                 return 180
             } else if text.starts(with: "# ") {
-                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine - 10))))
-                return CGFloat(lines) * (fontSize * 1.5 * 1.3) + paragraphSpacing + 8
+                let l = calculateLines(for: text)
+                return CGFloat(l) * (fontSize * 1.5 * 1.3) + 12
             } else if text.starts(with: "## ") {
-                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine - 5))))
-                return CGFloat(lines) * (fontSize * 1.3 * 1.3) + paragraphSpacing + 6
+                let l = calculateLines(for: text)
+                return CGFloat(l) * (fontSize * 1.3 * 1.3) + 10
             } else if text.starts(with: "### ") {
-                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine))))
-                return CGFloat(lines) * (fontSize * 1.15 * 1.3) + paragraphSpacing + 4
+                let l = calculateLines(for: text)
+                return CGFloat(l) * (fontSize * 1.15 * 1.3) + 8
             } else {
-                let lines = max(1, Int(ceil(Double(text.count) / Double(charsPerLine))))
-                return CGFloat(lines) * singleLineHeight + paragraphSpacing
+                let l = calculateLines(for: text)
+                return CGFloat(l) * singleLineHeight
             }
         }
 
-        for section in hardSections {
-            let cleanSection = section.trimmingCharacters(in: .whitespacesAndNewlines)
-            if cleanSection.isEmpty { continue }
+        for (secIdx, section) in hardSections.enumerated() {
+            if section.isEmpty && secIdx > 0 {
+                allPages.append("")
+                continue
+            }
 
-            let paragraphs = cleanSection.components(separatedBy: "\n\n")
-            var currentPageParagraphs: [String] = []
+            // Split section into individual physical lines to track exact height
+            let lines = section.components(separatedBy: "\n")
+            var currentPageLines: [String] = []
             var currentHeight: CGFloat = 0
 
-            for para in paragraphs {
-                var remainingText = para.trimmingCharacters(in: .whitespacesAndNewlines)
-                if remainingText.isEmpty { continue }
+            for line in lines {
+                let lineCount = line.isEmpty ? 1 : max(1, Int(ceil(Double(line.count) / Double(charsPerLine))))
+                let lineHeight: CGFloat
+                if line.starts(with: "# ") {
+                    lineHeight = CGFloat(lineCount) * (fontSize * 1.5 * 1.3) + 12
+                } else if line.starts(with: "## ") {
+                    lineHeight = CGFloat(lineCount) * (fontSize * 1.3 * 1.3) + 10
+                } else if line.starts(with: "### ") {
+                    lineHeight = CGFloat(lineCount) * (fontSize * 1.15 * 1.3) + 8
+                } else if line.starts(with: "[[table:") || line.starts(with: "[[image:") || line.starts(with: "[[video:") || line.starts(with: "[[toc]]") || line.starts(with: "[[bibliography]]") {
+                    lineHeight = estimateBlockHeight(line)
+                } else {
+                    lineHeight = CGFloat(lineCount) * singleLineHeight
+                }
 
-                while !remainingText.isEmpty {
-                    let paraHeight = estimateBlockHeight(remainingText)
-
-                    if currentHeight + paraHeight <= printableHeight {
-                        currentPageParagraphs.append(remainingText)
-                        currentHeight += paraHeight
-                        remainingText = ""
-                    } else if !currentPageParagraphs.isEmpty {
-                        // Flush current page
-                        allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
-                        currentPageParagraphs = []
-                        currentHeight = 0
-                    } else {
-                        // Current page is empty but this single paragraph is larger than printableHeight
-                        let maxLines = max(3, Int((printableHeight - currentHeight) / singleLineHeight))
-                        let maxChars = maxLines * charsPerLine
-                        if remainingText.count > maxChars {
-                            let searchIdx = remainingText.index(remainingText.startIndex, offsetBy: min(remainingText.count, maxChars))
-                            let sub = remainingText[..<searchIdx]
-                            let splitPos: String.Index
-                            if let lastDot = sub.range(of: ". ", options: .backwards) {
-                                splitPos = remainingText.index(after: lastDot.upperBound)
-                            } else if let lastSpace = sub.range(of: " ", options: .backwards) {
-                                splitPos = lastSpace.lowerBound
-                            } else {
-                                splitPos = searchIdx
-                            }
-                            let head = String(remainingText[..<splitPos]).trimmingCharacters(in: .whitespacesAndNewlines)
-                            let tail = String(remainingText[splitPos...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                            currentPageParagraphs.append(head)
-                            allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
-                            currentPageParagraphs = []
-                            currentHeight = 0
-                            remainingText = tail
-                        } else {
-                            currentPageParagraphs.append(remainingText)
-                            currentHeight += paraHeight
-                            remainingText = ""
-                        }
-                    }
+                if currentHeight + lineHeight > printableHeight && !currentPageLines.isEmpty {
+                    allPages.append(currentPageLines.joined(separator: "\n"))
+                    currentPageLines = [line]
+                    currentHeight = lineHeight
+                } else {
+                    currentPageLines.append(line)
+                    currentHeight += lineHeight
                 }
             }
 
-            if !currentPageParagraphs.isEmpty {
-                allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
+            if !currentPageLines.isEmpty {
+                allPages.append(currentPageLines.joined(separator: "\n"))
             }
         }
 
@@ -266,9 +259,16 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     private func setPageText(pageIndex: Int, newText: String) {
         var pages = documentPages
-        guard pageIndex < pages.count else { return }
-        pages[pageIndex] = newText
-        rawText = pages.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.joined(separator: "\n\n")
+        if pages.isEmpty || pages.count == 1 {
+            rawText = newText
+            return
+        }
+        if pageIndex < pages.count {
+            pages[pageIndex] = newText
+        } else {
+            pages.append(newText)
+        }
+        rawText = pages.joined(separator: "\n")
     }
 
     public var body: some View {
@@ -2271,6 +2271,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
         .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
         .offset(x: margins.left, y: margins.top)
+        .clipped()
     }
 
     @ViewBuilder
