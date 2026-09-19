@@ -197,6 +197,18 @@ public struct CommandPaletteView: View {
                     .onSubmit {
                         executeCurrentSelection()
                     }
+                    .onKeyPress(.downArrow) {
+                        moveSelection(delta: 1)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        moveSelection(delta: -1)
+                        return .handled
+                    }
+                    .onKeyPress(.escape) {
+                        isPresented = false
+                        return .handled
+                    }
 
                 if !query.isEmpty {
                     Button {
@@ -375,6 +387,12 @@ public struct CommandPaletteView: View {
                 .stroke(Color.primary.opacity(0.14), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.28), radius: 28, x: 0, y: 12)
+    }
+
+    private func moveSelection(delta: Int) {
+        let count = allDisplayCommands.count
+        guard count > 0 else { return }
+        selectedIndex = max(0, min(count - 1, selectedIndex + delta))
     }
 
     private func executeCurrentSelection() {
