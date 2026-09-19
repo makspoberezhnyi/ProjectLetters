@@ -502,6 +502,16 @@ public struct TextKit2EditorView: NSViewRepresentable {
 
         context.coordinator.isUpdatingProgrammatically = true
         textView.string = text
+        if let storage = textView.textStorage {
+            Self.applyTypographyStyling(
+                to: storage,
+                fontFamily: fontFamily,
+                baseFontSize: fontSize,
+                alignment: alignment,
+                lineSpacing: lineSpacing,
+                paragraphSpacing: paragraphSpacing
+            )
+        }
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
         controller?.textView = textView
@@ -521,11 +531,133 @@ public struct TextKit2EditorView: NSViewRepresentable {
             context.coordinator.isUpdatingProgrammatically = true
             let selected = textView.selectedRange()
             textView.string = text
+            if let storage = textView.textStorage {
+                Self.applyTypographyStyling(
+                    to: storage,
+                    fontFamily: fontFamily,
+                    baseFontSize: fontSize,
+                    alignment: alignment,
+                    lineSpacing: lineSpacing,
+                    paragraphSpacing: paragraphSpacing
+                )
+            }
             if selected.location + selected.length <= (text as NSString).length {
                 textView.setSelectedRange(selected)
             }
             context.coordinator.isUpdatingProgrammatically = false
         }
+    }
+
+    public static func applyTypographyStyling(
+        to textStorage: NSTextStorage,
+        fontFamily: String,
+        baseFontSize: CGFloat,
+        alignment: TextAlignment,
+        lineSpacing: CGFloat,
+        paragraphSpacing: CGFloat
+    ) {
+        let string = textStorage.string
+        let fullRange = NSRange(location: 0, length: (string as NSString).length)
+        guard fullRange.length > 0 else { return }
+
+        let baseFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: false, italic: false)
+        let baseParagraphStyle = NSMutableParagraphStyle()
+        switch alignment {
+        case .leading: baseParagraphStyle.alignment = .left
+        case .center: baseParagraphStyle.alignment = .center
+        case .trailing: baseParagraphStyle.alignment = .right
+        }
+        baseParagraphStyle.lineHeightMultiple = lineSpacing
+        baseParagraphStyle.paragraphSpacing = paragraphSpacing
+
+        let baseTextColor = NSColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
+
+        textStorage.beginEditing()
+        textStorage.setAttributes([
+            .font: baseFont,
+            .foregroundColor: baseTextColor,
+            .paragraphStyle: baseParagraphStyle
+        ], range: fullRange)
+
+        // 1. Heading 1: ^# (.*)$
+        if let h1Regex = try? NSRegularExpression(pattern: "^#\\s+(.*)$", options: [.anchorsMatchLines]) {
+            let matches = h1Regex.matches(in: string, options: [], range: fullRange)
+            let h1Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.5, bold: true, italic: false)
+            let h1Style = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
+            h1Style.paragraphSpacing = max(paragraphSpacing, 14)
+            h1Style.paragraphSpacingBefore = 10
+            for m in matches {
+                textStorage.addAttributes([
+                    .font: h1Font,
+                    .foregroundColor: NSColor(red: 0.05, green: 0.05, blue: 0.08, alpha: 1.0),
+                    .paragraphStyle: h1Style
+                ], range: m.range)
+            }
+        }
+
+        // 2. Heading 2: ^## (.*)$
+        if let h2Regex = try? NSRegularExpression(pattern: "^##\\s+(.*)$", options: [.anchorsMatchLines]) {
+            let matches = h2Regex.matches(in: string, options: [], range: fullRange)
+            let h2Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.3, bold: true, italic: false)
+            let h2Style = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
+            h2Style.paragraphSpacing = max(paragraphSpacing, 10)
+            h2Style.paragraphSpacingBefore = 8
+            for m in matches {
+                textStorage.addAttributes([
+                    .font: h2Font,
+                    .foregroundColor: NSColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 1.0),
+                    .paragraphStyle: h2Style
+                ], range: m.range)
+            }
+        }
+
+        // 3. Heading 3: ^### (.*)$
+        if let h3Regex = try? NSRegularExpression(pattern: "^###\\s+(.*)$", options: [.anchorsMatchLines]) {
+            let matches = h3Regex.matches(in: string, options: [], range: fullRange)
+            let h3Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.15, bold: true, italic: false)
+            for m in matches {
+                textStorage.addAttributes([
+                    .font: h3Font,
+                    .foregroundColor: NSColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1.0)
+                ], range: m.range)
+            }
+        }
+
+        // 4. Bold: \*\*(.+?)\*\*
+        if let boldRegex = try? NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*", options: []) {
+            let matches = boldRegex.matches(in: string, options: [], range: fullRange)
+            let boldFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: true, italic: false)
+            for m in matches {
+                textStorage.addAttribute(.font, value: boldFont, range: m.range)
+            }
+        }
+
+        // 5. Italic: \*(.+?)\*
+        if let italicRegex = try? NSRegularExpression(pattern: "(?<!\\*)\\*([^*]+)\\*(?!\\*)", options: []) {
+            let matches = italicRegex.matches(in: string, options: [], range: fullRange)
+            let italicFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: false, italic: true)
+            for m in matches {
+                textStorage.addAttribute(.font, value: italicFont, range: m.range)
+            }
+        }
+
+        // 6. Blockquote: ^>\s*(.*)$
+        if let quoteRegex = try? NSRegularExpression(pattern: "^>\\s*(.*)$", options: [.anchorsMatchLines]) {
+            let matches = quoteRegex.matches(in: string, options: [], range: fullRange)
+            let italicFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: false, italic: true)
+            let quoteStyle = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
+            quoteStyle.headIndent = 16
+            quoteStyle.firstLineHeadIndent = 16
+            for m in matches {
+                textStorage.addAttributes([
+                    .font: italicFont,
+                    .foregroundColor: NSColor.secondaryLabelColor,
+                    .paragraphStyle: quoteStyle
+                ], range: m.range)
+            }
+        }
+
+        textStorage.endEditing()
     }
 
     public class Coordinator: NSObject, NSTextViewDelegate {

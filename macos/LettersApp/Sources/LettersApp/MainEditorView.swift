@@ -131,10 +131,89 @@ Letters is a next-generation desktop publishing and document studio combining gr
         pageSize.dimensions.height
     }
 
-    // Parse Document Pages (Split by page breaks if present)
+    // Parse Document Pages (Split dynamically by physical page capacity or hard page breaks)
     private var documentPages: [String] {
-        let pages = rawText.components(separatedBy: "---pagebreak---")
-        return pages.isEmpty ? [rawText] : pages
+        computeDocumentPages(
+            rawText: rawText,
+            sheetHeight: currentSheetHeight,
+            sheetWidth: currentSheetWidth,
+            margins: margins,
+            fontSize: fontSize,
+            lineSpacing: lineSpacing,
+            paragraphSpacing: paragraphSpacing
+        )
+    }
+
+    private func computeDocumentPages(
+        rawText: String,
+        sheetHeight: CGFloat,
+        sheetWidth: CGFloat,
+        margins: PageMargins,
+        fontSize: CGFloat,
+        lineSpacing: CGFloat,
+        paragraphSpacing: CGFloat
+    ) -> [String] {
+        let clean = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty {
+            return [""]
+        }
+
+        let hardSections = rawText.components(separatedBy: "---pagebreak---")
+        var allPages: [String] = []
+
+        let usableHeight = max(200, sheetHeight - margins.top - margins.bottom - 48)
+        let printableWidth = max(200, sheetWidth - margins.left - margins.right)
+        let avgCharsPerLine = max(30, Int(printableWidth / (fontSize * 0.50)))
+        let lineHeight = fontSize * lineSpacing * 1.3
+
+        for section in hardSections {
+            let paragraphs = section.components(separatedBy: "\n\n")
+            var currentPageParagraphs: [String] = []
+            var currentHeight: CGFloat = 0
+
+            for para in paragraphs {
+                let trimmed = para.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty { continue }
+
+                // Estimate height of this block
+                let paraHeight: CGFloat
+                if trimmed.starts(with: "[[table:") {
+                    paraHeight = 160
+                } else if trimmed.starts(with: "[[image:") {
+                    paraHeight = 200
+                } else if trimmed.starts(with: "[[video:") {
+                    paraHeight = 200
+                } else if trimmed.starts(with: "[[toc]]") {
+                    paraHeight = 150
+                } else if trimmed.starts(with: "[[bibliography]]") {
+                    paraHeight = 180
+                } else if trimmed.starts(with: "# ") {
+                    paraHeight = 54
+                } else if trimmed.starts(with: "## ") {
+                    paraHeight = 44
+                } else if trimmed.starts(with: "### ") {
+                    paraHeight = 36
+                } else {
+                    let linesCount = max(1, Int(ceil(Double(trimmed.count) / Double(avgCharsPerLine))))
+                    paraHeight = CGFloat(linesCount) * lineHeight + paragraphSpacing
+                }
+
+                if currentHeight + paraHeight > usableHeight && !currentPageParagraphs.isEmpty {
+                    allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
+                    currentPageParagraphs = [trimmed]
+                    currentHeight = paraHeight
+                } else {
+                    currentPageParagraphs.append(trimmed)
+                    currentHeight += paraHeight
+                }
+            }
+
+            if !currentPageParagraphs.isEmpty {
+                allPages.append(currentPageParagraphs.joined(separator: "\n\n"))
+            }
+        }
+
+        return allPages.isEmpty ? [""] : allPages
     }
 
     public var body: some View {
@@ -484,11 +563,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                     onInsertSource: { source in
                                         document.sources[source.id] = source
                                         let citeTag = "(\(source.authors.first ?? "Author"), \(source.year != nil ? "\(source.year!)" : "n.d."))"
-                                        if selectionRange.location <= (rawText as NSString).length {
+                                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
                                             let ns = rawText as NSString
                                             rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
-                                        } else {
-                                            rawText += " " + citeTag + " "
                                         }
                                     },
                                     onInsertHeading: { level, title in
@@ -982,12 +1059,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func insertSectionHeadingAction(level: Int = 1, customTitle: String? = nil) {
         let title = customTitle ?? (level == 1 ? "Title" : level == 2 ? "Section Heading" : "Subsection")
         let hashes = String(repeating: "#", count: max(1, min(6, level)))
-        let item = "\n\n\(hashes) \(title)\n\n"
-        if selectionRange.location <= (rawText as NSString).length {
+        let item = "\(hashes) \(title)"
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
             let ns = rawText as NSString
             rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else if rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            rawText = item
         } else {
-            rawText += item
+            rawText = rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + item
         }
         showToast("✓ Inserted Heading \(level)")
     }
@@ -2119,6 +2198,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         .padding(.bottom, margins.bottom)
         .padding(.horizontal, margins.left)
         .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
+        .clipped()
     }
 
     @ViewBuilder
@@ -2256,13 +2336,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setTextChunk(pageIndex: Int, textIndex: Int, newText: String) {
-        var pages = rawText.components(separatedBy: "---pagebreak---")
-        if pages.isEmpty { pages = [""] }
+        var pages = documentPages
         guard pageIndex < pages.count else { return }
         let pageContent = pages[pageIndex]
         let updatedPage = replaceTextChunk(in: pageContent, textIndex: textIndex, with: newText)
         pages[pageIndex] = updatedPage
-        rawText = pages.joined(separator: "---pagebreak---")
+        rawText = pages.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.joined(separator: "\n\n")
     }
 
     private func parseCanvasSegments(for pageContent: String, pageIndex: Int = 0) -> [DocumentCanvasSegment] {

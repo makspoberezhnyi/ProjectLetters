@@ -936,21 +936,33 @@ public struct AssistantSidebarView: View {
         }
     }
 
+    private func normalizeSpacing(_ text: String) -> String {
+        var clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        while clean.contains("\n\n\n") {
+            clean = clean.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+        return clean
+    }
+
     private func applyTextToSelection(content: String) {
+        let clean = normalizeSpacing(content)
+        guard !clean.isEmpty else { return }
         guard !selectedText.isEmpty else {
-            appendToDocument(content: content)
+            appendToDocument(content: clean)
             return
         }
-        rawText = rawText.replacingOccurrences(of: selectedText, with: content)
+        rawText = rawText.replacingOccurrences(of: selectedText, with: clean)
         selectedText = ""
         onToast?("✓ Replaced selection with assistant content")
     }
 
     private func appendToDocument(content: String) {
-        if rawText.isEmpty {
-            rawText = content
+        let clean = normalizeSpacing(content)
+        guard !clean.isEmpty else { return }
+        if rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            rawText = clean
         } else {
-            rawText += "\n\n" + content
+            rawText = rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + clean
         }
         onToast?("✓ Appended assistant content to document")
     }
