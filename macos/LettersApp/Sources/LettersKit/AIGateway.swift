@@ -243,7 +243,11 @@ Always provide a concise, friendly explanation along with the action tag when re
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = ["-p", fullPrompt, "--output-format", "text"]
+        process.arguments = [
+            "-p", fullPrompt,
+            "--allowed-tools", "WebSearch,WebFetch",
+            "--output-format", "text"
+        ]
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
 
         var env = ProcessInfo.processInfo.environment
