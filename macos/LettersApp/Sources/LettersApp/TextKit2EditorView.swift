@@ -431,14 +431,7 @@ public class StudioTextView: NSTextView {
 
     public override var isFlipped: Bool { true }
 
-    public override func setFrameSize(_ newSize: NSSize) {
-        var size = newSize
-        if let superview = self.superview, superview.bounds.height > 0 {
-            size.height = max(size.height, superview.bounds.height)
-            size.width = superview.bounds.width
-        }
-        super.setFrameSize(size)
-    }
+
 
     public override func scrollRangeToVisible(_ range: NSRange) {
         // In physical page canvas mode, bounds origin must stay strictly (0, 0)
@@ -613,7 +606,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.typingAttributes = typingAttrs
 
         textView.textContainerInset = NSSize(width: 0, height: 0)
-        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.lineFragmentPadding = 4.0
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = false

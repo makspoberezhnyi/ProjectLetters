@@ -103,7 +103,7 @@ public struct DocumentPaginator {
                 let container = NSTextContainer(containerSize: NSSize(width: printableWidth, height: printableHeight))
                 container.widthTracksTextView = false
                 container.heightTracksTextView = false
-                container.lineFragmentPadding = 0
+                container.lineFragmentPadding = 4.0
                 layoutManager.addTextContainer(container)
 
                 layoutManager.ensureLayout(for: container)

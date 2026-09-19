@@ -2192,7 +2192,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
         .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
         .offset(x: margins.left, y: margins.top)
-        .clipped()
     }
 
     @ViewBuilder
@@ -2503,6 +2502,7 @@ struct PaperMarginGuidesView: View {
             }
             .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
         }
+        .frame(width: width, height: height, alignment: .topLeading)
         .allowsHitTesting(false)
     }
 }
