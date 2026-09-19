@@ -46,6 +46,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var showingAddVideoSheet: Bool = false
     @State private var newVideoURLInput: String = ""
     @State private var showFindReplace: Bool = false
+    @State private var showInlineAI: Bool = false
     @State private var showingSettingsSheet: Bool = false
 
     // New Source form states
@@ -526,16 +527,45 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .zIndex(20)
                         }
 
-                        // 4. Floating Text Selection Quick Format HUD (Adaptive bottom placement)
+                        // 4. Floating Text Selection Quick Format HUD & Inline AI Canvas Editor
                         if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isEditingHeaderFooter {
                             VStack {
                                 Spacer()
-                                floatingSelectionActionMenu
+                                if showInlineAI {
+                                    InlineAICanvasEditorView(
+                                        selectedText: selectedText,
+                                        fullDocumentContext: rawText,
+                                        onAccept: { newText in
+                                            replaceSelection(with: newText)
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                showInlineAI = false
+                                            }
+                                        },
+                                        onInsertBelow: { newText in
+                                            insertBelowSelection(newText: newText)
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                showInlineAI = false
+                                            }
+                                        },
+                                        onDismiss: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                showInlineAI = false
+                                            }
+                                        }
+                                    )
                                     .padding(.bottom, 74)
-                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 12)),
+                                        removal: .opacity.combined(with: .scale(scale: 0.96))
+                                    ))
+                                } else {
+                                    floatingSelectionActionMenu
+                                        .padding(.bottom, 74)
+                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                            .zIndex(15)
+                            .zIndex(20)
                         }
 
                         // 5. Floating Find & Replace Bar Overlay (⌘F)
@@ -899,8 +929,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 Button(action: { handleToolAction(.table) }) { EmptyView() }
                     .keyboardShortcut("t", modifiers: [.command])
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showAIDrawer.toggle()
+                    if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                            showInlineAI.toggle()
+                        }
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showAIDrawer.toggle()
+                        }
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("j", modifiers: [.command])
@@ -2272,6 +2308,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
             onSetLineSpacing: { sp in
                 setLineSpacingAction(sp)
             },
+            onAskAI: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    showInlineAI = true
+                }
+            },
             onPolish: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     showAIDrawer = true
@@ -2303,6 +2344,37 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 showCommandPalette = true
             }
         )
+    }
+
+    private func replaceSelection(with newText: String) {
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            rawText = ns.replacingCharacters(in: selectionRange, with: newText)
+        } else if !selectedText.isEmpty && rawText.contains(selectedText) {
+            rawText = rawText.replacingOccurrences(of: selectedText, with: newText)
+        } else {
+            rawText += "\n\n" + newText
+        }
+        selectedText = ""
+        selectionRange = NSRange(location: 0, length: 0)
+        showToast("✓ Applied AI changes to canvas")
+    }
+
+    private func insertBelowSelection(newText: String) {
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
+            let ns = rawText as NSString
+            let insertPos = selectionRange.location + selectionRange.length
+            let head = ns.substring(to: insertPos)
+            let tail = ns.substring(from: insertPos)
+            rawText = head + "\n\n" + newText + tail
+        } else if !selectedText.isEmpty, let range = rawText.range(of: selectedText) {
+            rawText.insert(contentsOf: "\n\n" + newText, at: range.upperBound)
+        } else {
+            rawText += "\n\n" + newText
+        }
+        selectedText = ""
+        selectionRange = NSRange(location: 0, length: 0)
+        showToast("✓ Inserted AI content below selection")
     }
 
     private func extractTextChunks(from pageContent: String) -> [String] {

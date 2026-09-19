@@ -21,6 +21,7 @@ public struct FloatingActionMenu: View {
     var onSetFontSize: (CGFloat) -> Void
     var onSetAlignment: (TextAlignment) -> Void
     var onSetLineSpacing: (CGFloat) -> Void
+    var onAskAI: () -> Void
     var onPolish: () -> Void
     var onTranslate: () -> Void
     var onExplain: () -> Void
@@ -44,6 +45,7 @@ public struct FloatingActionMenu: View {
         onSetFontSize: @escaping (CGFloat) -> Void = { _ in },
         onSetAlignment: @escaping (TextAlignment) -> Void = { _ in },
         onSetLineSpacing: @escaping (CGFloat) -> Void = { _ in },
+        onAskAI: @escaping () -> Void = {},
         onPolish: @escaping () -> Void = {},
         onTranslate: @escaping () -> Void = {},
         onExplain: @escaping () -> Void = {},
@@ -66,6 +68,7 @@ public struct FloatingActionMenu: View {
         self.onSetFontSize = onSetFontSize
         self.onSetAlignment = onSetAlignment
         self.onSetLineSpacing = onSetLineSpacing
+        self.onAskAI = onAskAI
         self.onPolish = onPolish
         self.onTranslate = onTranslate
         self.onExplain = onExplain
@@ -213,16 +216,36 @@ public struct FloatingActionMenu: View {
             Divider()
                 .frame(height: 14)
 
-            // 6. AI & Intelligent Tools (Clean Icon Actions with Tooltips)
-            HStack(spacing: 3) {
+            // 6. AI & Intelligent Tools (Inline Canvas Ask AI + Quick Tools)
+            HStack(spacing: 4) {
+                Button(action: onAskAI) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Ask AI")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.purple.opacity(0.85), Color.blue.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Capsule()
+                    )
+                    .foregroundColor(.white)
+                    .shadow(color: Color.purple.opacity(0.25), radius: 4, x: 0, y: 1.5)
+                }
+                .buttonStyle(.plain)
+                .help("Ask AI to edit, rewrite or transform selection (⌘J)")
+
                 HUDActionButton(icon: "wand.and.stars", color: .purple, help: "AI Polish & Academic Flow") {
                     onPolish()
                 }
                 HUDActionButton(icon: "translate", color: .blue, help: "Instant Translate") {
                     onTranslate()
-                }
-                HUDActionButton(icon: "sparkles", color: .orange, help: "AI Explain Concept") {
-                    onExplain()
                 }
                 HUDActionButton(icon: "quote.bubble", color: .teal, help: "Insert Linked Citation") {
                     onCite()
