@@ -29,8 +29,15 @@ public struct StudioPagesNavigator: View {
 
             if activeTab == .pages {
                 // Page Spreads / Thumbnails (Affinity Publisher Style)
-                let pages = rawText.components(separatedBy: "---pagebreak---")
-                let pageList = pages.isEmpty ? [""] : pages
+                let pageList = DocumentPaginator.paginate(
+                    rawText: rawText,
+                    sheetHeight: 792,
+                    sheetWidth: 612,
+                    margins: PageMargins(),
+                    fontSize: 15.0,
+                    lineSpacing: 1.15,
+                    paragraphSpacing: 12.0
+                ).map { $0.text }
 
                 ScrollView {
                     LazyVStack(spacing: 16) {

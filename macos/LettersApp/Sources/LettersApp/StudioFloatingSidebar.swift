@@ -86,8 +86,15 @@ public struct StudioFloatingSidebar: View {
     }
 
     private var documentPages: [String] {
-        let pages = rawText.components(separatedBy: "---pagebreak---")
-        return pages.isEmpty ? [rawText] : pages
+        DocumentPaginator.paginate(
+            rawText: rawText,
+            sheetHeight: 792,
+            sheetWidth: 612,
+            margins: PageMargins(),
+            fontSize: 15.0,
+            lineSpacing: 1.15,
+            paragraphSpacing: 12.0
+        ).map { $0.text }
     }
 
     public var body: some View {
@@ -427,14 +434,27 @@ public struct StudioFloatingSidebar: View {
                     .padding(4)
             } else {
                 ForEach(Array(sources.values), id: \.id) { src in
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(src.title)
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .lineLimit(1)
-                        Text(src.authors.joined(separator: ", ") + (src.year != nil ? " (\(src.year!))" : ""))
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(src.title)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .lineLimit(1)
+                            Text(src.authors.joined(separator: ", ") + (src.year != nil ? " (\(src.year!))" : ""))
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Button(action: {
+                            sources.removeValue(forKey: src.id)
+                            onToast?("✓ Removed citation '\(src.title)'")
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete citation")
                     }
                     .padding(5)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -458,22 +478,47 @@ public struct StudioFloatingSidebar: View {
                     .foregroundColor(StudioTheme.luminousEmerald)
             }
 
-            ForEach(tables) { tbl in
-                HStack {
-                    Image(systemName: "tablecells")
-                        .font(.system(size: 10))
-                        .foregroundColor(StudioTheme.luminousEmerald)
-                    Text(tbl.title)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .lineLimit(1)
-                    Spacer()
-                    Text("\(tbl.rows.count)r × \(tbl.headers.count)c")
-                        .font(.system(size: 8.5, design: .monospaced))
-                        .foregroundColor(.secondary)
+            if tables.isEmpty {
+                Text("No smart tables.\nClick + New or Canvas > Table to create.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .padding(4)
+            } else {
+                ForEach(tables) { tbl in
+                    HStack {
+                        Image(systemName: "tablecells")
+                            .font(.system(size: 10))
+                            .foregroundColor(StudioTheme.luminousEmerald)
+                        Text(tbl.title)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(tbl.rows.count)r × \(tbl.headers.count)c")
+                            .font(.system(size: 8.5, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Button(action: {
+                            deleteTable(tbl)
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete smart table")
+                    }
+                    .padding(5)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
                 }
-                .padding(5)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
             }
+        }
+    }
+
+    private func deleteTable(_ tbl: StudioTableData) {
+        if let idx = tables.firstIndex(where: { $0.id == tbl.id }) {
+            tables.remove(at: idx)
+            rawText = rawText.replacingOccurrences(of: "[[table:\(tbl.id.uuidString)]]", with: "")
+            rawText = rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
+            onToast?("✓ Deleted table '\(tbl.title)'")
         }
     }
 
@@ -484,32 +529,65 @@ public struct StudioFloatingSidebar: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.secondary)
 
-            ForEach(images) { img in
-                HStack(spacing: 6) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 10))
-                        .foregroundColor(StudioTheme.luminousPurple)
-                    Text(img.caption)
-                        .font(.system(size: 10.5))
-                        .lineLimit(1)
-                    Spacer()
+            if images.isEmpty && videos.isEmpty {
+                Text("No media figures.\nDrag and drop or insert images/videos.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .padding(4)
+            } else {
+                ForEach(images) { img in
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 10))
+                            .foregroundColor(StudioTheme.luminousPurple)
+                        Text(img.caption)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                        Spacer()
+                        Button(action: {
+                            if let idx = images.firstIndex(where: { $0.id == img.id }) {
+                                images.remove(at: idx)
+                                rawText = rawText.replacingOccurrences(of: "[[image:\(img.id.uuidString)]]", with: "")
+                                onToast?("✓ Deleted image figure")
+                            }
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete image")
+                    }
+                    .padding(5)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
                 }
-                .padding(5)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
-            }
 
-            ForEach(videos) { vid in
-                HStack(spacing: 6) {
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(StudioTheme.luminousAmber)
-                    Text(vid.title)
-                        .font(.system(size: 10.5))
-                        .lineLimit(1)
-                    Spacer()
+                ForEach(videos) { vid in
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.rectangle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(StudioTheme.luminousAmber)
+                        Text(vid.title)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                        Spacer()
+                        Button(action: {
+                            if let idx = videos.firstIndex(where: { $0.id == vid.id }) {
+                                videos.remove(at: idx)
+                                rawText = rawText.replacingOccurrences(of: "[[video:\(vid.id.uuidString)]]", with: "")
+                                onToast?("✓ Deleted video card")
+                            }
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete video")
+                    }
+                    .padding(5)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
                 }
-                .padding(5)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
             }
         }
     }

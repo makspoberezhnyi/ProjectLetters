@@ -40,6 +40,7 @@
 		B10000112C12345600000011 /* LettersApp/Sources/LettersApp/StudioDocumentTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000112C12345600000011 /* LettersApp/Sources/LettersApp/StudioDocumentTimelineView.swift */; };
 		B10000122C12345600000012 /* LettersApp/Sources/LettersApp/StudioPageDesignView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000122C12345600000012 /* LettersApp/Sources/LettersApp/StudioPageDesignView.swift */; };
 		B10000132C12345600000013 /* LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000132C12345600000013 /* LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift */; };
+		B10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift */; };
 		C686D40AD63A5208B5371020 /* LettersApp/Sources/LettersApp/CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2E2D958FA05D21BB95C77B /* LettersApp/Sources/LettersApp/CommandPaletteView.swift */; };
 		D041FA244F1350128A4C8082 /* LettersApp/Sources/LettersKit/CoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2406FFBB4B0C5737A7F14E2E /* LettersApp/Sources/LettersKit/CoreBridge.swift */; };
 		DEB669D5CB1D560F91DA95B7 /* LettersApp/Sources/LettersKit/AIGateway.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02636281821E5ED19CA49946 /* LettersApp/Sources/LettersKit/AIGateway.swift */; };
@@ -84,6 +85,7 @@
 		A10000112C12345600000011 /* LettersApp/Sources/LettersApp/StudioDocumentTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioDocumentTimelineView.swift; sourceTree = "<group>"; };
 		A10000122C12345600000012 /* LettersApp/Sources/LettersApp/StudioPageDesignView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioPageDesignView.swift; sourceTree = "<group>"; };
 		A10000132C12345600000013 /* LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift; sourceTree = "<group>"; };
+		A10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/DocumentPaginator.swift; sourceTree = "<group>"; };
 		CC59F701E35B58EA91D6096B /* Letters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Letters.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D3005EE29D1C5292927E4982 /* LettersApp/Sources/LettersCoreC/include/letters_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LettersApp/Sources/LettersCoreC/include/letters_core.h; sourceTree = "<group>"; };
 		D8C8FDA838535C3D95C8A362 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioBottomBar.swift; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 				A10000112C12345600000011 /* LettersApp/Sources/LettersApp/StudioDocumentTimelineView.swift */,
 				A10000122C12345600000012 /* LettersApp/Sources/LettersApp/StudioPageDesignView.swift */,
 				A10000132C12345600000013 /* LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift */,
+				A10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -246,6 +249,7 @@
 				B10000112C12345600000011 /* LettersApp/Sources/LettersApp/StudioDocumentTimelineView.swift in Sources */,
 				B10000122C12345600000012 /* LettersApp/Sources/LettersApp/StudioPageDesignView.swift in Sources */,
 				B10000132C12345600000013 /* LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift in Sources */,
+				B10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

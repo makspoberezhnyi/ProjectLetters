@@ -29,6 +29,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
 ## 3. Dynamic Smart Tables & Formulas
 • Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
+
+[[table:budget]]
 """
 
     @State private var activeTool: StudioTool = .select
@@ -130,30 +132,44 @@ Letters is a next-generation desktop publishing and document studio combining gr
         pageSize.dimensions.height
     }
 
-    // Parse Document Pages (Split on physical page breaks with deterministic 1-to-1 sheet mapping)
+    // Dynamic Document Page Slicing (Continuous flow across physical sheets + explicit pagebreaks)
+    private var documentPageSlices: [DocumentPageSlice] {
+        DocumentPaginator.paginate(
+            rawText: rawText,
+            sheetHeight: currentSheetHeight,
+            sheetWidth: currentSheetWidth,
+            margins: margins,
+            fontSize: fontSize,
+            lineSpacing: lineSpacing,
+            paragraphSpacing: paragraphSpacing
+        )
+    }
+
     private var documentPages: [String] {
-        let pages = rawText.components(separatedBy: "---pagebreak---")
-        return pages.isEmpty ? [""] : pages
+        documentPageSlices.map { $0.text }
     }
 
     private func getPageText(pageIndex: Int) -> String {
-        let pages = documentPages
-        guard pageIndex < pages.count else { return "" }
-        return pages[pageIndex]
+        let slices = documentPageSlices
+        guard pageIndex < slices.count else { return "" }
+        return slices[pageIndex].text
     }
 
     private func setPageText(pageIndex: Int, newText: String) {
-        var pages = documentPages
-        if pages.isEmpty {
-            rawText = newText
+        let slices = documentPageSlices
+        guard pageIndex < slices.count else {
+            rawText += (rawText.isEmpty ? "" : "\n\n") + newText
             return
         }
-        if pageIndex < pages.count {
-            pages[pageIndex] = newText
+        let slice = slices[pageIndex]
+        let ns = rawText as NSString
+        let loc = slice.range.location
+        let len = slice.range.length
+        if loc <= ns.length && loc + len <= ns.length {
+            rawText = ns.replacingCharacters(in: slice.range, with: newText)
         } else {
-            pages.append(newText)
+            rawText = newText
         }
-        rawText = pages.joined(separator: "\n\n---pagebreak---\n\n")
     }
 
     public var body: some View {
