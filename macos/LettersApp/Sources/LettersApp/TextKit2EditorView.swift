@@ -630,6 +630,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
                 to: storage,
                 fontFamily: fontFamily,
                 baseFontSize: fontSize,
+                isBold: isBold,
+                isItalic: isItalic,
                 alignment: alignment,
                 lineSpacing: lineSpacing,
                 paragraphSpacing: paragraphSpacing
@@ -664,6 +666,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
                     to: storage,
                     fontFamily: fontFamily,
                     baseFontSize: fontSize,
+                    isBold: isBold,
+                    isItalic: isItalic,
                     alignment: alignment,
                     lineSpacing: lineSpacing,
                     paragraphSpacing: paragraphSpacing
@@ -680,6 +684,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
         to textStorage: NSTextStorage,
         fontFamily: String,
         baseFontSize: CGFloat,
+        isBold: Bool = false,
+        isItalic: Bool = false,
         alignment: TextAlignment,
         lineSpacing: CGFloat,
         paragraphSpacing: CGFloat
@@ -688,7 +694,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
         guard fullRange.length > 0 else { return }
 
-        let baseFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: false, italic: false)
+        let baseFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: isBold, italic: isItalic)
         let baseParagraphStyle = NSMutableParagraphStyle()
         switch alignment {
         case .leading: baseParagraphStyle.alignment = .left

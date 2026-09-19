@@ -33,8 +33,8 @@ public struct DocumentPaginator {
             return [DocumentPageSlice(pageIndex: 0, text: "", range: NSRange(location: 0, length: 0))]
         }
 
-        let printableHeight = max(150, sheetHeight - margins.top - margins.bottom)
-        let printableWidth = max(150, sheetWidth - margins.left - margins.right)
+        let printableHeight = max(100, sheetHeight - margins.top - margins.bottom)
+        let printableWidth = max(100, sheetWidth - margins.left - margins.right)
 
         // Split by explicit page breaks first
         let sections = rawText.components(separatedBy: "---pagebreak---")

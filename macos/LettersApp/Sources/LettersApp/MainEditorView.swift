@@ -1965,6 +1965,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     )
                     .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
                     .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
+                    .onTapGesture {
+                        editorController.focusPage(pageIndex, at: (getPageText(pageIndex: pageIndex) as NSString).length)
+                    }
 
                 // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
                 StudioHeaderView(
@@ -1997,11 +2000,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                 // 5. Document Content (Dynamic In-Flow TextKit 2 Segments + Tables + Media)
                 documentCanvasContent(pageIndex: pageIndex)
-                    .padding(.leading, margins.left)
-                    .padding(.top, margins.top)
-                    .padding(.trailing, margins.right)
-                    .padding(.bottom, margins.bottom)
-                    .frame(width: currentSheetWidth, height: currentSheetHeight, alignment: .topLeading)
 
                 // 6. Running Footer (Page Numbers & Interactive In-Place Double-Click Editor)
                 StudioFooterView(
