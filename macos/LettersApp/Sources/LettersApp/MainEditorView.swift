@@ -156,6 +156,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setPageText(pageIndex: Int, newText: String) {
+        let oldPageCount = documentPageSlices.count
         let slices = documentPageSlices
         guard pageIndex < slices.count else {
             rawText += (rawText.isEmpty ? "" : "\n\n") + newText
@@ -169,6 +170,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
             rawText = ns.replacingCharacters(in: slice.range, with: newText)
         } else {
             rawText = newText
+        }
+
+        let newSlices = documentPageSlices
+        if newSlices.count > oldPageCount && pageIndex + 1 < newSlices.count {
+            editorController.focusPage(pageIndex + 1, at: 0)
         }
     }
 
@@ -2034,6 +2040,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     lineSpacing: lineSpacing,
                     paragraphSpacing: paragraphSpacing,
                     margins: PageMargins(),
+                    pageIndex: pageIndex,
                     onSelectionChanged: { _, _, attrs in
                         self.isBold = attrs.isBold
                         self.isItalic = attrs.isItalic
@@ -2073,6 +2080,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 lineSpacing: lineSpacing,
                                 paragraphSpacing: paragraphSpacing,
                                 margins: PageMargins(),
+                                pageIndex: pageIndex,
                                 onSelectionChanged: { _, _, attrs in
                                     self.isBold = attrs.isBold
                                     self.isItalic = attrs.isItalic

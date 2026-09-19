@@ -29,14 +29,16 @@ public struct DocumentPaginator {
             return [DocumentPageSlice(pageIndex: 0, text: "", range: NSRange(location: 0, length: 0))]
         }
 
-        // Exact printable bounds inside physical page margins
-        let printableHeight = max(150, sheetHeight - margins.top - margins.bottom)
+        // Exact printable bounds inside physical page margins (with a 4pt safety buffer so bottom line is never cut off)
+        let printableHeight = max(150, sheetHeight - margins.top - margins.bottom - 4)
         let printableWidth = max(150, sheetWidth - margins.left - margins.right)
 
         // Font metric estimation for average line capacity
         let avgCharWidth = max(5.0, fontSize * 0.48)
         let charsPerLine = max(20, Int(printableWidth / avgCharWidth))
-        let singleLineHeight = fontSize * lineSpacing * 1.35
+
+        let baseFont = EditorPerformanceCache.shared.resolveFont(family: "Default Serif (Georgia)", size: fontSize, bold: false, italic: false)
+        let baseLineHeight = (baseFont.ascender - baseFont.descender + baseFont.leading) * lineSpacing
 
         let nsText = rawText as NSString
         let fullLength = nsText.length
@@ -79,15 +81,21 @@ public struct DocumentPaginator {
 
             let lineHeight: CGFloat
             if trimmedLine.starts(with: "[[table:") || trimmedLine.starts(with: "[[image:") || trimmedLine.starts(with: "[[video:") || trimmedLine.starts(with: "[[toc]]") || trimmedLine.starts(with: "[[bibliography]]") {
-                lineHeight = 180
+                lineHeight = 180 + paragraphSpacing
             } else if trimmedLine.starts(with: "# ") {
-                lineHeight = CGFloat(lineCount) * (fontSize * 1.5 * 1.35) + 14
+                let h1Font = EditorPerformanceCache.shared.resolveFont(family: "Default Serif (Georgia)", size: fontSize * 1.5, bold: true, italic: false)
+                let h1Line = (h1Font.ascender - h1Font.descender + h1Font.leading) * lineSpacing
+                lineHeight = (CGFloat(lineCount) * h1Line) + max(paragraphSpacing, 10)
             } else if trimmedLine.starts(with: "## ") {
-                lineHeight = CGFloat(lineCount) * (fontSize * 1.3 * 1.35) + 10
+                let h2Font = EditorPerformanceCache.shared.resolveFont(family: "Default Serif (Georgia)", size: fontSize * 1.3, bold: true, italic: false)
+                let h2Line = (h2Font.ascender - h2Font.descender + h2Font.leading) * lineSpacing
+                lineHeight = (CGFloat(lineCount) * h2Line) + max(paragraphSpacing, 8)
             } else if trimmedLine.starts(with: "### ") {
-                lineHeight = CGFloat(lineCount) * (fontSize * 1.15 * 1.35) + 8
+                let h3Font = EditorPerformanceCache.shared.resolveFont(family: "Default Serif (Georgia)", size: fontSize * 1.15, bold: true, italic: false)
+                let h3Line = (h3Font.ascender - h3Font.descender + h3Font.leading) * lineSpacing
+                lineHeight = (CGFloat(lineCount) * h3Line) + paragraphSpacing
             } else {
-                lineHeight = CGFloat(lineCount) * singleLineHeight
+                lineHeight = (CGFloat(lineCount) * baseLineHeight) + paragraphSpacing
             }
 
             // 3. Check for vertical page overflow

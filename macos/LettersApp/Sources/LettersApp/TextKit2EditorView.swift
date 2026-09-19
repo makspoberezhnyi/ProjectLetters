@@ -33,8 +33,24 @@ public struct EditorSelectionAttributes: Equatable {
 @MainActor
 public class EditorActionController: ObservableObject {
     public weak var textView: NSTextView?
+    private var pageViews: [Int: StudioTextView] = [:]
 
     public init() {}
+
+    public func register(pageIndex: Int, textView: StudioTextView) {
+        pageViews[pageIndex] = textView
+    }
+
+    public func focusPage(_ pageIndex: Int, at cursorLoc: Int = 0) {
+        DispatchQueue.main.async {
+            guard let tv = self.pageViews[pageIndex] else { return }
+            tv.window?.makeFirstResponder(tv)
+            self.textView = tv
+            let length = (tv.string as NSString).length
+            let safeLoc = max(0, min(cursorLoc, length))
+            tv.setSelectedRange(NSRange(location: safeLoc, length: 0))
+        }
+    }
 
     public func currentSelectionAttributes() -> EditorSelectionAttributes? {
         guard let textView = textView else { return nil }
@@ -442,6 +458,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     var lineSpacing: CGFloat
     var paragraphSpacing: CGFloat
     var margins: PageMargins
+    var pageIndex: Int
     var onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)?
 
     public init(
@@ -458,6 +475,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         lineSpacing: CGFloat = 1.15,
         paragraphSpacing: CGFloat = 12.0,
         margins: PageMargins = PageMargins(),
+        pageIndex: Int = 0,
         onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)? = nil
     ) {
         self._text = text
@@ -473,6 +491,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
         self.margins = margins
+        self.pageIndex = pageIndex
         self.onSelectionChanged = onSelectionChanged
     }
 
@@ -548,6 +567,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
         controller?.textView = textView
+        controller?.register(pageIndex: pageIndex, textView: textView)
         context.coordinator.isUpdatingProgrammatically = false
 
         return textView
@@ -555,6 +575,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
 
     public func updateNSView(_ textView: StudioTextView, context: Context) {
         textView.actionController = controller
+        controller?.register(pageIndex: pageIndex, textView: textView)
         if context.coordinator.textView == nil {
             context.coordinator.textView = textView
         }
