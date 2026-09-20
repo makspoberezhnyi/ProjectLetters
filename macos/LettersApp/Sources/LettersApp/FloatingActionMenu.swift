@@ -21,6 +21,7 @@ public struct FloatingActionMenu: View {
     var onSetFontSize: (CGFloat) -> Void
     var onSetAlignment: (TextAlignment) -> Void
     var onSetLineSpacing: (CGFloat) -> Void
+    var onSetParagraphSpacing: (CGFloat) -> Void
     var onAskAI: () -> Void
     var onPolish: () -> Void
     var onTranslate: () -> Void
@@ -45,6 +46,7 @@ public struct FloatingActionMenu: View {
         onSetFontSize: @escaping (CGFloat) -> Void = { _ in },
         onSetAlignment: @escaping (TextAlignment) -> Void = { _ in },
         onSetLineSpacing: @escaping (CGFloat) -> Void = { _ in },
+        onSetParagraphSpacing: @escaping (CGFloat) -> Void = { _ in },
         onAskAI: @escaping () -> Void = {},
         onPolish: @escaping () -> Void = {},
         onTranslate: @escaping () -> Void = {},
@@ -68,6 +70,7 @@ public struct FloatingActionMenu: View {
         self.onSetFontSize = onSetFontSize
         self.onSetAlignment = onSetAlignment
         self.onSetLineSpacing = onSetLineSpacing
+        self.onSetParagraphSpacing = onSetParagraphSpacing
         self.onAskAI = onAskAI
         self.onPolish = onPolish
         self.onTranslate = onTranslate
@@ -198,6 +201,9 @@ public struct FloatingActionMenu: View {
                 Button("1.25 (Relaxed)") { onSetLineSpacing(1.25) }
                 Button("1.5 (1.5x)") { onSetLineSpacing(1.5) }
                 Button("2.0 (Double)") { onSetLineSpacing(2.0) }
+                Divider()
+                Button("Add Space After Paragraph") { onSetParagraphSpacing(12.0) }
+                Button("Remove Space After Paragraph") { onSetParagraphSpacing(0.0) }
             } label: {
                 HStack(spacing: 2) {
                     Image(systemName: "arrow.up.and.down.text.horizontal")

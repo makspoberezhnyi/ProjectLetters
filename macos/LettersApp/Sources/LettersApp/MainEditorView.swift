@@ -1188,6 +1188,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
         showToast("✓ Line Spacing: \(String(format: "%.2g", spacing))")
     }
 
+    private func setParagraphSpacingAction(_ spacing: CGFloat) {
+        paragraphSpacing = spacing
+        editorController.applyLineSpacing(lineSpacing, paragraphSpacing: spacing)
+        showToast("✓ Paragraph Spacing: \(spacing > 0 ? "Added" : "Removed")")
+    }
+
     private func insertBulletListAction() {
         let item = "\n• "
         if selectionRange.location <= (rawText as NSString).length {
@@ -2305,6 +2311,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
             },
             onSetLineSpacing: { sp in
                 setLineSpacingAction(sp)
+            },
+            onSetParagraphSpacing: { sp in
+                setParagraphSpacingAction(sp)
             },
             onAskAI: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {

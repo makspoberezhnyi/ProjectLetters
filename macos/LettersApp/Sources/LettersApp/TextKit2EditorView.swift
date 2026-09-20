@@ -45,6 +45,12 @@ public class EditorActionController: ObservableObject {
         return pageViews[pageIndex] != nil
     }
 
+    public var onSelectAllRequested: (() -> Void)?
+
+    public func selectAllPages() {
+        onSelectAllRequested?()
+    }
+
     public func focusPage(_ pageIndex: Int, at cursorLoc: Int = 0, retries: Int = 8) {
         DispatchQueue.main.async {
             if let tv = self.pageViews[pageIndex] {
@@ -433,6 +439,10 @@ public class StudioTextView: NSTextView {
 
 
 
+    public override func selectAll(_ sender: Any?) {
+        actionController?.selectAllPages()
+    }
+
     public override func scrollRangeToVisible(_ range: NSRange) {
         // In physical page canvas mode, bounds origin must stay strictly (0, 0)
         self.bounds.origin = .zero
@@ -695,8 +705,23 @@ public struct TextKit2EditorView: NSViewRepresentable {
                     )
                 }
             }
-            if selected.location + selected.length <= (textView.string as NSString).length {
-                textView.setSelectedRange(selected)
+            if let slice = sliceRange {
+                let intersection = NSIntersectionRange(selectionRange, slice)
+                if intersection.length > 0 {
+                    let localRange = NSRange(location: intersection.location - slice.location, length: intersection.length)
+                    if localRange.location + localRange.length <= (textView.string as NSString).length {
+                        textView.setSelectedRange(localRange)
+                    }
+                } else if selectionRange.location <= slice.location && selectionRange.location + selectionRange.length >= slice.location + slice.length {
+                    // Fully contains
+                    textView.setSelectedRange(NSRange(location: 0, length: (textView.string as NSString).length))
+                } else if textView.selectedRange().length > 0 {
+                    textView.setSelectedRange(NSRange(location: 0, length: 0))
+                }
+            } else {
+                if selected.location + selected.length <= (textView.string as NSString).length {
+                    textView.setSelectedRange(selected)
+                }
             }
             context.coordinator.lastAppliedFontFamily = fontFamily
             context.coordinator.lastAppliedFontSize = fontSize
@@ -814,18 +839,23 @@ public struct TextKit2EditorView: NSViewRepresentable {
 
         public func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView, !isUpdatingProgrammatically else { return }
-            let range = textView.selectedRange()
+            let localRange = textView.selectedRange()
             let nsString = textView.string as NSString
-            let sub = range.length > 0 && range.location + range.length <= nsString.length ? nsString.substring(with: range) : ""
+            let sub = localRange.length > 0 && localRange.location + localRange.length <= nsString.length ? nsString.substring(with: localRange) : ""
             let attrs = parent.controller?.currentSelectionAttributes() ?? EditorSelectionAttributes()
+            
+            let globalRange = NSRange(
+                location: localRange.location + (self.parent.sliceRange?.location ?? 0), 
+                length: localRange.length
+            )
 
-            if self.parent.selectionRange != range {
-                self.parent.selectionRange = range
+            if self.parent.selectionRange != globalRange {
+                self.parent.selectionRange = globalRange
             }
             if self.parent.selectedText != sub {
                 self.parent.selectedText = sub
             }
-            self.parent.onSelectionChanged?(range, sub, attrs)
+            self.parent.onSelectionChanged?(globalRange, sub, attrs)
         }
     }
 }
