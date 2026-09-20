@@ -171,6 +171,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
         return slices[pageIndex].attributedText
     }
 
+    private func getPageSliceRange(pageIndex: Int) -> NSRange? {
+        let slices = documentPageSlices
+        guard pageIndex < slices.count else { return nil }
+        return slices[pageIndex].range
+    }
+
     private func setPageText(pageIndex: Int, newText: String) {
         if let activeSize = editorController.currentSelectionAttributes()?.fontSize,
            activeSize > 0,
@@ -2105,6 +2111,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     selectedText: $selectedText,
                     selectionRange: $selectionRange,
                     attributedText: getPageAttributedText(pageIndex: pageIndex),
+                    sliceRange: getPageSliceRange(pageIndex: pageIndex),
                     controller: editorController,
                     fontFamily: fontFamily,
                     fontSize: fontSize,
@@ -2143,6 +2150,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 selectedText: $selectedText,
                                 selectionRange: $selectionRange,
                                 attributedText: getPageAttributedText(pageIndex: pageIndex),
+                                sliceRange: getPageSliceRange(pageIndex: pageIndex),
                                 controller: editorController,
                                 fontFamily: fontFamily,
                                 fontSize: fontSize,

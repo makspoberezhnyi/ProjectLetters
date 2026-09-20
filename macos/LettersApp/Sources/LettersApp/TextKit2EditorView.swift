@@ -514,6 +514,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     @Binding var selectedText: String
     @Binding var selectionRange: NSRange
     var attributedText: NSAttributedString?
+    var sliceRange: NSRange?
     var controller: EditorActionController?
     var fontFamily: String
     var fontSize: CGFloat
@@ -533,6 +534,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         selectedText: Binding<String>,
         selectionRange: Binding<NSRange>,
         attributedText: NSAttributedString? = nil,
+        sliceRange: NSRange? = nil,
         controller: EditorActionController? = nil,
         fontFamily: String = "Default Serif (Georgia)",
         fontSize: CGFloat = 15.0,
@@ -551,6 +553,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self._selectedText = selectedText
         self._selectionRange = selectionRange
         self.attributedText = attributedText
+        self.sliceRange = sliceRange
         self.controller = controller
         self.fontFamily = fontFamily
         self.fontSize = fontSize
@@ -788,6 +791,23 @@ public struct TextKit2EditorView: NSViewRepresentable {
             let string = textView.string
             if self.parent.text != string {
                 self.parent.text = string
+            }
+            
+            // If we are editing rich text, update the global richTextData
+            if let storage = textView.textStorage, self.parent.attributedText != nil, let rtf = self.parent.richTextData {
+                if let fullDoc = try? NSMutableAttributedString(data: rtf, options: [.documentType: NSAttributedString.DocumentType.rtfd], documentAttributes: nil),
+                   let range = self.parent.sliceRange {
+                    
+                    // Replace the chunk in the global document with the edited text storage
+                    if range.location + range.length <= fullDoc.length {
+                        fullDoc.replaceCharacters(in: range, with: storage)
+                        
+                        // Re-encode back to richTextData
+                        if let newRtfData = try? fullDoc.data(from: NSRange(location: 0, length: fullDoc.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]) {
+                            self.parent.richTextData = newRtfData
+                        }
+                    }
+                }
             }
         }
 
