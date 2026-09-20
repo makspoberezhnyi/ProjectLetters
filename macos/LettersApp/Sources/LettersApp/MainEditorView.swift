@@ -1843,9 +1843,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
 
         if panel.runModal() == .OK, let url = panel.url {
-            let ext = url.pathExtension.lowercased()
-            do {
-                if ext == "docx" {
+            importFileNatively(url: url)
+        }
+    }
+
+    private func importFileNatively(url: URL) {
+        let ext = url.pathExtension.lowercased()
+        do {
+            if ext == "docx" {
                     let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
                     
                     let text = attrStr.string
@@ -1875,6 +1880,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         rawText += (rawText.isEmpty ? "" : "\n\n") + text
                     }
                     showToast("✓ Imported Word file natively: \(url.lastPathComponent)")
+                } else if ext == "md" || ext == "txt" {
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    if selectionRange.location <= (rawText as NSString).length {
+                        let ns = rawText as NSString
+                        rawText = ns.replacingCharacters(in: selectionRange, with: content)
+                    } else {
+                        rawText += (rawText.isEmpty ? "" : "\n\n") + content
+                    }
+                    showToast("✓ Imported text natively: \(url.lastPathComponent)")
                 } else if ext == "pdf" {
                     if let pdf = PDFDocument(url: url), let text = pdf.string {
                         if selectionRange.location <= (rawText as NSString).length {
@@ -1892,7 +1906,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 showToast("⚠️ Could not import file: \(error.localizedDescription)")
             }
         }
-    }
 
     // MARK: - Word, PDF & Print
     public func saveDocumentAsDocx() {

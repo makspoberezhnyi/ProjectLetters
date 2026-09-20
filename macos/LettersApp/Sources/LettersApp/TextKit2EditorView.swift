@@ -46,6 +46,7 @@ public class EditorActionController: ObservableObject {
     }
 
     public var onSelectAllRequested: (() -> Void)?
+    public var onImportFile: ((URL) -> Void)?
 
     public func selectAllPages() {
         onSelectAllRequested?()
@@ -470,6 +471,22 @@ public class StudioTextView: NSTextView {
         }
     }
 
+    public override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pasteboard = sender.draggingPasteboard
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            var handled = false
+            for url in urls {
+                let ext = url.pathExtension.lowercased()
+                if ext == "docx" || ext == "pdf" || ext == "txt" || ext == "md" {
+                    actionController?.onImportFile?(url)
+                    handled = true
+                }
+            }
+            if handled { return true }
+        }
+        return super.performDragOperation(sender)
+    }
+
     public override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
         if ok {
@@ -705,24 +722,6 @@ public struct TextKit2EditorView: NSViewRepresentable {
                     )
                 }
             }
-            if let slice = sliceRange {
-                let intersection = NSIntersectionRange(selectionRange, slice)
-                if intersection.length > 0 {
-                    let localRange = NSRange(location: intersection.location - slice.location, length: intersection.length)
-                    if localRange.location + localRange.length <= (textView.string as NSString).length {
-                        textView.setSelectedRange(localRange)
-                    }
-                } else if selectionRange.location <= slice.location && selectionRange.location + selectionRange.length >= slice.location + slice.length {
-                    // Fully contains
-                    textView.setSelectedRange(NSRange(location: 0, length: (textView.string as NSString).length))
-                } else if textView.selectedRange().length > 0 {
-                    textView.setSelectedRange(NSRange(location: 0, length: 0))
-                }
-            } else {
-                if selected.location + selected.length <= (textView.string as NSString).length {
-                    textView.setSelectedRange(selected)
-                }
-            }
             context.coordinator.lastAppliedFontFamily = fontFamily
             context.coordinator.lastAppliedFontSize = fontSize
             context.coordinator.lastAppliedLineSpacing = lineSpacing
@@ -730,6 +729,25 @@ public struct TextKit2EditorView: NSViewRepresentable {
             context.coordinator.lastAppliedAlignment = alignment
             context.coordinator.isUpdatingProgrammatically = false
         }
+
+        context.coordinator.isUpdatingProgrammatically = true
+        if let slice = sliceRange {
+            let intersection = NSIntersectionRange(selectionRange, slice)
+            if intersection.length > 0 {
+                let localRange = NSRange(location: intersection.location - slice.location, length: intersection.length)
+                if localRange.location + localRange.length <= (textView.string as NSString).length {
+                    textView.setSelectedRange(localRange)
+                }
+            } else if selectionRange.location <= slice.location && selectionRange.location + selectionRange.length >= slice.location + slice.length {
+                // Fully contains
+                textView.setSelectedRange(NSRange(location: 0, length: (textView.string as NSString).length))
+            } else if textView.selectedRange().length > 0 {
+                textView.setSelectedRange(NSRange(location: 0, length: 0))
+            }
+        } else {
+            // Keep existing selection if not slicing
+        }
+        context.coordinator.isUpdatingProgrammatically = false
     }
 
 
