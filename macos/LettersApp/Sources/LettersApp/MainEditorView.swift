@@ -1815,10 +1815,8 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
                     documentTitle = url.deletingPathExtension().lastPathComponent
                     rawText = attrStr.string
-                    if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]) {
-                        richTextData = rtfData
-                    } else if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
-                        richTextData = rtfData
+                    if let data = try? NSKeyedArchiver.archivedData(withRootObject: attrStr, requiringSecureCoding: false) {
+                        richTextData = data
                     }
                     showToast("✓ Opened Word file natively: \(url.lastPathComponent)")
                 }
@@ -1844,13 +1842,26 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 if ext == "docx" {
                     let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
                     
-                    if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]) {
-                        richTextData = rtfData
-                    } else if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
-                        richTextData = rtfData
+                    let text = attrStr.string
+                    var finalAttrStr = attrStr
+                    
+                    if let oldData = richTextData, let oldAttr = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: oldData) {
+                        let combined = NSMutableAttributedString(attributedString: oldAttr)
+                        if selectionRange.location <= combined.length {
+                            combined.replaceCharacters(in: selectionRange, with: attrStr)
+                        } else {
+                            if combined.length > 0 {
+                                combined.append(NSAttributedString(string: "\n\n"))
+                            }
+                            combined.append(attrStr)
+                        }
+                        finalAttrStr = combined
                     }
                     
-                    let text = attrStr.string
+                    if let data = try? NSKeyedArchiver.archivedData(withRootObject: finalAttrStr, requiringSecureCoding: false) {
+                        richTextData = data
+                    }
+                    
                     if selectionRange.location <= (rawText as NSString).length {
                         let ns = rawText as NSString
                         rawText = ns.replacingCharacters(in: selectionRange, with: text)

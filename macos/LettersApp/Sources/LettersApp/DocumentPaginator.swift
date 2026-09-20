@@ -38,9 +38,7 @@ public struct DocumentPaginator {
 
         var attrString: NSMutableAttributedString
         
-        if let data = richTextData, let docxAttr = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtfd], documentAttributes: nil) {
-            attrString = NSMutableAttributedString(attributedString: docxAttr)
-        } else if let data = richTextData, let docxAttr = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil) {
+        if let data = richTextData, let docxAttr = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: data) {
             attrString = NSMutableAttributedString(attributedString: docxAttr)
         } else {
             if rawText.isEmpty {

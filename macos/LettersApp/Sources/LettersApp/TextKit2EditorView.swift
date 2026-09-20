@@ -795,15 +795,16 @@ public struct TextKit2EditorView: NSViewRepresentable {
             
             // If we are editing rich text, update the global richTextData
             if let storage = textView.textStorage, self.parent.attributedText != nil, let rtf = self.parent.richTextData {
-                if let fullDoc = try? NSMutableAttributedString(data: rtf, options: [.documentType: NSAttributedString.DocumentType.rtfd], documentAttributes: nil),
+                if let fullDocObj = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: rtf),
                    let range = self.parent.sliceRange {
                     
+                    let fullDoc = NSMutableAttributedString(attributedString: fullDocObj)
                     // Replace the chunk in the global document with the edited text storage
                     if range.location + range.length <= fullDoc.length {
                         fullDoc.replaceCharacters(in: range, with: storage)
                         
                         // Re-encode back to richTextData
-                        if let newRtfData = try? fullDoc.data(from: NSRange(location: 0, length: fullDoc.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]) {
+                        if let newRtfData = try? NSKeyedArchiver.archivedData(withRootObject: fullDoc, requiringSecureCoding: false) {
                             self.parent.richTextData = newRtfData
                         }
                     }
