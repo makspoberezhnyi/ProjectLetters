@@ -111,7 +111,7 @@ public struct StudioTopBar: View {
                 } label: {
                     HStack(spacing: 2) {
                         Text("\(Int(fontSize)) pt")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .font(.system(size: 12, weight: .medium))
                         Image(systemName: "chevron.down")
                             .font(.system(size: 8))
                             .foregroundColor(.secondary)

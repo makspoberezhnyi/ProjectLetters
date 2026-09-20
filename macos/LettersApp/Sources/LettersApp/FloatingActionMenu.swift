@@ -133,7 +133,7 @@ public struct FloatingActionMenu: View {
                     }
                 } label: {
                     Text("\(Int(fontSize))")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 11, weight: .semibold))
                         .frame(width: 22, height: 22)
                 }
                 .menuStyle(.borderlessButton)
@@ -203,7 +203,7 @@ public struct FloatingActionMenu: View {
                     Image(systemName: "arrow.up.and.down.text.horizontal")
                         .font(.system(size: 10, weight: .medium))
                     Text(String(format: "%.2g", lineSpacing))
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 10, weight: .semibold))
                 }
                 .padding(.horizontal, 4)
                 .padding(.vertical, 4)

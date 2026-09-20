@@ -47,7 +47,7 @@ public struct StudioImageView: View {
                             .font(.system(size: 9))
                             .foregroundColor(.green)
                         Text(formatByteSize(imageBlock.compressedByteSize))
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.secondary)
 
                         if imageBlock.originalByteSize > imageBlock.compressedByteSize {
@@ -168,7 +168,7 @@ public struct StudioImageView: View {
             HStack {
                 TextField("Figure caption...", text: $imageBlock.caption)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .medium, design: .serif))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .onChange(of: imageBlock.caption) { _, _ in

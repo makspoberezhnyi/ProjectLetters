@@ -122,6 +122,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var version: String
     public var title: String
     public var rawText: String
+    public var richTextData: Data?
     public var tables: [StudioTableData]
     public var images: [StudioImageBlock]
     public var videos: [StudioVideoBlock]
@@ -143,6 +144,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public init(
         title: String,
         rawText: String,
+        richTextData: Data? = nil,
         tables: [StudioTableData] = [],
         images: [StudioImageBlock] = [],
         videos: [StudioVideoBlock] = [],
@@ -162,6 +164,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.version = Self.currentVersion
         self.title = title
         self.rawText = rawText
+        self.richTextData = richTextData
         self.tables = tables
         self.images = images
         self.videos = videos
@@ -182,7 +185,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case version, title, rawText, tables, images, videos, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, headerFooter, coverBanner, createdAt, modifiedAt
+        case version, title, rawText, richTextData, tables, images, videos, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, headerFooter, coverBanner, createdAt, modifiedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -190,6 +193,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? Self.currentVersion
         self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Untitled Document"
         self.rawText = try container.decodeIfPresent(String.self, forKey: .rawText) ?? ""
+        self.richTextData = try container.decodeIfPresent(Data.self, forKey: .richTextData)
         self.tables = try container.decodeIfPresent([StudioTableData].self, forKey: .tables) ?? []
         self.images = try container.decodeIfPresent([StudioImageBlock].self, forKey: .images) ?? []
         self.videos = try container.decodeIfPresent([StudioVideoBlock].self, forKey: .videos) ?? []

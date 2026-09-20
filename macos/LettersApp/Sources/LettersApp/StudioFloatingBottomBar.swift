@@ -44,14 +44,14 @@ public struct StudioFloatingBottomBar: View {
                     .foregroundColor(.secondary)
 
                 Text("\(wordCount) words")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 11, weight: .semibold))
 
                 Text("•")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
                 Text("\(characterCount) chars")
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
                 Text("•")
@@ -144,7 +144,7 @@ public struct StudioFloatingBottomBar: View {
                     }
                 } label: {
                     Text("\(Int(zoomScale * 100))%")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.primary)
                         .frame(width: 38)
                 }

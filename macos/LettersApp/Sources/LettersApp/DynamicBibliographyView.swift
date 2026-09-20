@@ -53,7 +53,7 @@ public struct DynamicBibliographyView: View {
                     .font(.system(size: 13, weight: .semibold))
 
                 Text(sectionHeading)
-                    .font(.system(size: 15, weight: .bold, design: .serif))
+                    .font(.system(size: 15, weight: .bold))
 
                 Spacer()
 
@@ -99,7 +99,7 @@ public struct DynamicBibliographyView: View {
                         .foregroundColor(.secondary)
                         .font(.system(size: 12))
                     Text("No linked sources yet. Insert citations via ⌥⌘C or the left rail to populate automatically.")
-                        .font(.system(size: 12, design: .serif))
+                        .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .italic()
                 }
@@ -108,7 +108,7 @@ public struct DynamicBibliographyView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(sortedSources, id: \.id) { source in
                         Text(formattedEntry(for: source))
-                            .font(.system(size: 12.5, design: .serif))
+                            .font(.system(size: 12.5))
                             .lineSpacing(4)
                             .fixedSize(horizontal: false, vertical: true)
                     }

@@ -92,7 +92,7 @@ public struct StudioVideoView: View {
                             .lineLimit(1)
 
                         Text(videoBlock.url)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(size: 11))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                     }
@@ -110,7 +110,7 @@ public struct StudioVideoView: View {
             HStack {
                 TextField("Video description...", text: $videoBlock.title)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .medium, design: .serif))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .onChange(of: videoBlock.title) { _, _ in

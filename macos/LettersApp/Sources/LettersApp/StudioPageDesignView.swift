@@ -213,7 +213,7 @@ public struct StudioPageDesignView: View {
             // Page Selector Pill
             HStack(spacing: 6) {
                 Text("PAGE")
-                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .font(.system(size: 9, weight: .black))
                     .foregroundColor(.secondary)
 
                 Divider()
@@ -289,7 +289,7 @@ public struct StudioPageDesignView: View {
 
                         // Category Tag Capsule
                         Text(coverBannerConfig.categoryTag.uppercased())
-                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .font(.system(size: 9, weight: .black))
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
@@ -432,7 +432,7 @@ public struct StudioPageDesignView: View {
                         } label: {
                             HStack(spacing: 4) {
                                 Text("Abc")
-                                    .font(.system(size: 12, weight: .bold, design: .serif))
+                                    .font(.system(size: 12, weight: .bold))
                                     .foregroundColor(.primary)
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.system(size: 8))

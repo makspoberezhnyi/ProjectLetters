@@ -76,7 +76,7 @@ public struct DynamicTOCView: View {
                     .font(.system(size: 13, weight: .semibold))
 
                 Text("Table of Contents")
-                    .font(.system(size: 15, weight: .bold, design: .serif))
+                    .font(.system(size: 15, weight: .bold))
 
                 Spacer()
 
@@ -107,7 +107,7 @@ public struct DynamicTOCView: View {
                         .foregroundColor(.secondary)
                         .font(.system(size: 12))
                     Text("No headings found. Add headings (e.g. \"# Heading\" or \"1. Section\") to populate this table.")
-                        .font(.system(size: 12, design: .serif))
+                        .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .italic()
                 }
@@ -117,7 +117,7 @@ public struct DynamicTOCView: View {
                     ForEach(tocItems) { item in
                         HStack(alignment: .bottom, spacing: 6) {
                             Text(item.title)
-                                .font(.system(size: item.level == 1 ? 13 : 12, weight: item.level == 1 ? .semibold : .regular, design: .serif))
+                                .font(.system(size: item.level == 1 ? 13 : 12, weight: item.level == 1 ? .semibold : .regular))
                                 .padding(.leading, CGFloat((item.level - 1) * 16))
 
                             // Dotted leader line
@@ -127,7 +127,7 @@ public struct DynamicTOCView: View {
                                 .padding(.bottom, 3)
 
                             Text("\(item.page)")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.secondary)
                         }
                     }

@@ -225,7 +225,7 @@ public struct CommandPaletteView: View {
                     isPresented = false
                 } label: {
                     Text("esc")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 10, weight: .semibold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
@@ -315,7 +315,7 @@ public struct CommandPaletteView: View {
 
                                     if let shortcut = command.shortcut {
                                         Text(shortcut)
-                                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                            .font(.system(size: 11, weight: .semibold))
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
                                             .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 4))
@@ -351,19 +351,19 @@ public struct CommandPaletteView: View {
                 HStack(spacing: 12) {
                     HStack(spacing: 3) {
                         Text("↑↓")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .font(.system(size: 10, weight: .bold))
                         Text("Navigate")
                             .font(.system(size: 10))
                     }
                     HStack(spacing: 3) {
                         Text("↵")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .font(.system(size: 10, weight: .bold))
                         Text("Execute")
                             .font(.system(size: 10))
                     }
                     HStack(spacing: 3) {
                         Text("esc")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .font(.system(size: 10, weight: .bold))
                         Text("Close")
                             .font(.system(size: 10))
                     }

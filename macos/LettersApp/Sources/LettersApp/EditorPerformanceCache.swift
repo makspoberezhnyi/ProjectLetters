@@ -27,23 +27,18 @@ public final class EditorPerformanceCache: @unchecked Sendable {
         self.tocHeadingRegex = (try? NSRegularExpression(pattern: tocPattern, options: [])) ?? NSRegularExpression()
     }
 
-    // MARK: - Fast Font Resolver with O(1) Cache
     public func resolveFont(family: String, size: CGFloat, bold: Bool, italic: Bool) -> NSFont {
         let cacheKey = "\(family)_\(size)_\(bold)_\(italic)"
         
         fontLock.lock()
+        defer { fontLock.unlock() }
+
         if let cached = fontCache[cacheKey] {
-            fontLock.unlock()
             return cached
         }
-        fontLock.unlock()
 
         let resolved = computeFont(family: family, size: size, bold: bold, italic: italic)
-
-        fontLock.lock()
         fontCache[cacheKey] = resolved
-        fontLock.unlock()
-
         return resolved
     }
 

@@ -66,7 +66,7 @@ public struct FindReplaceBar: View {
                         recalculateMatches()
                     } label: {
                         Text(".*")
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .font(.system(size: 11, weight: .bold))
                             .frame(width: 22, height: 18)
                             .background(isRegex ? Color.accentColor.opacity(0.2) : Color.clear)
                             .foregroundColor(isRegex ? .accentColor : .secondary)
@@ -83,7 +83,7 @@ public struct FindReplaceBar: View {
                         .help(err)
                 } else if !findQuery.isEmpty {
                     Text(matchCount > 0 ? "\(currentMatchIndex + 1) of \(matchCount)" : "No matches")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: 11))
                         .foregroundColor(matchCount > 0 ? .secondary : .red)
 
                     // Prev / Next Buttons

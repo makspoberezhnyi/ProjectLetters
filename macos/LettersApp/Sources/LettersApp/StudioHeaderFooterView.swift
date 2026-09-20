@@ -490,7 +490,7 @@ public struct StudioHeaderFooterToolbar: View {
                 .buttonStyle(.plain)
 
                 Text("\(config.startingPageNumber)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 10, weight: .semibold))
                     .frame(width: 14)
 
                 Button {

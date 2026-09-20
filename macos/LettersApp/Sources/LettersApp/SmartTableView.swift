@@ -96,6 +96,10 @@ public final class TableFormulaEvaluator {
         return Double(cleaned)
     }
 
+    // Cached regex for function matching
+    private static let functionRegex = try! NSRegularExpression(pattern: "(SUM|AVERAGE|AVG|MIN|MAX|COUNT|PRODUCT)\\s*\\(([^)]+)\\)", options: [.caseInsensitive])
+    private static let cellRegex = try! NSRegularExpression(pattern: "\\b([A-Za-z]+[0-9]+)\\b", options: [])
+
     /// Evaluates any formula expression (e.g. "=A1-B1", "=SUM(A1:A3)", "=A1*1.15", "=AVERAGE(B1:B4)")
     public static func evaluate(
         formula: String,
@@ -107,9 +111,7 @@ public final class TableFormulaEvaluator {
         guard !expr.isEmpty else { return "" }
 
         // 1. Process Functions: SUM, AVERAGE, AVG, MIN, MAX, COUNT, PRODUCT
-        let functionPattern = #"(SUM|AVERAGE|AVG|MIN|MAX|COUNT|PRODUCT)\s*\(([^)]+)\)"#
-        if let regex = try? NSRegularExpression(pattern: functionPattern, options: [.caseInsensitive]) {
-            while let match = regex.firstMatch(in: expr, options: [], range: NSRange(location: 0, length: (expr as NSString).length)) {
+        while let match = functionRegex.firstMatch(in: expr, options: [], range: NSRange(location: 0, length: (expr as NSString).length)) {
                 let nsExpr = expr as NSString
                 let funcName = nsExpr.substring(with: match.range(at: 1)).uppercased()
                 let argsStr = nsExpr.substring(with: match.range(at: 2))
@@ -150,23 +152,19 @@ public final class TableFormulaEvaluator {
 
                 expr = nsExpr.replacingCharacters(in: match.range, with: formatNumber(resultVal))
             }
-        }
 
         // 2. Replace remaining individual cell references (e.g. A1, B2, C3) with their numeric values
-        let cellPattern = #"\b([A-Za-z]+[0-9]+)\b"#
-        if let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: []) {
-            let nsExpr = expr as NSString
-            let matches = cellRegex.matches(in: expr, options: [], range: NSRange(location: 0, length: nsExpr.length)).reversed()
-            var replaced = expr
-            for match in matches {
-                let cellRefStr = (replaced as NSString).substring(with: match.range)
-                if let coord = parseCellReference(cellRefStr) {
-                    let val = getNumericValue(rows: rows, col: coord.col, row: coord.row, visited: &visited)
-                    replaced = (replaced as NSString).replacingCharacters(in: match.range, with: "\(val)")
-                }
+        let nsExpr = expr as NSString
+        let matches = cellRegex.matches(in: expr, options: [], range: NSRange(location: 0, length: nsExpr.length)).reversed()
+        var replaced = expr
+        for match in matches {
+            let cellRefStr = (replaced as NSString).substring(with: match.range)
+            if let coord = parseCellReference(cellRefStr) {
+                let val = getNumericValue(rows: rows, col: coord.col, row: coord.row, visited: &visited)
+                replaced = (replaced as NSString).replacingCharacters(in: match.range, with: "\(val)")
             }
-            expr = replaced
         }
+        expr = replaced
 
         // 3. Clean up for arithmetic evaluation
         let sanitized = expr
@@ -397,7 +395,7 @@ public struct SmartTableView: View {
                     } label: {
                         HStack(spacing: 3) {
                             Text("fx")
-                                .font(.system(size: 11, weight: .bold, design: .serif))
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(.blue)
                             Text("Formulas")
                         }
@@ -507,7 +505,7 @@ public struct SmartTableView: View {
                 HStack(spacing: 0) {
                     // Corner Gutter (Row index placeholder)
                     Text("#")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary.opacity(0.7))
                         .frame(width: 24, height: 32)
                         .background(Color(red: 0.90, green: 0.92, blue: 0.95))
@@ -524,7 +522,7 @@ public struct SmartTableView: View {
                         HStack(spacing: 4) {
                             // Column Letter Badge (A, B, C...)
                             Text(colLetter)
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.blue)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
@@ -575,7 +573,7 @@ public struct SmartTableView: View {
                     HStack(spacing: 0) {
                         // Left Row Number Gutter
                         Text("\(rowNumber)")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.secondary.opacity(0.8))
                             .frame(width: 24)
                             .frame(maxHeight: .infinity)
@@ -621,11 +619,11 @@ public struct SmartTableView: View {
                                     // Evaluated Display with fx tag
                                     HStack(spacing: 4) {
                                         Text("fx")
-                                            .font(.system(size: 8, weight: .bold, design: .serif))
+                                            .font(.system(size: 8, weight: .bold))
                                             .foregroundColor(.blue.opacity(0.7))
 
                                         Text(displayValue.isEmpty ? "—" : displayValue)
-                                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                            .font(.system(size: 11, weight: .semibold))
                                             .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.15))
                                     }
                                     .contentShape(Rectangle())
@@ -762,7 +760,7 @@ private struct FormulaTipRow: View {
     var body: some View {
         HStack {
             Text(formula)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.blue)
             Spacer()
             Text(desc)

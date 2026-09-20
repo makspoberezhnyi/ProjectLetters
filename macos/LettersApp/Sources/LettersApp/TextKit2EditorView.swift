@@ -510,8 +510,10 @@ public class StudioTextView: NSTextView {
 
 public struct TextKit2EditorView: NSViewRepresentable {
     @Binding var text: String
+    @Binding var richTextData: Data?
     @Binding var selectedText: String
     @Binding var selectionRange: NSRange
+    var attributedText: NSAttributedString?
     var controller: EditorActionController?
     var fontFamily: String
     var fontSize: CGFloat
@@ -527,8 +529,10 @@ public struct TextKit2EditorView: NSViewRepresentable {
 
     public init(
         text: Binding<String>,
+        richTextData: Binding<Data?> = .constant(nil),
         selectedText: Binding<String>,
         selectionRange: Binding<NSRange>,
+        attributedText: NSAttributedString? = nil,
         controller: EditorActionController? = nil,
         fontFamily: String = "Default Serif (Georgia)",
         fontSize: CGFloat = 15.0,
@@ -543,8 +547,10 @@ public struct TextKit2EditorView: NSViewRepresentable {
         onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)? = nil
     ) {
         self._text = text
+        self._richTextData = richTextData
         self._selectedText = selectedText
         self._selectionRange = selectionRange
+        self.attributedText = attributedText
         self.controller = controller
         self.fontFamily = fontFamily
         self.fontSize = fontSize
@@ -666,19 +672,25 @@ public struct TextKit2EditorView: NSViewRepresentable {
             context.coordinator.isUpdatingProgrammatically = true
             let selected = textView.selectedRange()
             if textView.string != text {
-                textView.string = text
+                if let attrText = attributedText, !attrText.string.isEmpty {
+                    textView.textStorage?.setAttributedString(attrText)
+                } else {
+                    textView.string = text
+                }
             }
-            if let storage = textView.textStorage {
-                Self.applyTypographyStyling(
-                    to: storage,
-                    fontFamily: fontFamily,
-                    baseFontSize: fontSize,
-                    isBold: isBold,
-                    isItalic: isItalic,
-                    alignment: alignment,
-                    lineSpacing: lineSpacing,
-                    paragraphSpacing: paragraphSpacing
-                )
+            if attributedText == nil {
+                if let storage = textView.textStorage {
+                    Self.applyTypographyStyling(
+                        to: storage,
+                        fontFamily: fontFamily,
+                        baseFontSize: fontSize,
+                        isBold: isBold,
+                        isItalic: isItalic,
+                        alignment: alignment,
+                        lineSpacing: lineSpacing,
+                        paragraphSpacing: paragraphSpacing
+                    )
+                }
             }
             if selected.location + selected.length <= (textView.string as NSString).length {
                 textView.setSelectedRange(selected)
@@ -691,6 +703,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
             context.coordinator.isUpdatingProgrammatically = false
         }
     }
+
+
 
     public static func applyTypographyStyling(
         to textStorage: NSTextStorage,
@@ -706,101 +720,45 @@ public struct TextKit2EditorView: NSViewRepresentable {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
         guard fullRange.length > 0 else { return }
 
-        let baseFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: isBold, italic: isItalic)
-        let baseParagraphStyle = NSMutableParagraphStyle()
-        switch alignment {
-        case .leading: baseParagraphStyle.alignment = .left
-        case .center: baseParagraphStyle.alignment = .center
-        case .trailing: baseParagraphStyle.alignment = .right
-        }
-        baseParagraphStyle.lineHeightMultiple = lineSpacing
-        baseParagraphStyle.paragraphSpacing = paragraphSpacing
-
-        let baseTextColor = NSColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
-
         textStorage.beginEditing()
-        textStorage.setAttributes([
-            .font: baseFont,
-            .foregroundColor: baseTextColor,
-            .paragraphStyle: baseParagraphStyle
-        ], range: fullRange)
 
-        // 1. Heading 1: ^# (.*)$
-        if let h1Regex = try? NSRegularExpression(pattern: "^#\\s+(.*)$", options: [.anchorsMatchLines]) {
-            let matches = h1Regex.matches(in: string, options: [], range: fullRange)
-            let h1Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.5, bold: true, italic: false)
-            let h1Style = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
-            h1Style.paragraphSpacing = max(paragraphSpacing, 10)
-            h1Style.paragraphSpacingBefore = 0
-            for m in matches {
-                textStorage.addAttributes([
-                    .font: h1Font,
-                    .foregroundColor: NSColor(red: 0.05, green: 0.05, blue: 0.08, alpha: 1.0),
-                    .paragraphStyle: h1Style
-                ], range: m.range)
-            }
-        }
+        let defaultFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: isBold, italic: isItalic)
+        let defaultTextColor = NSColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
 
-        // 2. Heading 2: ^## (.*)$
-        if let h2Regex = try? NSRegularExpression(pattern: "^##\\s+(.*)$", options: [.anchorsMatchLines]) {
-            let matches = h2Regex.matches(in: string, options: [], range: fullRange)
-            let h2Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.3, bold: true, italic: false)
-            let h2Style = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
-            h2Style.paragraphSpacing = max(paragraphSpacing, 8)
-            h2Style.paragraphSpacingBefore = 0
-            for m in matches {
-                textStorage.addAttributes([
-                    .font: h2Font,
-                    .foregroundColor: NSColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 1.0),
-                    .paragraphStyle: h2Style
-                ], range: m.range)
-            }
-        }
+        // Non-destructive update: preserve existing font sizes and manual styles
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attrs, range, _ in
+            var newAttrs = attrs
 
-        // 3. Heading 3: ^### (.*)$
-        if let h3Regex = try? NSRegularExpression(pattern: "^###\\s+(.*)$", options: [.anchorsMatchLines]) {
-            let matches = h3Regex.matches(in: string, options: [], range: fullRange)
-            let h3Font = resolveFontNamed(family: fontFamily, size: baseFontSize * 1.15, bold: true, italic: false)
-            for m in matches {
-                textStorage.addAttributes([
-                    .font: h3Font,
-                    .foregroundColor: NSColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1.0)
-                ], range: m.range)
+            // 1. Update Paragraph Style
+            let currentStyle = (attrs[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+            
+            switch alignment {
+            case .leading: currentStyle.alignment = .left
+            case .center: currentStyle.alignment = .center
+            case .trailing: currentStyle.alignment = .right
             }
-        }
+            currentStyle.lineHeightMultiple = lineSpacing
+            currentStyle.paragraphSpacing = paragraphSpacing
+            newAttrs[.paragraphStyle] = currentStyle
 
-        // 4. Bold: \*\*(.+?)\*\*
-        if let boldRegex = try? NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*", options: []) {
-            let matches = boldRegex.matches(in: string, options: [], range: fullRange)
-            let boldFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: true, italic: false)
-            for m in matches {
-                textStorage.addAttribute(.font, value: boldFont, range: m.range)
+            // 2. Update Font Family, preserve size and traits
+            if let currentFont = attrs[.font] as? NSFont {
+                let size = currentFont.pointSize
+                let traits = currentFont.fontDescriptor.symbolicTraits
+                
+                let isCurrentlyBold = traits.contains(.bold)
+                let isCurrentlyItalic = traits.contains(.italic)
+                
+                newAttrs[.font] = resolveFontNamed(family: fontFamily, size: size, bold: isCurrentlyBold, italic: isCurrentlyItalic)
+            } else {
+                newAttrs[.font] = defaultFont
             }
-        }
+            
+            if attrs[.foregroundColor] == nil {
+                newAttrs[.foregroundColor] = defaultTextColor
+            }
 
-        // 5. Italic: \*(.+?)\*
-        if let italicRegex = try? NSRegularExpression(pattern: "(?<!\\*)\\*([^*]+)\\*(?!\\*)", options: []) {
-            let matches = italicRegex.matches(in: string, options: [], range: fullRange)
-            let italicFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: false, italic: true)
-            for m in matches {
-                textStorage.addAttribute(.font, value: italicFont, range: m.range)
-            }
-        }
-
-        // 6. Blockquote: ^>\s*(.*)$
-        if let quoteRegex = try? NSRegularExpression(pattern: "^>\\s*(.*)$", options: [.anchorsMatchLines]) {
-            let matches = quoteRegex.matches(in: string, options: [], range: fullRange)
-            let italicFont = resolveFontNamed(family: fontFamily, size: baseFontSize, bold: false, italic: true)
-            let quoteStyle = baseParagraphStyle.mutableCopy() as! NSMutableParagraphStyle
-            quoteStyle.headIndent = 16
-            quoteStyle.firstLineHeadIndent = 16
-            for m in matches {
-                textStorage.addAttributes([
-                    .font: italicFont,
-                    .foregroundColor: NSColor.secondaryLabelColor,
-                    .paragraphStyle: quoteStyle
-                ], range: m.range)
-            }
+            textStorage.setAttributes(newAttrs, range: range)
         }
 
         textStorage.endEditing()
@@ -847,6 +805,338 @@ public struct TextKit2EditorView: NSViewRepresentable {
                 self.parent.selectedText = sub
             }
             self.parent.onSelectionChanged?(range, sub, attrs)
+        }
+    }
+}
+import AppKit
+import SwiftUI
+import Foundation
+#if canImport(LettersKit)
+import LettersKit
+#endif
+
+// MARK: - LinkedPageTextManager
+//
+// Apple-canonical multi-page text flow via linked NSTextContainers.
+// One NSTextStorage + one NSLayoutManager feeds N NSTextContainers (one per page).
+// Text overflows automatically — no separate measurement pass, no mismatch.
+
+@MainActor
+public final class LinkedPageTextManager: NSObject, ObservableObject, @preconcurrency NSLayoutManagerDelegate {
+
+    // MARK: - Published State
+    @Published public private(set) var pageCount: Int = 1
+
+    // MARK: - Shared Text System
+    public let textStorage: NSTextStorage
+    private let layoutManager: NSLayoutManager
+
+    // MARK: - Per-Page State
+    private var containers: [NSTextContainer] = []
+    private var textViews: [StudioTextView] = []
+
+    // MARK: - Page Geometry
+    private var printableWidth: CGFloat = 468   // 8.5" - 2*72pt margin
+    private var printableHeight: CGFloat = 648  // 11" - 2*72pt margin
+
+    // MARK: - Linked Controller
+    weak var actionController: EditorActionController?
+
+    // MARK: - Change suppression
+    private var isApplyingExternalUpdate = false
+
+    // MARK: - Text-changed callback (for rawText sync back to SwiftUI)
+    public var onTextChanged: ((String) -> Void)?
+    public var onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)?
+
+    // MARK: - Init
+
+    public init(
+        printableWidth: CGFloat = 468,
+        printableHeight: CGFloat = 648,
+        controller: EditorActionController? = nil
+    ) {
+        self.textStorage = NSTextStorage()
+        self.layoutManager = NSLayoutManager()
+        super.init()
+        
+        self.actionController = controller
+        self.printableWidth = printableWidth
+        self.printableHeight = printableHeight
+
+        self.textStorage.addLayoutManager(self.layoutManager)
+        self.layoutManager.delegate = self
+        self.layoutManager.allowsNonContiguousLayout = false
+
+        // Create the first default container
+        addContainer()
+    }
+
+    // MARK: - Configuration
+
+    public func configure(
+        printableWidth: CGFloat,
+        printableHeight: CGFloat,
+        controller: EditorActionController?
+    ) {
+        self.printableWidth = printableWidth
+        self.printableHeight = printableHeight
+        self.actionController = controller
+        // Resize all existing containers
+        for container in containers {
+            container.containerSize = NSSize(width: printableWidth, height: printableHeight)
+        }
+        // Re-register text views with controller
+        for (idx, tv) in textViews.enumerated() {
+            tv.actionController = controller
+            controller?.register(pageIndex: idx, textView: tv)
+        }
+    }
+
+    // MARK: - External Text Updates (from SwiftUI rawText)
+
+    public func setRawText(_ raw: String) {
+        guard !isApplyingExternalUpdate else { return }
+        isApplyingExternalUpdate = true
+        defer { isApplyingExternalUpdate = false }
+
+        let current = textStorage.string
+        guard current != raw else { return }
+
+        textStorage.beginEditing()
+        textStorage.replaceCharacters(
+            in: NSRange(location: 0, length: (current as NSString).length),
+            with: raw
+        )
+        textStorage.endEditing()
+
+        // Layout will update via delegate — containers added/removed as needed
+    }
+
+    // MARK: - Typography Application
+
+    public func applyTypography(
+        fontFamily: String,
+        fontSize: CGFloat,
+        isBold: Bool,
+        isItalic: Bool,
+        alignment: TextAlignment,
+        lineSpacing: CGFloat,
+        paragraphSpacing: CGFloat
+    ) {
+        isApplyingExternalUpdate = true
+        defer { isApplyingExternalUpdate = false }
+
+        guard textStorage.length > 0 else { return }
+        TextKit2EditorView.applyTypographyStyling(
+            to: textStorage,
+            fontFamily: fontFamily,
+            baseFontSize: fontSize,
+            isBold: isBold,
+            isItalic: isItalic,
+            alignment: alignment,
+            lineSpacing: lineSpacing,
+            paragraphSpacing: paragraphSpacing
+        )
+
+        // Ensure typing attrs match on all text views
+        let baseFont = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+        let paraStyle = NSMutableParagraphStyle()
+        switch alignment {
+        case .leading: paraStyle.alignment = .left
+        case .center: paraStyle.alignment = .center
+        case .trailing: paraStyle.alignment = .right
+        }
+        paraStyle.lineHeightMultiple = lineSpacing
+        paraStyle.paragraphSpacing = paragraphSpacing
+        let textColor = NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+        let typingAttrs: [NSAttributedString.Key: Any] = [
+            .font: baseFont,
+            .foregroundColor: textColor,
+            .paragraphStyle: paraStyle
+        ]
+        for tv in textViews {
+            tv.typingAttributes = typingAttrs
+            tv.defaultParagraphStyle = paraStyle
+        }
+    }
+
+    // MARK: - Page Views
+
+    public func textView(forPage pageIndex: Int) -> StudioTextView? {
+        guard pageIndex < textViews.count else { return nil }
+        return textViews[pageIndex]
+    }
+
+    // MARK: - NSLayoutManagerDelegate — dynamic container management
+
+    public func layoutManager(
+        _ layoutManager: NSLayoutManager,
+        didCompleteLayoutFor textContainer: NSTextContainer?,
+        atEnd layoutFinishedFlag: Bool
+    ) {
+        guard let textContainer = textContainer else { return }
+        let isLastContainer = (textContainer == containers.last)
+        
+        // If layout hasn't finished, but we just filled our last available container, we need a new one.
+        if !layoutFinishedFlag && isLastContainer {
+            addContainer()
+        } 
+        // If layout IS finished, clean up any completely empty trailing containers.
+        else if layoutFinishedFlag {
+            removeExcessContainers()
+        }
+        
+        updatePageCount()
+    }
+
+    // MARK: - Private Helpers
+
+    private func addContainer() {
+        let container = NSTextContainer(
+            containerSize: NSSize(width: printableWidth, height: printableHeight)
+        )
+        container.widthTracksTextView = false
+        container.heightTracksTextView = false
+        container.lineFragmentPadding = 4.0
+
+        layoutManager.addTextContainer(container)
+        containers.append(container)
+
+        let tv = makeTextView(for: container, pageIndex: containers.count - 1)
+        textViews.append(tv)
+    }
+
+    private func removeExcessContainers() {
+        // Keep removing trailing containers that are empty (no glyphs laid out)
+        // but always keep at least 1
+        while containers.count > 1 {
+            guard let lastContainer = containers.last else { break }
+            let glyphRange = layoutManager.glyphRange(for: lastContainer)
+            if glyphRange.length == 0 {
+                layoutManager.removeTextContainer(at: containers.count - 1)
+                containers.removeLast()
+                textViews.removeLast()
+            } else {
+                break
+            }
+        }
+    }
+
+    private func updatePageCount() {
+        let newCount = max(1, containers.count)
+        if pageCount != newCount {
+            DispatchQueue.main.async { [weak self] in
+                self?.pageCount = newCount
+            }
+        }
+    }
+
+    private func makeTextView(for container: NSTextContainer, pageIndex: Int) -> StudioTextView {
+        let frame = NSRect(origin: .zero, size: NSSize(width: printableWidth, height: printableHeight))
+        let tv = StudioTextView(frame: frame, textContainer: container)
+        tv.pageIndex = pageIndex
+
+        tv.isRichText = true
+        tv.allowsUndo = true
+        tv.isContinuousSpellCheckingEnabled = true
+        tv.isGrammarCheckingEnabled = true
+        tv.isAutomaticQuoteSubstitutionEnabled = true
+        tv.isAutomaticDashSubstitutionEnabled = true
+        tv.isSelectable = true
+        tv.isEditable = true
+        tv.backgroundColor = .clear
+        tv.drawsBackground = false
+        tv.focusRingType = .none
+        tv.isVerticallyResizable = false
+        tv.isHorizontallyResizable = false
+        tv.textContainerInset = NSSize(width: 0, height: 0)
+
+        if #available(macOS 15.0, *) {
+            tv.writingToolsBehavior = .complete
+        }
+
+        tv.actionController = actionController
+        actionController?.register(pageIndex: pageIndex, textView: tv)
+
+        // Wire delegate for text-change callbacks
+        tv.delegate = self
+
+        return tv
+    }
+}
+
+// MARK: - NSTextViewDelegate for text-change callbacks
+
+extension LinkedPageTextManager: NSTextViewDelegate {
+    public func textDidChange(_ notification: Notification) {
+        guard !isApplyingExternalUpdate else { return }
+        onTextChanged?(textStorage.string)
+    }
+
+    public func textViewDidChangeSelection(_ notification: Notification) {
+        guard let tv = notification.object as? NSTextView else { return }
+        let range = tv.selectedRange()
+        let nsString = tv.string as NSString
+        let sub = range.length > 0 && range.location + range.length <= nsString.length
+            ? nsString.substring(with: range) : ""
+        let attrs = actionController?.currentSelectionAttributes() ?? EditorSelectionAttributes()
+        onSelectionChanged?(range, sub, attrs)
+        
+        // Auto-focus the correct page if typing overflows
+        DispatchQueue.main.async { [weak self] in
+            self?.ensureFirstResponder(for: range)
+        }
+    }
+
+    private func ensureFirstResponder(for selectedRange: NSRange) {
+        guard let window = textViews.first?.window else { return }
+        // Find which glyph index this corresponds to
+        let glyphIndex = layoutManager.glyphIndexForCharacter(at: selectedRange.location)
+        let effectiveRange = NSRangePointer.allocate(capacity: 1)
+        defer { effectiveRange.deallocate() }
+        
+        if let container = layoutManager.textContainer(forGlyphAt: glyphIndex, effectiveRange: effectiveRange) {
+            if let index = containers.firstIndex(of: container), index < textViews.count {
+                let targetTV = textViews[index]
+                if window.firstResponder != targetTV {
+                    window.makeFirstResponder(targetTV)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - LinkedPageView
+//
+// Lightweight NSViewRepresentable that shows a single pre-created StudioTextView
+// from LinkedPageTextManager. No layout setup needed — just display and register.
+
+public struct LinkedPageView: NSViewRepresentable {
+    let manager: LinkedPageTextManager
+    let pageIndex: Int
+
+    public func makeNSView(context: Context) -> NSView {
+        // Wrap in a plain NSView so SwiftUI can manage frame
+        let host = NSView()
+        host.wantsLayer = true
+        if let tv = manager.textView(forPage: pageIndex) {
+            host.addSubview(tv)
+            tv.frame = host.bounds
+            tv.autoresizingMask = [.width, .height]
+        }
+        return host
+    }
+
+    public func updateNSView(_ hostView: NSView, context: Context) {
+        if let tv = manager.textView(forPage: pageIndex) {
+            if tv.superview != hostView {
+                // Re-parent if needed (e.g. after manager rebuilt containers)
+                tv.removeFromSuperview()
+                hostView.addSubview(tv)
+                tv.frame = hostView.bounds
+                tv.autoresizingMask = [.width, .height]
+            }
         }
     }
 }

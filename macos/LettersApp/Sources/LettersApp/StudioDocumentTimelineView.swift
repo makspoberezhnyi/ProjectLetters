@@ -130,13 +130,13 @@ public struct StudioDocumentTimelineView: View {
                         .frame(width: 36, height: 36)
 
                     Text("\(readingTimeMinutes)m")
-                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .font(.system(size: 9.5, weight: .bold))
                         .foregroundColor(StudioTheme.luminousAmber)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(wordCount) words")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(.system(size: 11, weight: .bold))
                     Text("Est. ~\(readingTimeMinutes) min reading time")
                         .font(.system(size: 9.5))
                         .foregroundColor(.secondary)
@@ -181,7 +181,7 @@ public struct StudioDocumentTimelineView: View {
 
                                     HStack(spacing: 4) {
                                         Text("\(item.approximateWords) words")
-                                            .font(.system(size: 8.5, design: .monospaced))
+                                            .font(.system(size: 8.5))
                                             .foregroundColor(.secondary)
                                     }
                                 }

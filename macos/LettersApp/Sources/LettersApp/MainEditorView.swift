@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import PDFKit
 #if canImport(LettersKit)
 import LettersKit
 #endif
@@ -13,6 +14,7 @@ public struct MainEditorView: View {
         blocks: []
     )
 
+    @State private var richTextData: Data? = nil
     @State private var rawText: String = """
 # Letters: Modern Document Studio
 
@@ -139,6 +141,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private var documentPageSlices: [DocumentPageSlice] {
         DocumentPaginator.paginate(
             rawText: rawText,
+            richTextData: richTextData,
             sheetHeight: currentSheetHeight,
             sheetWidth: currentSheetWidth,
             margins: margins,
@@ -160,6 +163,12 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let slices = documentPageSlices
         guard pageIndex < slices.count else { return "" }
         return slices[pageIndex].text
+    }
+
+    private func getPageAttributedText(pageIndex: Int) -> NSAttributedString? {
+        let slices = documentPageSlices
+        guard pageIndex < slices.count else { return nil }
+        return slices[pageIndex].attributedText
     }
 
     private func setPageText(pageIndex: Int, newText: String) {
@@ -778,6 +787,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         .modifier(EditorFileNotificationsModifier(
             onNew: newDocumentAction,
             onOpen: openDocument,
+            onImportWordOrPDF: importWordOrPDF,
             onSave: saveDocumentAsLetters,
             onExportDocx: saveDocumentAsDocx,
             onExportPDF: exportDocumentAsPDF,
@@ -1713,6 +1723,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let bundle = LettersDocumentBundle(
             title: documentTitle,
             rawText: rawText,
+            richTextData: richTextData,
             tables: studioTables,
             images: studioImages,
             videos: studioVideos,
@@ -1773,6 +1784,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     let bundle = try LettersDocumentBundle.decode(from: data)
                     documentTitle = bundle.title
                     rawText = bundle.rawText
+                    richTextData = bundle.richTextData
                     studioTables = bundle.tables
                     studioImages = bundle.images
                     studioVideos = bundle.videos
@@ -1794,12 +1806,67 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     rawText = content
                     showToast("✓ Opened file: \(url.lastPathComponent)")
                 } else if ext == "docx" {
-                    // Load docx metadata and fallback text
+                    let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
                     documentTitle = url.deletingPathExtension().lastPathComponent
-                    showToast("✓ Opened Word file: \(url.lastPathComponent)")
+                    rawText = attrStr.string
+                    if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]) {
+                        richTextData = rtfData
+                    } else if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
+                        richTextData = rtfData
+                    }
+                    showToast("✓ Opened Word file natively: \(url.lastPathComponent)")
                 }
             } catch {
                 showToast("⚠️ Could not open document: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func importWordOrPDF() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Word or PDF"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if let typeDocx = UTType(filenameExtension: "docx"),
+           let typePdf = UTType(filenameExtension: "pdf") {
+            panel.allowedContentTypes = [typeDocx, typePdf]
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            let ext = url.pathExtension.lowercased()
+            do {
+                if ext == "docx" {
+                    let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
+                    
+                    if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtfd]) {
+                        richTextData = rtfData
+                    } else if let rtfData = try? attrStr.data(from: NSRange(location: 0, length: attrStr.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
+                        richTextData = rtfData
+                    }
+                    
+                    let text = attrStr.string
+                    if selectionRange.location <= (rawText as NSString).length {
+                        let ns = rawText as NSString
+                        rawText = ns.replacingCharacters(in: selectionRange, with: text)
+                    } else {
+                        rawText += (rawText.isEmpty ? "" : "\n\n") + text
+                    }
+                    showToast("✓ Imported Word file natively: \(url.lastPathComponent)")
+                } else if ext == "pdf" {
+                    if let pdf = PDFDocument(url: url), let text = pdf.string {
+                        if selectionRange.location <= (rawText as NSString).length {
+                            let ns = rawText as NSString
+                            rawText = ns.replacingCharacters(in: selectionRange, with: text)
+                        } else {
+                            rawText += text
+                        }
+                        showToast("✓ Imported PDF text from: \(url.lastPathComponent)")
+                    } else {
+                        showToast("⚠️ Could not extract text from PDF")
+                    }
+                }
+            } catch {
+                showToast("⚠️ Could not import file: \(error.localizedDescription)")
             }
         }
     }
@@ -1938,7 +2005,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             // Page Number Badge
             HStack {
                 Text("PAGE \(pageIndex + 1) OF \(documentPages.count)")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
                 Text("\(pageSize.rawValue) • \(marginPreset.rawValue)")
@@ -2011,7 +2078,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             .environment(\.colorScheme, .light)
             .frame(width: currentSheetWidth, height: currentSheetHeight)
             .scaleEffect(zoomScale, anchor: .top)
-            .frame(width: currentSheetWidth * zoomScale, height: currentSheetHeight * zoomScale)
+            .frame(width: currentSheetWidth * zoomScale, height: currentSheetHeight * zoomScale, alignment: .top)
         }
     }
 
@@ -2034,6 +2101,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             setPageText(pageIndex: pageIndex, newText: newVal)
                         }
                     ),
+                    richTextData: $richTextData,
                     selectedText: $selectedText,
                     selectionRange: $selectionRange,
                     controller: editorController,
@@ -2070,6 +2138,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                         setTextChunk(pageIndex: pageIndex, textIndex: textIdx, newText: newVal)
                                     }
                                 ),
+                                richTextData: $richTextData,
                                 selectedText: $selectedText,
                                 selectionRange: $selectionRange,
                                 controller: editorController,
@@ -2536,6 +2605,7 @@ struct CropMarkCorner: View {
 struct EditorFileNotificationsModifier: ViewModifier {
     let onNew: () -> Void
     let onOpen: () -> Void
+    let onImportWordOrPDF: () -> Void
     let onSave: () -> Void
     let onExportDocx: () -> Void
     let onExportPDF: () -> Void
@@ -2546,6 +2616,7 @@ struct EditorFileNotificationsModifier: ViewModifier {
         content
             .onReceive(NotificationCenter.default.publisher(for: .lettersNewDocument)) { _ in onNew() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersOpenDocument)) { _ in onOpen() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersImportWordOrPDF)) { _ in onImportWordOrPDF() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersSaveDocument)) { _ in onSave() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersExportDocx)) { _ in onExportDocx() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersExportPDF)) { _ in onExportPDF() }

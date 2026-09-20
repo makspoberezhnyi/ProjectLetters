@@ -93,7 +93,7 @@ public struct StudioCoverBannerView: View {
                                 .fill(StudioTheme.luminousAmber)
                                 .frame(width: 6, height: 6)
                             Text(config.categoryTag.isEmpty ? "DOCUMENT" : config.categoryTag.uppercased())
-                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .font(.system(size: 9.5, weight: .bold))
                                 .foregroundColor(.white.opacity(0.9))
                         }
                         .padding(.horizontal, 8)
@@ -110,7 +110,7 @@ public struct StudioCoverBannerView: View {
                     // Hero Document Title
                     TextField("Document Title...", text: $documentTitle)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
                         .shadow(color: Color.black.opacity(0.5), radius: 4, x: 0, y: 2)
                         .frame(maxWidth: .infinity, alignment: .leading)

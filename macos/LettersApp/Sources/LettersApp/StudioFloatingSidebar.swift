@@ -285,7 +285,7 @@ public struct StudioFloatingSidebar: View {
         switch sec {
         case .pages:
             Text("\(documentPages.count)")
-                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                .font(.system(size: 9.5, weight: .bold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1.5)
@@ -295,7 +295,7 @@ public struct StudioFloatingSidebar: View {
         case .sources:
             if !sources.isEmpty {
                 Text("\(sources.count)")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .bold))
                     .foregroundColor(StudioTheme.luminousAmber)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
@@ -304,7 +304,7 @@ public struct StudioFloatingSidebar: View {
         case .tables:
             if !tables.isEmpty {
                 Text("\(tables.count)")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .bold))
                     .foregroundColor(StudioTheme.luminousEmerald)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
@@ -314,7 +314,7 @@ public struct StudioFloatingSidebar: View {
             let total = images.count + videos.count
             if total > 0 {
                 Text("\(total)")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .bold))
                     .foregroundColor(StudioTheme.luminousPurple)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
@@ -343,7 +343,7 @@ public struct StudioFloatingSidebar: View {
                                 .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
 
                             Text("\(pageNum)")
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(Color.black.opacity(0.7))
                         }
 
@@ -354,7 +354,7 @@ public struct StudioFloatingSidebar: View {
 
                             let wordCount = EditorPerformanceCache.countWords(in: documentPages[idx])
                             Text("\(wordCount) words")
-                                .font(.system(size: 9, design: .monospaced))
+                                .font(.system(size: 9))
                                 .foregroundColor(.secondary)
                         }
 
@@ -485,7 +485,7 @@ public struct StudioFloatingSidebar: View {
                             .lineLimit(1)
                         Spacer()
                         Text("\(tbl.rows.count)r × \(tbl.headers.count)c")
-                            .font(.system(size: 8.5, design: .monospaced))
+                            .font(.system(size: 8.5))
                             .foregroundColor(.secondary)
                         Button(action: {
                             deleteTable(tbl)

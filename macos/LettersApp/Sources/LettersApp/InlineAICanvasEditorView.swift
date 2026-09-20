@@ -79,7 +79,7 @@ public struct InlineAICanvasEditorView: View {
 
                 // Selected text excerpt preview pill
                 Text("“\(selectedText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(38))... ”")
-                    .font(.system(size: 10.5, weight: .medium, design: .serif))
+                    .font(.system(size: 10.5, weight: .medium))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                     .padding(.horizontal, 6)
@@ -217,7 +217,7 @@ public struct InlineAICanvasEditorView: View {
 
                     ScrollView {
                         Text(generatedResult.isEmpty ? "Thinking..." : generatedResult)
-                            .font(.system(size: 12, design: .serif))
+                            .font(.system(size: 12))
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(8)
@@ -233,7 +233,7 @@ public struct InlineAICanvasEditorView: View {
                     // Diff / Comparison Toggle
                     HStack {
                         Text("PROPOSED REVISION")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.secondary)
 
                         Spacer()
@@ -243,7 +243,7 @@ public struct InlineAICanvasEditorView: View {
                         let newWords = generatedResult.split(separator: " ").count
                         let delta = newWords - originalWords
                         Text(delta >= 0 ? "+\(delta) words" : "\(delta) words")
-                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 9.5, weight: .semibold))
                             .foregroundColor(delta >= 0 ? .green : .orange)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
@@ -269,7 +269,7 @@ public struct InlineAICanvasEditorView: View {
                                     .font(.system(size: 9.5, weight: .bold))
                                     .foregroundColor(.secondary)
                                 Text(selectedText)
-                                    .font(.system(size: 11, design: .serif))
+                                    .font(.system(size: 11))
                                     .foregroundColor(.secondary)
                                     .padding(6)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -281,7 +281,7 @@ public struct InlineAICanvasEditorView: View {
                                     .font(.system(size: 9.5, weight: .bold))
                                     .foregroundColor(.secondary)
                                 Text(generatedResult)
-                                    .font(.system(size: 11.5, design: .serif))
+                                    .font(.system(size: 11.5))
                                     .foregroundColor(.primary)
                                     .padding(6)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -293,7 +293,7 @@ public struct InlineAICanvasEditorView: View {
                         // Clean Proposed Text Scrollbox
                         ScrollView {
                             Text(generatedResult)
-                                .font(.system(size: 12.5, design: .serif))
+                                .font(.system(size: 12.5))
                                 .foregroundColor(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(8)

@@ -237,7 +237,7 @@ public struct SettingsView: View {
                         fontSize = max(9, fontSize - 1)
                     }
                     Text("\(Int(fontSize)) pt")
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(.body))
                         .frame(width: 44)
                     Button("+") {
                         fontSize = min(36, fontSize + 1)

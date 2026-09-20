@@ -4,6 +4,7 @@ import SwiftUI
 public extension Notification.Name {
     static let lettersNewDocument = Notification.Name("lettersNewDocument")
     static let lettersOpenDocument = Notification.Name("lettersOpenDocument")
+    static let lettersImportWordOrPDF = Notification.Name("lettersImportWordOrPDF")
     static let lettersSaveDocument = Notification.Name("lettersSaveDocument")
     static let lettersExportDocx = Notification.Name("lettersExportDocx")
     static let lettersExportPDF = Notification.Name("lettersExportPDF")
@@ -77,6 +78,7 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         
         addMenuItem(to: fileMenu, title: "New Document", notification: .lettersNewDocument, keyEquivalent: "n")
         addMenuItem(to: fileMenu, title: "Open...", notification: .lettersOpenDocument, keyEquivalent: "o")
+        addMenuItem(to: fileMenu, title: "Import Word or PDF...", notification: .lettersImportWordOrPDF, keyEquivalent: "i", modifiers: [.command, .shift])
         fileMenu.addItem(NSMenuItem.separator())
         addMenuItem(to: fileMenu, title: "Save .letters", notification: .lettersSaveDocument, keyEquivalent: "s")
         

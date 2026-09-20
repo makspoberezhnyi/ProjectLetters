@@ -162,7 +162,7 @@ public struct FloatingStudioHUD: View {
                 } label: {
                     HStack(spacing: 2) {
                         Text("\(Int(fontSize))")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .font(.system(size: 12, weight: .medium))
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 7))
                             .foregroundColor(.secondary)
@@ -368,7 +368,7 @@ public struct FloatingStudioHUD: View {
                     }
                 } label: {
                     Text("\(Int(zoomScale * 100))%")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.primary)
                         .frame(width: 38)
                 }

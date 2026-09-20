@@ -790,7 +790,7 @@ public struct AssistantSidebarView: View {
 
                         HStack {
                             Text("npm install -g @anthropic-ai/claude-code && claude")
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: 11))
                                 .foregroundColor(StudioTheme.luminousCyan)
                                 .textSelection(.enabled)
 
