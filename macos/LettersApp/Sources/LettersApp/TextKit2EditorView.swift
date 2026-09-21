@@ -700,7 +700,6 @@ public struct TextKit2EditorView: NSViewRepresentable {
         // Only update text when changed externally from SwiftUI/File loading or when typography settings changed
         if textView.string != text || typographyChanged {
             context.coordinator.isUpdatingProgrammatically = true
-            let selected = textView.selectedRange()
             if textView.string != text {
                 if let attrText = attributedText, !attrText.string.isEmpty {
                     textView.textStorage?.setAttributedString(attrText)
