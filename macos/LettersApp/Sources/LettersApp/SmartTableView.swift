@@ -654,21 +654,59 @@ public struct SmartTableView: View {
 
     }
 
+    private func getRawValue(rowIdx: Int, colIdx: Int) -> String {
+        if rowIdx == 0 {
+            return tableData.headers.indices.contains(colIdx) ? tableData.headers[colIdx] : ""
+        } else {
+            let dataRow = rowIdx - 1
+            if tableData.rows.indices.contains(dataRow), tableData.rows[dataRow].indices.contains(colIdx) {
+                return tableData.rows[dataRow][colIdx]
+            }
+        }
+        return ""
+    }
+
+    private func setRawValue(rowIdx: Int, colIdx: Int, val: String) {
+        if rowIdx == 0 {
+            if tableData.headers.indices.contains(colIdx) {
+                tableData.headers[colIdx] = val
+                onChange?()
+            }
+        } else {
+            let dataRow = rowIdx - 1
+            if tableData.rows.indices.contains(dataRow) {
+                while tableData.rows[dataRow].count <= colIdx {
+                    tableData.rows[dataRow].append("")
+                }
+                tableData.rows[dataRow][colIdx] = val
+                onChange?()
+            }
+        }
+    }
+
+    private func handleCellTap(rowIdx: Int, colIdx: Int, cellKey: String) {
+        if let active = activeEditingCell, active != cellKey {
+            let parts = active.split(separator: ",")
+            if parts.count == 2, let r = Int(parts[0]), let c = Int(parts[1]) {
+                let activeText = getRawValue(rowIdx: r, colIdx: c)
+                if activeText.hasPrefix("=") {
+                    let lastChar = activeText.last ?? " "
+                    if "+-*/(,= ".contains(lastChar) {
+                        let refStr = "\(TableFormulaEvaluator.columnLetter(for: colIdx))\(rowIdx + 1)"
+                        setRawValue(rowIdx: r, colIdx: c, val: activeText + refStr)
+                        return
+                    }
+                }
+            }
+        }
+        activeEditingCell = cellKey
+    }
+
     @ViewBuilder
     private func dataCellView(rowIdx: Int, colIdx: Int) -> some View {
         let cellKey = "\(rowIdx),\(colIdx)"
         let isEditing = activeEditingCell == cellKey
-        let rawValue: String = {
-            if rowIdx == 0 {
-                return tableData.headers.indices.contains(colIdx) ? tableData.headers[colIdx] : ""
-            } else {
-                let dataRow = rowIdx - 1
-                if tableData.rows.indices.contains(dataRow), tableData.rows[dataRow].indices.contains(colIdx) {
-                    return tableData.rows[dataRow][colIdx]
-                }
-            }
-            return ""
-        }()
+        let rawValue: String = getRawValue(rowIdx: rowIdx, colIdx: colIdx)
         let hasFormula = rawValue.hasPrefix("=")
         let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
 
@@ -682,23 +720,7 @@ public struct SmartTableView: View {
                 TextField("—", text: Binding(
 
                     get: { rawValue },
-                    set: { newVal in
-                        if rowIdx == 0 {
-                            if tableData.headers.indices.contains(colIdx) {
-                                tableData.headers[colIdx] = newVal
-                                onChange?()
-                            }
-                        } else {
-                            let dataRow = rowIdx - 1
-                            if tableData.rows.indices.contains(dataRow) {
-                                while tableData.rows[dataRow].count <= colIdx {
-                                    tableData.rows[dataRow].append("")
-                                }
-                                tableData.rows[dataRow][colIdx] = newVal
-                                onChange?()
-                            }
-                        }
-                    }
+                    set: { newVal in setRawValue(rowIdx: rowIdx, colIdx: colIdx, val: newVal) }
                 ))
                 .textFieldStyle(.plain)
                 .focused($activeEditingCell, equals: cellKey)
