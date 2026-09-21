@@ -1281,7 +1281,7 @@ public struct AIThinkingView: View {
                     }
                 }
             }
-            .onChange(of: isGenerating) { newValue in
+            .onChange(of: isGenerating) { _, newValue in
                 if newValue {
                     withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                         isPulsing = true
