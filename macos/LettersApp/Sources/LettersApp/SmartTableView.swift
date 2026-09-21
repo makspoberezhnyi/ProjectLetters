@@ -429,7 +429,11 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
 
 // MARK: - Smart Table View
 public struct SmartTableView: View {
-    @Binding var tableData: StudioTableData
+    @ObservedObject var store: LettersDocumentController
+    var tableId: UUID
+    private var tableData: StudioTableData {
+        store.tables.first(where: { $0.id == tableId }) ?? StudioTableData(headers: [], rows: [])
+    }
     var onDelete: (() -> Void)? = nil
     var onChange: (() -> Void)? = nil
     var onToast: ((String) -> Void)? = nil
@@ -446,13 +450,15 @@ public struct SmartTableView: View {
     public var fontFamily: String
 
     public init(
-        tableData: Binding<StudioTableData>,
+        store: LettersDocumentController,
+        tableId: UUID,
         fontFamily: String = "Default Serif (Georgia)",
         onDelete: (() -> Void)? = nil,
         onChange: (() -> Void)? = nil,
         onToast: ((String) -> Void)? = nil
     ) {
-        self._tableData = tableData
+        self.store = store
+        self.tableId = tableId
         self.fontFamily = fontFamily
         self.onDelete = onDelete
         self.onChange = onChange
@@ -490,8 +496,8 @@ public struct SmartTableView: View {
                         TextField("(note)", text: Binding(
                             get: { tableData.columnNotes?[colIdx] ?? "" },
                             set: { val in 
-                                if tableData.columnNotes == nil { tableData.columnNotes = [:] }
-                                tableData.columnNotes?[colIdx] = val
+                                store.mutateTable(id: tableId) { if $0.columnNotes == nil { $0.columnNotes = [:] } }
+                                store.mutateTable(id: tableId) { $0.columnNotes?[colIdx] = val }
                             }
                         ))
                         .textFieldStyle(.plain)
@@ -558,8 +564,8 @@ public struct SmartTableView: View {
                         TextField("(note)", text: Binding(
                             get: { tableData.rowNotes?[rowIdx] ?? "" },
                             set: { val in 
-                                if tableData.rowNotes == nil { tableData.rowNotes = [:] }
-                                tableData.rowNotes?[rowIdx] = val
+                                store.mutateTable(id: tableId) { if $0.rowNotes == nil { $0.rowNotes = [:] } }
+                                store.mutateTable(id: tableId) { $0.rowNotes?[rowIdx] = val }
                             }
                         ))
                         .textFieldStyle(.plain)
@@ -633,8 +639,8 @@ public struct SmartTableView: View {
                             }
                             let newW = max(200, (dragBaseTableWidth!) + val.translation.width)
                             let newH = max(100, (dragBaseTableHeight!) + val.translation.height)
-                            tableData.tableWidth = newW
-                            tableData.tableHeight = newH
+                            store.mutateTable(id: tableId, actionName: "Resize Table") { $0.tableWidth = newW
+                            $0.tableHeight = newH }
                             onChange?()
 
                         }
@@ -665,15 +671,15 @@ public struct SmartTableView: View {
     private func setRawValue(rowIdx: Int, colIdx: Int, val: String) {
         if rowIdx == 0 {
             if tableData.headers.indices.contains(colIdx) {
-                tableData.headers[colIdx] = val
+                store.mutateTable(id: tableId) { $0.headers[colIdx] = val }
             }
         } else {
             let dataRow = rowIdx - 1
             if tableData.rows.indices.contains(dataRow) {
                 while tableData.rows[dataRow].count <= colIdx {
-                    tableData.rows[dataRow].append("")
+                    store.mutateTable(id: tableId) { $0.rows[dataRow].append("") }
                 }
-                tableData.rows[dataRow][colIdx] = val
+                store.mutateTable(id: tableId) { $0.rows[dataRow][colIdx] = val }
             }
         }
     }
@@ -687,8 +693,18 @@ public struct SmartTableView: View {
                     let lastChar = activeText.last ?? " "
                     if "+-*/(,= ".contains(lastChar) {
                         let refStr = "\(TableFormulaEvaluator.columnLetter(for: colIdx))\(rowIdx + 1)"
-                        setRawValue(rowIdx: r, colIdx: c, val: activeText + refStr)
-                        return
+                        store.mutateTable(id: tableId, actionName: "Insert Reference") { data in
+                            if r == 0 {
+                                if data.headers.indices.contains(c) {
+                                    data.headers[c] = activeText + refStr
+                                }
+                            } else {
+                                let dRow = r - 1
+                                if data.rows.indices.contains(dRow), data.rows[dRow].indices.contains(c) {
+                                    data.rows[dRow][c] = activeText + refStr
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -771,9 +787,9 @@ public struct SmartTableView: View {
             // If dragging for the first time, we need to freeze all current geometric widths.
             // A simple approximation if we don't have true geometric widths is distributing evenly:
             let defaultW = (actualTableWidth - 32) / CGFloat(tableData.headers.count) // 32 is row gutter
-            tableData.columnWidths = Array(repeating: defaultW, count: tableData.headers.count)
+            store.mutateTable(id: tableId) { $0.columnWidths = Array(repeating: defaultW, count: tableData.headers.count)
             // also fix the overall table width so it doesn't jump
-            tableData.tableWidth = actualTableWidth
+            $0.tableWidth = actualTableWidth }
         }
         
         if dragBaseColWidths == nil {
@@ -782,11 +798,7 @@ public struct SmartTableView: View {
         
         if var cw = tableData.columnWidths, let base = dragBaseColWidths, base.indices.contains(colIdx) {
             cw[colIdx] = max(40, base[colIdx] + translation)
-            tableData.columnWidths = cw
-            
-            // Adjust table width to match new sum
-            let newSum = cw.reduce(0, +) + 32
-            tableData.tableWidth = newSum
+            store.mutateTable(id: tableId) { $0.columnWidths = cw; $0.tableWidth = cw.reduce(0, +) + 32 }
             
             onChange?()
         }
@@ -802,63 +814,74 @@ public struct SmartTableView: View {
 
 
     private func addRow() {
-        let newRow = Array(repeating: "", count: tableData.headers.count)
-        tableData.rows.append(newRow)
+        store.mutateTable(id: tableId, actionName: "Add Row") { data in
+            let newRow = Array(repeating: "", count: data.headers.count)
+            data.rows.append(newRow)
+        }
         onChange?()
     }
 
     private func addColumn() {
-        let colLetter = TableFormulaEvaluator.columnLetter(for: tableData.headers.count)
-        tableData.headers.append("Column \(colLetter)")
-        for r in 0..<tableData.rows.count {
-            tableData.rows[r].append("")
+        store.mutateTable(id: tableId, actionName: "Add Column") { data in
+            let colLetter = TableFormulaEvaluator.columnLetter(for: data.headers.count)
+            data.headers.append("Column \(colLetter)")
+            for r in 0..<data.rows.count {
+                data.rows[r].append("")
+            }
         }
         onChange?()
     }
 
     private func insertRow(at index: Int) {
-        let newRow = Array(repeating: "", count: tableData.headers.count)
-        if index == 0 {
-            // Inserting before headers means new row becomes headers, old headers become row 0
-            tableData.rows.insert(tableData.headers, at: 0)
-            tableData.headers = newRow
-        } else {
-            tableData.rows.insert(newRow, at: max(0, min(index - 1, tableData.rows.count)))
+        store.mutateTable(id: tableId, actionName: "Insert Row") { data in
+            let newRow = Array(repeating: "", count: data.headers.count)
+            if index == 0 {
+                data.rows.insert(data.headers, at: 0)
+                data.headers = newRow
+            } else {
+                data.rows.insert(newRow, at: max(0, min(index - 1, data.rows.count)))
+            }
         }
         onChange?()
     }
 
     private func insertColumn(at index: Int) {
-        let safeIndex = max(0, min(index, tableData.headers.count))
-        tableData.headers.insert("", at: safeIndex)
-        for r in 0..<tableData.rows.count {
-            tableData.rows[r].insert("", at: safeIndex)
+        store.mutateTable(id: tableId, actionName: "Insert Column") { data in
+            let safeIndex = max(0, min(index, data.headers.count))
+            data.headers.insert("", at: safeIndex)
+            for r in 0..<data.rows.count {
+                data.rows[r].insert("", at: safeIndex)
+            }
         }
         onChange?()
     }
 
     private func deleteRow(at index: Int) {
         let totalRows = tableData.rows.count + 1
-        guard totalRows > 1 else { return } // Can't delete the only row
-        
-        if index == 0 {
-            // Deleting headers -> Row 0 becomes headers
-            tableData.headers = tableData.rows.removeFirst()
-        } else {
-            let dataRow = index - 1
-            if tableData.rows.indices.contains(dataRow) {
-                tableData.rows.remove(at: dataRow)
+        guard totalRows > 1 else { return }
+        store.mutateTable(id: tableId, actionName: "Delete Row") { data in
+            if index == 0 {
+                data.headers = data.rows.removeFirst()
+            } else {
+                let dataRow = index - 1
+                if data.rows.indices.contains(dataRow) {
+                    data.rows.remove(at: dataRow)
+                }
             }
         }
         onChange?()
     }
 
     private func deleteColumn(at index: Int) {
-        guard tableData.headers.count > 1, tableData.headers.indices.contains(index) else { return }
-        tableData.headers.remove(at: index)
-        for r in 0..<tableData.rows.count {
-            if tableData.rows[r].indices.contains(index) {
-                tableData.rows[r].remove(at: index)
+        guard tableData.headers.count > 1 else { return }
+        store.mutateTable(id: tableId, actionName: "Delete Column") { data in
+            if data.headers.indices.contains(index) {
+                data.headers.remove(at: index)
+                for r in 0..<data.rows.count {
+                    if data.rows[r].indices.contains(index) {
+                        data.rows[r].remove(at: index)
+                    }
+                }
             }
         }
         onChange?()
@@ -879,8 +902,10 @@ public struct SmartTableView: View {
         }
 
         if let parsed = StudioTableData.fromTSV(clipboard) ?? StudioTableData.fromCSV(clipboard) {
-            tableData.headers = parsed.headers
-            tableData.rows = parsed.rows
+            store.mutateTable(id: tableId, actionName: "Paste Data") { data in
+                data.headers = parsed.headers
+                data.rows = parsed.rows
+            }
             onChange?()
             onToast?("✓ Imported table from Excel clipboard")
         } else {

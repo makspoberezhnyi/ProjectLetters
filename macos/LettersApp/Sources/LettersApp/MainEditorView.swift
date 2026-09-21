@@ -8,40 +8,14 @@ import LettersKit
 
 public struct MainEditorView: View {
     @StateObject private var editorController = EditorActionController()
-    @State private var documentTitle: String = "Letters Product Specification"
-    @State private var document = DocumentModel(
-        title: "Letters Product Specification",
-        blocks: []
-    )
-
-    @State private var richTextData: Data? = nil
-    @State private var rawText: String = """
-# Letters: Modern Document Studio
-
-Letters is a next-generation desktop publishing and document studio combining graphic design precision with native Word (.docx) fidelity.
-
-## 1. Core Architecture & Native Engine
-• SwiftUI & TextKit 2 Viewport: Ultra-smooth layout and scrolling on multi-page documents.
-• Headless Rust Core: Lossless OpenXML (.docx) packaging and parsing with zero formatting degradation.
-• Universal BYOK AI Gateway: Direct cloud streaming with Anthropic Claude, OpenAI GPT-4o, and Google Gemini.
-
-## 2. Linked Sources & Dynamic Style Rules
-• Citations store structured bibliographic metadata rather than flat static text.
-• Real-time re-rendering across APA 7, MLA 9, Chicago, and Bluebook legal standards.
-
-## 3. Dynamic Smart Tables & Formulas
-• Embedded computational tables with reactive formula evaluation and paragraph variable referencing.
-
-[[table:budget]]
-"""
-
+    @StateObject private var documentController = LettersDocumentController()
+    
     @State private var activeTool: StudioTool = .select
     @State private var activePersona: StudioPersona = .write
     @State private var selectedPage: Int = 1
     @State private var selectedText: String = ""
     @State private var selectionRange: NSRange = NSRange(location: 0, length: 0)
     @State private var showInspector: Bool = true
-    @State private var activeCitationStyle: CitationStyle = .apa7
     @State private var showCommandPalette: Bool = false
     @State private var lintIssues: [StyleLintMatch] = []
     @State private var toastMessage: String? = nil
@@ -60,69 +34,40 @@ Letters is a next-generation desktop publishing and document studio combining gr
     @State private var newSourceType: SourceType = .journalArticle
 
     // Page Setup & Margins State
-    @State private var pageSize: PageSizePreset = .letter
-    @State private var marginPreset: MarginPreset = .normal
-    @State private var margins: PageMargins = PageMargins(top: 72, bottom: 72, left: 72, right: 72)
     @State private var showMarginGuides: Bool = true
     @State private var showCropMarks: Bool = true
 
     // Header & Footer Configuration State
-    @State private var headerFooterConfig: HeaderFooterConfig = HeaderFooterConfig()
     @State private var isEditingHeaderFooter: Bool = false
     @State private var activeHeaderFooterTarget: HeaderFooterTarget = .header
     @State private var isBottomBarHovered: Bool = false
 
     // Rich Interactive Blocks State
-    @State private var studioTables: [StudioTableData] = [
-        StudioTableData(
-            title: "Project Budget & Resource Allocation",
-            headers: ["Deliverable / Metric", "Allocated", "Actual Spend", "Variance"],
-            rows: [
-                ["Native TextKit 2 Engine", "15000", "14200", "=A1-B1"],
-                ["Headless Rust Core", "12000", "12000", "=A2-B2"],
-                ["AI Copilot Gateway", "8500", "7900", "=A3-B3"]
-            ]
-        )
-    ]
-    @State private var studioImages: [StudioImageBlock] = []
-    @State private var studioVideos: [StudioVideoBlock] = []
 
     // Live Typography States (Directly updates TextKit 2)
-    @State private var fontFamily: String = "Default Serif (Georgia)"
-    @State private var fontSize: CGFloat = 15.0
     @State private var isBold: Bool = false
     @State private var isItalic: Bool = false
     @State private var isUnderline: Bool = false
-    @State private var textAlignment: TextAlignment = .leading
-    @State private var lineSpacing: CGFloat = 1.15
-    @State private var paragraphSpacing: CGFloat = 12.0
 
-    // Live Selection Attributes (Tracks cursor/selection without modifying document defaults)
+    // Live Selection Attributes (Tracks cursor/selection without modifying documentController.document defaults)
     @State private var selectionAttributes: EditorSelectionAttributes? = nil
 
     @State private var showAIDrawer: Bool = false
     @State private var showOutlineDrawer: Bool = false
 
     // Modern Dark Floating Island & Cover Banner States
-    @State private var coverBannerConfig: CoverBannerConfig = CoverBannerConfig(
-        isEnabled: true,
-        preset: .desertDunes,
-        iconSymbol: "✨",
-        categoryTag: "SPECIFICATION",
-        customTitle: "Letters Product Specification"
-    )
-    @State private var showIslandSidebar: Bool = true
+        @State private var showIslandSidebar: Bool = true
     @State private var showDocumentTimeline: Bool = false
     @State private var showPageDesignInspector: Bool = false
 
     public init() {}
 
     private var wordCount: Int {
-        EditorPerformanceCache.countWords(in: rawText)
+        EditorPerformanceCache.countWords(in: documentController.rawText)
     }
 
     private var characterCount: Int {
-        rawText.count
+        documentController.rawText.count
     }
 
     private var readingTimeMinutes: Int {
@@ -130,28 +75,28 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private var currentSheetWidth: CGFloat {
-        pageSize.dimensions.width
+        documentController.pageSize.dimensions.width
     }
 
     private var currentSheetHeight: CGFloat {
-        pageSize.dimensions.height
+        documentController.pageSize.dimensions.height
     }
 
     // Dynamic Document Page Slicing (Continuous flow across physical sheets + explicit pagebreaks)
     private var documentPageSlices: [DocumentPageSlice] {
         DocumentPaginator.paginate(
-            rawText: rawText,
-            richTextData: richTextData,
+            rawText: documentController.rawText,
+            richTextData: documentController.richTextData,
             sheetHeight: currentSheetHeight,
             sheetWidth: currentSheetWidth,
-            margins: margins,
-            fontFamily: fontFamily,
-            fontSize: fontSize,
+            margins: documentController.margins,
+            fontFamily: documentController.fontFamily,
+            fontSize: documentController.fontSize,
             isBold: isBold,
             isItalic: isItalic,
-            lineSpacing: lineSpacing,
-            paragraphSpacing: paragraphSpacing,
-            alignment: textAlignment
+            lineSpacing: documentController.lineSpacing,
+            paragraphSpacing: documentController.paragraphSpacing,
+            alignment: documentController.textAlignment
         )
     }
 
@@ -180,25 +125,25 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func setPageText(pageIndex: Int, newText: String) {
         if let activeSize = editorController.currentSelectionAttributes()?.fontSize,
            activeSize > 0,
-           abs(activeSize - fontSize) > 0.5,
-           !rawText.contains("# ") {
-            self.fontSize = activeSize
+           abs(activeSize - documentController.fontSize) > 0.5,
+           !documentController.rawText.contains("# ") {
+            documentController.fontSize = activeSize
         }
 
         let oldPageCount = documentPageSlices.count
         let slices = documentPageSlices
         guard pageIndex < slices.count else {
-            rawText += (rawText.isEmpty ? "" : "\n\n") + newText
+            documentController.rawText += (documentController.rawText.isEmpty ? "" : "\n\n") + newText
             return
         }
         let slice = slices[pageIndex]
-        let ns = rawText as NSString
+        let ns = documentController.rawText as NSString
         let loc = slice.range.location
         let len = slice.range.length
         if loc <= ns.length && loc + len <= ns.length {
-            rawText = ns.replacingCharacters(in: slice.range, with: newText)
+            documentController.rawText = ns.replacingCharacters(in: slice.range, with: newText)
         } else {
-            rawText = newText
+            documentController.rawText = newText
         }
 
         let newSlices = documentPageSlices
@@ -237,7 +182,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         .foregroundColor(.accentColor)
                         .font(.system(size: 16))
 
-                    TextField("Document Title", text: $documentTitle)
+                    TextField("Document Title", text: $documentController.title)
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, weight: .semibold))
                         .frame(minWidth: 140, maxWidth: 220)
@@ -254,7 +199,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         }
                     } label: {
                         HStack {
-                            Text(selectionAttributes?.fontFamily ?? fontFamily)
+                            Text(selectionAttributes?.fontFamily ?? documentController.fontFamily)
                                 .font(.system(size: 13, weight: .medium))
                                 .frame(width: 100, alignment: .leading)
                             Image(systemName: "chevron.down").font(.system(size: 10))
@@ -266,15 +211,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     
                     // Font Size
                     HStack(spacing: 2) {
-                        Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? fontSize) - 1) }) {
+                        Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? documentController.fontSize) - 1) }) {
                             Image(systemName: "minus")
                         }.frame(width: 24, height: 26).background(Color.primary.opacity(0.06)).cornerRadius(4)
                         
-                        Text("\(Int(selectionAttributes?.fontSize ?? fontSize))")
+                        Text("\(Int(selectionAttributes?.fontSize ?? documentController.fontSize))")
                             .font(.system(size: 13, weight: .medium))
                             .frame(width: 28, alignment: .center)
                             
-                        Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? fontSize) + 1) }) {
+                        Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? documentController.fontSize) + 1) }) {
                             Image(systemName: "plus")
                         }.frame(width: 24, height: 26).background(Color.primary.opacity(0.06)).cornerRadius(4)
                     }.buttonStyle(.plain)
@@ -306,7 +251,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         Button("Center") { setAlignmentAction(.center) }
                         Button("Right") { setAlignmentAction(.trailing) }
                     } label: {
-                        let align = selectionAttributes?.alignment ?? textAlignment
+                        let align = selectionAttributes?.alignment ?? documentController.textAlignment
                         let alignIcon = align == .leading ? "text.alignleft" : (align == .center ? "text.aligncenter" : "text.alignright")
                         Image(systemName: alignIcon)
                             .font(.system(size: 15))
@@ -403,13 +348,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             VStack {
                                 StudioFloatingSidebar(
                                     isPresented: $showIslandSidebar,
-                                    rawText: $rawText,
+                                    rawText: $documentController.rawText,
                                     documentPages: documentPages,
                                     selectedPage: $selectedPage,
-                                    sources: $document.sources,
-                                    tables: $studioTables,
-                                    images: $studioImages,
-                                    videos: $studioVideos,
+                                    sources: $documentController.document.sources,
+                                    tables: $documentController.tables,
+                                    images: $documentController.images,
+                                    videos: $documentController.videos,
                                     showAIDrawer: $showAIDrawer,
                                     showCommandPalette: $showCommandPalette,
                                     onInsertSection: { handleToolAction(.text) },
@@ -434,7 +379,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                     Spacer()
                                     StudioDocumentTimelineView(
                                         isPresented: $showDocumentTimeline,
-                                        rawText: $rawText,
+                                        rawText: $documentController.rawText,
                                         wordCount: wordCount,
                                         characterCount: characterCount,
                                         readingTimeMinutes: readingTimeMinutes,
@@ -456,7 +401,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         if isEditingHeaderFooter {
                             VStack {
                                 StudioHeaderFooterToolbar(
-                                    config: $headerFooterConfig,
+                                    config: $documentController.headerFooter,
                                     isEditing: $isEditingHeaderFooter,
                                     activeTarget: $activeHeaderFooterTarget
                                 )
@@ -475,7 +420,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 if showInlineAI {
                                     InlineAICanvasEditorView(
                                         selectedText: selectedText,
-                                        fullDocumentContext: rawText,
+                                        fullDocumentContext: documentController.rawText,
                                         onAccept: { newText in
                                             replaceSelection(with: newText)
                                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -511,7 +456,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 Spacer()
                                 FindReplaceBar(
                                     isPresented: $showFindReplace,
-                                    rawText: $rawText,
+                                    rawText: $documentController.rawText,
                                     onToast: { msg in showToast(msg) }
                                 )
                                 .padding(.bottom, 80)
@@ -544,7 +489,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                 wordCount: wordCount,
                                 characterCount: characterCount,
                                 readingTimeMinutes: readingTimeMinutes,
-                                citationStyle: $activeCitationStyle,
+                                citationStyle: $documentController.citationStyle,
                                 zoomScale: $zoomScale,
                                 showAIDrawer: $showAIDrawer,
                                 onToast: { msg in showToast(msg) }
@@ -569,24 +514,24 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             HStack {
                                 Spacer()
                                 AssistantSidebarView(
-                                    rawText: $rawText,
+                                    rawText: $documentController.rawText,
                                     selectedText: $selectedText,
                                     onInsertTable: { table in
-                                        studioTables.append(table)
+                                        documentController.tables.append(table)
                                         let marker = "\n\n[[table:\(table.id.uuidString)]]\n\n"
-                                        if selectionRange.location <= (rawText as NSString).length {
-                                            let ns = rawText as NSString
-                                            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                                        if selectionRange.location <= (documentController.rawText as NSString).length {
+                                            let ns = documentController.rawText as NSString
+                                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
                                         } else {
-                                            rawText += marker
+                                            documentController.rawText += marker
                                         }
                                     },
                                     onInsertSource: { source in
-                                        document.sources[source.id] = source
+                                        documentController.document.sources[source.id] = source
                                         let citeTag = "(\(source.authors.first ?? "Author"), \(source.year != nil ? "\(source.year!)" : "n.d."))"
-                                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-                                            let ns = rawText as NSString
-                                            rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
+                                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+                                            let ns = documentController.rawText as NSString
+                                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
                                         }
                                     },
                                     onInsertHeading: { level, title in
@@ -595,11 +540,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                     onSetMargins: { presetStr in
                                         let lower = presetStr.lowercased()
                                         if lower.contains("narrow") {
-                                            marginPreset = .narrow
+                                            documentController.marginPreset = .narrow
                                         } else if lower.contains("wide") {
-                                            marginPreset = .wide
+                                            documentController.marginPreset = .wide
                                         } else {
-                                            marginPreset = .normal
+                                            documentController.marginPreset = .normal
                                         }
                                     },
                                     onInsertPageBreak: {
@@ -688,10 +633,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             year: yearInt,
                             title: newSourceTitle
                         )
-                        document.sources[String(id)] = source
+                        documentController.document.sources[String(id)] = source
                         let ref = CitationReference(sourceId: String(id))
-                        let rendered = CoreBridge.shared.renderCitation(source: source, reference: ref, style: activeCitationStyle)
-                        rawText += " \(rendered)"
+                        let rendered = CoreBridge.shared.renderCitation(source: source, reference: ref, style: documentController.citationStyle)
+                        documentController.rawText += " \(rendered)"
                         showingAddSourceSheet = false
                         newSourceTitle = ""
                         newSourceAuthor = ""
@@ -720,13 +665,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     }
                     Button("Embed Video") {
                         let block = StudioVideoBlock.parse(url: newVideoURLInput)
-                        studioVideos.append(block)
+                        documentController.videos.append(block)
                         let marker = "\n\n[[video:\(block.id.uuidString)]]\n\n"
-                        if selectionRange.location <= (rawText as NSString).length {
-                            let ns = rawText as NSString
-                            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                        if selectionRange.location <= (documentController.rawText as NSString).length {
+                            let ns = documentController.rawText as NSString
+                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
                         } else {
-                            rawText += marker
+                            documentController.rawText += marker
                         }
                         showingAddVideoSheet = false
                         newVideoURLInput = ""
@@ -748,11 +693,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
         .sheet(isPresented: $showingSettingsSheet) {
             SettingsView(
                 isPresented: $showingSettingsSheet,
-                fontFamily: $fontFamily,
-                fontSize: $fontSize,
-                citationStyle: $activeCitationStyle,
-                pageSize: $pageSize,
-                marginPreset: $marginPreset,
+                fontFamily: $documentController.fontFamily,
+                fontSize: $documentController.fontSize,
+                citationStyle: $documentController.citationStyle,
+                pageSize: $documentController.pageSize,
+                marginPreset: $documentController.marginPreset,
                 showMarginGuides: $showMarginGuides,
                 showCropMarks: $showCropMarks,
                 onToast: { msg in showToast(msg) }
@@ -863,7 +808,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     .keyboardShortcut("t", modifiers: [.command, .option])
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        coverBannerConfig.isEnabled.toggle()
+                        documentController.coverBanner.isEnabled.toggle()
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("c", modifiers: [.command, .option])
@@ -915,7 +860,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             runLinter()
             
             editorController.onSelectAllRequested = {
-                let totalLength = documentPageSlices.last.map { $0.range.location + $0.range.length } ?? (rawText as NSString).length
+                let totalLength = documentPageSlices.last.map { $0.range.location + $0.range.length } ?? (documentController.rawText as NSString).length
                 self.selectionRange = NSRange(location: 0, length: totalLength)
             }
             
@@ -926,16 +871,16 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func calculateEditorHeight(for textContent: String) -> CGFloat {
-        let font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+        let font = resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)
         let paragraphStyle = NSMutableParagraphStyle()
-        switch textAlignment {
+        switch documentController.textAlignment {
         case .leading: paragraphStyle.alignment = .left
         case .center: paragraphStyle.alignment = .center
         case .trailing: paragraphStyle.alignment = .right
         }
-        paragraphStyle.lineHeightMultiple = lineSpacing
-        paragraphStyle.paragraphSpacing = paragraphSpacing
-        let availableWidth = max(100, currentSheetWidth - margins.left - margins.right)
+        paragraphStyle.lineHeightMultiple = documentController.lineSpacing
+        paragraphStyle.paragraphSpacing = documentController.paragraphSpacing
+        let availableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
         let attrStr = NSAttributedString(
             string: textContent.isEmpty ? " " : textContent,
             attributes: [
@@ -951,35 +896,35 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private var unreferencedTableIndices: [Int] {
-        studioTables.indices.filter { idx in
-            let idStr = studioTables[idx].id.uuidString
-            let hasBudgetMarker = (idx == 0 && rawText.contains("[[table:budget]]"))
-            return !rawText.contains("[[table:\(idStr)]]") && !hasBudgetMarker
+        documentController.tables.indices.filter { idx in
+            let idStr = documentController.tables[idx].id.uuidString
+            let hasBudgetMarker = (idx == 0 && documentController.rawText.contains("[[table:budget]]"))
+            return !documentController.rawText.contains("[[table:\(idStr)]]") && !hasBudgetMarker
         }
     }
 
     private var unreferencedImageIndices: [Int] {
-        studioImages.indices.filter { idx in
-            let idStr = studioImages[idx].id.uuidString
-            return !rawText.contains("[[image:\(idStr)]]")
+        documentController.images.indices.filter { idx in
+            let idStr = documentController.images[idx].id.uuidString
+            return !documentController.rawText.contains("[[image:\(idStr)]]")
         }
     }
 
     private var unreferencedVideoIndices: [Int] {
-        studioVideos.indices.filter { idx in
-            let idStr = studioVideos[idx].id.uuidString
-            return !rawText.contains("[[video:\(idStr)]]")
+        documentController.videos.indices.filter { idx in
+            let idStr = documentController.videos[idx].id.uuidString
+            return !documentController.rawText.contains("[[video:\(idStr)]]")
         }
     }
 
     // MARK: - Actions
     private func newDocumentAction() {
-        documentTitle = "Untitled Document"
-        rawText = "Start writing your document here..."
-        studioTables = []
-        studioImages = []
-        studioVideos = []
-        document.sources = [:]
+        documentController.title = "Untitled Document"
+        documentController.rawText = "Start writing your documentController.document here..."
+        documentController.tables = []
+        documentController.images = []
+        documentController.videos = []
+        documentController.document.sources = [:]
         selectionAttributes = nil
         showToast("✓ Created New Document")
     }
@@ -989,7 +934,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         case .select:
             showToast("✓ Selection Tool active")
         case .text:
-            rawText += "\n\nNew Section Heading\nType section body text here..."
+            documentController.rawText += "\n\nNew Section Heading\nType section body text here..."
             showToast("✓ Inserted Text Section")
         case .table:
             let newTable = StudioTableData(
@@ -1002,13 +947,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 ]
             )
 
-            studioTables.append(newTable)
+            documentController.tables.append(newTable)
             let marker = "\n\n[[table:\(newTable.id.uuidString)]]\n\n"
-            if selectionRange.location <= (rawText as NSString).length {
-                let ns = rawText as NSString
-                rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+            if selectionRange.location <= (documentController.rawText as NSString).length {
+                let ns = documentController.rawText as NSString
+                documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
             } else {
-                rawText += marker
+                documentController.rawText += marker
             }
             showToast("✓ Added Table with cell formula support")
         case .citation:
@@ -1028,13 +973,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private func insertImageAction() {
         StudioImageView.pickImageFromDisk { block in
             if let block = block {
-                studioImages.append(block)
+                documentController.images.append(block)
                 let marker = "\n\n[[image:\(block.id.uuidString)]]\n\n"
-                if selectionRange.location <= (rawText as NSString).length {
-                    let ns = rawText as NSString
-                    rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                if selectionRange.location <= (documentController.rawText as NSString).length {
+                    let ns = documentController.rawText as NSString
+                    documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
                 } else {
-                    rawText += marker
+                    documentController.rawText += marker
                 }
                 showToast("✓ Inserted Image Figure")
             }
@@ -1042,28 +987,28 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func insertPageBreakAction() {
-        rawText += "\n\n---pagebreak---\n\n"
+        documentController.rawText += "\n\n---pagebreak---\n\n"
         showToast("✓ Inserted Page Break (Page \(documentPages.count))")
     }
 
     private func insertTOCAction() {
         let marker = "\n\n[[toc]]\n\n"
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
         } else {
-            rawText += marker
+            documentController.rawText += marker
         }
         showToast("✓ Inserted Table of Contents")
     }
 
     private func insertBibliographyAction() {
         let marker = "\n\n[[bibliography]]\n\n"
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
         } else {
-            rawText += marker
+            documentController.rawText += marker
         }
         showToast("✓ Inserted Bibliography / Works Cited")
     }
@@ -1077,57 +1022,57 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let title = customTitle ?? (level == 1 ? "Title" : level == 2 ? "Section Heading" : "Subsection")
         let hashes = String(repeating: "#", count: max(1, min(6, level)))
         let item = "\(hashes) \(title)"
-        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
-        } else if rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            rawText = item
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        } else if documentController.rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            documentController.rawText = item
         } else {
-            rawText = rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + item
+            documentController.rawText = documentController.rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + item
         }
         showToast("✓ Inserted Heading \(level)")
     }
 
     private func insertChecklistAction() {
         let item = "\n- [ ] Task item\n"
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
         } else {
-            rawText += item
+            documentController.rawText += item
         }
         showToast("✓ Inserted Checklist Item")
     }
 
     private func insertBlockquoteAction() {
         let item = "\n> Quoted text block\n"
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
         } else {
-            rawText += item
+            documentController.rawText += item
         }
         showToast("✓ Inserted Blockquote")
     }
 
     private func insertCodeBlockAction() {
         let item = "\n```swift\n// Code snippet\n```\n"
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
         } else {
-            rawText += item
+            documentController.rawText += item
         }
         showToast("✓ Inserted Code Block")
     }
 
     private func insertDividerAction() {
         let item = "\n\n---\n\n"
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
         } else {
-            rawText += item
+            documentController.rawText += item
         }
         showToast("✓ Inserted Horizontal Divider")
     }
@@ -1137,11 +1082,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         let str = formatter.string(from: Date())
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: str)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: str)
         } else {
-            rawText += str
+            documentController.rawText += str
         }
         showToast("✓ Inserted Date/Time: \(str)")
     }
@@ -1158,45 +1103,45 @@ Letters is a next-generation desktop publishing and document studio combining gr
         case "capitalized": transformed = selectedText.capitalized
         default: transformed = selectedText
         }
-        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: transformed)
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: transformed)
         } else {
-            rawText = rawText.replacingOccurrences(of: selectedText, with: transformed)
+            documentController.rawText = documentController.rawText.replacingOccurrences(of: selectedText, with: transformed)
         }
         showToast("✓ Transformed Text: \(mode)")
     }
 
     private func setLineSpacingAction(_ spacing: CGFloat) {
-        lineSpacing = spacing
-        editorController.applyLineSpacing(spacing, paragraphSpacing: paragraphSpacing)
+        documentController.lineSpacing = spacing
+        editorController.applyLineSpacing(spacing, paragraphSpacing: documentController.paragraphSpacing)
         showToast("✓ Line Spacing: \(String(format: "%.2g", spacing))")
     }
 
     private func setParagraphSpacingAction(_ spacing: CGFloat) {
-        paragraphSpacing = spacing
-        editorController.applyLineSpacing(lineSpacing, paragraphSpacing: spacing)
+        documentController.paragraphSpacing = spacing
+        editorController.applyLineSpacing(documentController.lineSpacing, paragraphSpacing: spacing)
         showToast("✓ Paragraph Spacing: \(spacing > 0 ? "Added" : "Removed")")
     }
 
     private func insertBulletListAction() {
         let item = "\n• "
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
         } else {
-            rawText += item
+            documentController.rawText += item
         }
         showToast("✓ Inserted Bullet Item")
     }
 
     private func insertNumberedListAction() {
         let item = "\n1. "
-        if selectionRange.location <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: item)
+        if selectionRange.location <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
         } else {
-            rawText += item
+            documentController.rawText += item
         }
         showToast("✓ Inserted Numbered List")
     }
@@ -1235,15 +1180,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setAlignmentAction(_ align: TextAlignment) {
-        textAlignment = align
-        editorController.applyAlignment(align, lineSpacing: lineSpacing, paragraphSpacing: paragraphSpacing)
+        documentController.textAlignment = align
+        editorController.applyAlignment(align, lineSpacing: documentController.lineSpacing, paragraphSpacing: documentController.paragraphSpacing)
         let name = align == .leading ? "Left" : align == .center ? "Center" : "Right"
         showToast("✓ Alignment: \(name)")
     }
 
     private func setFontFamilyAction(_ font: String) {
-        fontFamily = font
-        let sizeToApply = selectionAttributes?.fontSize ?? fontSize
+        documentController.fontFamily = font
+        let sizeToApply = selectionAttributes?.fontSize ?? documentController.fontSize
         editorController.applyFontFamily(font, size: sizeToApply)
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1252,7 +1197,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func setFontSizeAction(_ size: CGFloat) {
-        fontSize = size
+        documentController.fontSize = size
         editorController.applyFontSize(size)
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1302,20 +1247,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
             }
         }
 
-        // 4. Margins (e.g. "margins narrow", "margins standard", "margin 0.5")
+        // 4. Margins (e.g. "documentController.margins narrow", "documentController.margins standard", "margin 0.5")
         if lower.hasPrefix("margin") {
-            if lower.contains("narrow") { marginPreset = .narrow; showToast("✓ Margins: Narrow"); return true }
-            if lower.contains("wide") { marginPreset = .wide; showToast("✓ Margins: Wide"); return true }
-            if lower.contains("moderate") { marginPreset = .moderate; showToast("✓ Margins: Moderate"); return true }
-            if lower.contains("standard") || lower.contains("normal") { marginPreset = .normal; showToast("✓ Margins: Normal"); return true }
+            if lower.contains("narrow") { documentController.marginPreset = .narrow; showToast("✓ Margins: Narrow"); return true }
+            if lower.contains("wide") { documentController.marginPreset = .wide; showToast("✓ Margins: Wide"); return true }
+            if lower.contains("moderate") { documentController.marginPreset = .moderate; showToast("✓ Margins: Moderate"); return true }
+            if lower.contains("standard") || lower.contains("normal") { documentController.marginPreset = .normal; showToast("✓ Margins: Normal"); return true }
         }
 
         // 5. Page Size (e.g. "page a4", "page letter", "page legal")
         if lower.hasPrefix("page ") {
-            if lower.contains("a4") { pageSize = .a4; showToast("✓ Page Size: A4"); return true }
-            if lower.contains("letter") { pageSize = .letter; showToast("✓ Page Size: US Letter"); return true }
-            if lower.contains("legal") { pageSize = .legal; showToast("✓ Page Size: US Legal"); return true }
-            if lower.contains("exec") { pageSize = .executive; showToast("✓ Page Size: Executive"); return true }
+            if lower.contains("a4") { documentController.pageSize = .a4; showToast("✓ Page Size: A4"); return true }
+            if lower.contains("letter") { documentController.pageSize = .letter; showToast("✓ Page Size: US Letter"); return true }
+            if lower.contains("legal") { documentController.pageSize = .legal; showToast("✓ Page Size: US Legal"); return true }
+            if lower.contains("exec") { documentController.pageSize = .executive; showToast("✓ Page Size: Executive"); return true }
         }
 
         // 6. Line Spacing (e.g. "line 1.5", "spacing 2", "leading 1.25")
@@ -1396,13 +1341,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
     private var paletteCommands: [CommandItem] {
         [
             // === File & Document Operations ===
-            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document archive", icon: "tray.and.arrow.down.fill", category: .file, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
+            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters documentController.document archive", icon: "tray.and.arrow.down.fill", category: .file, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
                 saveDocumentAsLetters()
             },
             CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md file from disk", icon: "folder", category: .file, shortcut: "⌘O", keywords: ["open", "import", "browse", "load"]) {
                 openDocument()
             },
-            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word document", icon: "doc.fill", category: .file, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
+            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word documentController.document", icon: "doc.fill", category: .file, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
                 saveDocumentAsDocx()
             },
             CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF ready for printing", icon: "arrow.down.doc", category: .file, shortcut: "⌘⌥E", keywords: ["pdf", "vector", "export", "print"]) {
@@ -1443,7 +1388,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             CommandItem(title: "Line Spacing: 1.0 (Single)", subtitle: "Compact single line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "single", "leading"]) {
                 setLineSpacingAction(1.0)
             },
-            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern document spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "standard", "leading"]) {
+            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern documentController.document spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "standard", "leading"]) {
                 setLineSpacingAction(1.15)
             },
             CommandItem(title: "Line Spacing: 1.5 (1.5x)", subtitle: "Academic 1.5x line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "academic", "leading"]) {
@@ -1481,7 +1426,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
             },
 
             // === Insert Structural Elements ===
-            CommandItem(title: "Insert Heading 1 (Title)", subtitle: "Top level document section title (#)", icon: "text.quote", category: .insert, shortcut: "⌘⌥1", keywords: ["h1", "title", "heading"]) {
+            CommandItem(title: "Insert Heading 1 (Title)", subtitle: "Top level documentController.document section title (#)", icon: "text.quote", category: .insert, shortcut: "⌘⌥1", keywords: ["h1", "title", "heading"]) {
                 insertSectionHeadingAction(level: 1)
             },
             CommandItem(title: "Insert Heading 2 (Section)", subtitle: "Major section heading (##)", icon: "text.quote", category: .insert, shortcut: "⌘⌥2", keywords: ["h2", "section", "heading"]) {
@@ -1523,43 +1468,43 @@ Letters is a next-generation desktop publishing and document studio combining gr
             CommandItem(title: "Insert Table of Contents", subtitle: "Dynamic [[toc]] page reference listing", icon: "list.bullet.indent", category: .insert, keywords: ["toc", "table of contents", "outline"]) {
                 insertTOCAction()
             },
-            CommandItem(title: "Insert Page Break", subtitle: "Force document onto new page sheet", icon: "pagebreak", category: .insert, shortcut: "⌘↵", keywords: ["page", "break", "sheet"]) {
+            CommandItem(title: "Insert Page Break", subtitle: "Force documentController.document onto new page sheet", icon: "pagebreak", category: .insert, shortcut: "⌘↵", keywords: ["page", "break", "sheet"]) {
                 insertPageBreakAction()
             },
             CommandItem(title: "Insert Horizontal Divider", subtitle: "Visual separator rule (---)", icon: "divide", category: .insert, keywords: ["divider", "line", "rule", "separator"]) {
                 insertDividerAction()
             },
-            CommandItem(title: "Insert Current Date & Time", subtitle: "Stamp current timestamp into document", icon: "clock", category: .insert, keywords: ["date", "time", "stamp", "now"]) {
+            CommandItem(title: "Insert Current Date & Time", subtitle: "Stamp current timestamp into documentController.document", icon: "clock", category: .insert, keywords: ["date", "time", "stamp", "now"]) {
                 insertDateTimeAction()
             },
 
             // === Page Setup & Layout ===
-            CommandItem(title: "Page Format: A4 (210 × 297 mm)", subtitle: "International standard document size", icon: "doc", category: .layout, keywords: ["a4", "format", "size", "iso"]) {
-                pageSize = .a4
+            CommandItem(title: "Page Format: A4 (210 × 297 mm)", subtitle: "International standard documentController.document size", icon: "doc", category: .layout, keywords: ["a4", "format", "size", "iso"]) {
+                documentController.pageSize = .a4
                 showToast("✓ Page Format: A4")
             },
             CommandItem(title: "Page Format: US Letter (8.5 × 11 in)", subtitle: "North American standard paper size", icon: "doc", category: .layout, keywords: ["letter", "format", "size", "us"]) {
-                pageSize = .letter
+                documentController.pageSize = .letter
                 showToast("✓ Page Format: US Letter")
             },
-            CommandItem(title: "Page Format: US Legal (8.5 × 14 in)", subtitle: "Extended legal document format", icon: "doc", category: .layout, keywords: ["legal", "format", "size"]) {
-                pageSize = .legal
+            CommandItem(title: "Page Format: US Legal (8.5 × 14 in)", subtitle: "Extended legal documentController.document format", icon: "doc", category: .layout, keywords: ["legal", "format", "size"]) {
+                documentController.pageSize = .legal
                 showToast("✓ Page Format: US Legal")
             },
             CommandItem(title: "Page Format: Executive", subtitle: "Compact 7.25 × 10.5 in executive format", icon: "doc", category: .layout, keywords: ["executive", "format", "size"]) {
-                pageSize = .executive
+                documentController.pageSize = .executive
                 showToast("✓ Page Format: Executive")
             },
-            CommandItem(title: "Margins: Standard (1 inch / 72 pt)", subtitle: "Balanced standard print margins", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "standard", "1 inch"]) {
-                marginPreset = .normal
+            CommandItem(title: "Margins: Standard (1 inch / 72 pt)", subtitle: "Balanced standard print documentController.margins", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "standard", "1 inch"]) {
+                documentController.marginPreset = .normal
                 showToast("✓ Margins: Standard (72 pt)")
             },
             CommandItem(title: "Margins: Narrow (0.5 inch / 36 pt)", subtitle: "Maximized printable canvas area", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "narrow", "0.5 inch"]) {
-                marginPreset = .narrow
+                documentController.marginPreset = .narrow
                 showToast("✓ Margins: Narrow (36 pt)")
             },
-            CommandItem(title: "Margins: Wide (1.5 inch / 108 pt)", subtitle: "Spacious margins for annotations and notes", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "wide", "spacious"]) {
-                marginPreset = .wide
+            CommandItem(title: "Margins: Wide (1.5 inch / 108 pt)", subtitle: "Spacious documentController.margins for annotations and notes", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "wide", "spacious"]) {
+                documentController.marginPreset = .wide
                 showToast("✓ Margins: Wide (108 pt)")
             },
             CommandItem(title: "Toggle Margin Guides", subtitle: "Show or hide canvas guideline borders", icon: "square.dashed", category: .layout, keywords: ["margin", "guides", "rulers", "border"]) {
@@ -1588,9 +1533,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     isEditingHeaderFooter = true
                 }
             },
-            CommandItem(title: "Toggle Different First Page", subtitle: "Suppress running headers and footers on document title cover", icon: "doc.text", category: .layout, keywords: ["first page", "cover", "title page", "suppress", "header", "footer"]) {
-                headerFooterConfig.differentFirstPage.toggle()
-                showToast(headerFooterConfig.differentFirstPage ? "✓ Different First Page Enabled" : "Different First Page Disabled")
+            CommandItem(title: "Toggle Different First Page", subtitle: "Suppress running headers and footers on documentController.document title cover", icon: "doc.text", category: .layout, keywords: ["first page", "cover", "title page", "suppress", "header", "footer"]) {
+                documentController.headerFooter.differentFirstPage.toggle()
+                showToast(documentController.headerFooter.differentFirstPage ? "✓ Different First Page Enabled" : "Different First Page Disabled")
             },
 
             // === AI Copilot & Intelligent Assistant ===
@@ -1603,10 +1548,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
             },
             CommandItem(title: "AI Instant Translation", subtitle: "Translate selected passage into target language", icon: "translate", category: .ai, keywords: ["translate", "language", "offline", "bilingual"]) {
                 Task {
-                    if let res = try? await TranslationService.shared.translate(text: selectedText.isEmpty ? rawText : selectedText) {
-                        if !selectedText.isEmpty && selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-                            let ns = rawText as NSString
-                            rawText = ns.replacingCharacters(in: selectionRange, with: res)
+                    if let res = try? await TranslationService.shared.translate(text: selectedText.isEmpty ? documentController.rawText : selectedText) {
+                        if !selectedText.isEmpty && selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+                            let ns = documentController.rawText as NSString
+                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: res)
                         }
                         showToast("✓ Translated with Offline Engine")
                     }
@@ -1616,7 +1561,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showAIDrawer = true }
                 showToast("✨ AI Copilot explaining selection")
             },
-            CommandItem(title: "AI Generate Table of Contents", subtitle: "Analyze document and build hierarchical TOC", icon: "sparkles.rectangle.stack", category: .ai, keywords: ["ai", "toc", "structure", "outline"]) {
+            CommandItem(title: "AI Generate Table of Contents", subtitle: "Analyze documentController.document and build hierarchical TOC", icon: "sparkles.rectangle.stack", category: .ai, keywords: ["ai", "toc", "structure", "outline"]) {
                 insertTOCAction()
             },
 
@@ -1652,17 +1597,17 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     private func buildDocumentAIContext() -> String {
         var context = "=== DOCUMENT METADATA ===\n"
-        context += "Title: \(documentTitle)\n"
-        context += "Page Format: \(pageSize.rawValue) (\(Int(currentSheetWidth))x\(Int(currentSheetHeight)) pt)\n"
-        context += "Margins: Top \(Int(margins.top)) pt, Bottom \(Int(margins.bottom)) pt, Left \(Int(margins.left)) pt, Right \(Int(margins.right)) pt\n"
+        context += "Title: \(documentController.title)\n"
+        context += "Page Format: \(documentController.pageSize.rawValue) (\(Int(currentSheetWidth))x\(Int(currentSheetHeight)) pt)\n"
+        context += "Margins: Top \(Int(documentController.margins.top)) pt, Bottom \(Int(documentController.margins.bottom)) pt, Left \(Int(documentController.margins.left)) pt, Right \(Int(documentController.margins.right)) pt\n"
         context += "Word Count: \(wordCount) words, \(characterCount) characters\n\n"
 
         context += "=== DOCUMENT BODY TEXT ===\n"
-        context += rawText + "\n\n"
+        context += documentController.rawText + "\n\n"
 
-        if !studioTables.isEmpty {
-            context += "=== EMBEDDED SMART TABLES (\(studioTables.count)) ===\n"
-            for (i, table) in studioTables.enumerated() {
+        if !documentController.tables.isEmpty {
+            context += "=== EMBEDDED SMART TABLES (\(documentController.tables.count)) ===\n"
+            for (i, table) in documentController.tables.enumerated() {
                 context += "Table \(i + 1):\n"
                 context += "| " + table.headers.joined(separator: " | ") + " |\n"
                 context += "| " + table.headers.map { _ in "---" }.joined(separator: " | ") + " |\n"
@@ -1673,25 +1618,25 @@ Letters is a next-generation desktop publishing and document studio combining gr
             }
         }
 
-        if !studioImages.isEmpty {
-            context += "=== EMBEDDED FIGURES & IMAGES (\(studioImages.count)) ===\n"
-            for (i, img) in studioImages.enumerated() {
+        if !documentController.images.isEmpty {
+            context += "=== EMBEDDED FIGURES & IMAGES (\(documentController.images.count)) ===\n"
+            for (i, img) in documentController.images.enumerated() {
                 context += "Figure \(i + 1): \(img.caption) [Alignment: \(img.alignment.rawValue), Aspect Ratio: \(img.aspectRatioPreset.rawValue)]\n"
             }
             context += "\n"
         }
 
-        if !studioVideos.isEmpty {
-            context += "=== EMBEDDED MEDIA / VIDEOS (\(studioVideos.count)) ===\n"
-            for (i, vid) in studioVideos.enumerated() {
+        if !documentController.videos.isEmpty {
+            context += "=== EMBEDDED MEDIA / VIDEOS (\(documentController.videos.count)) ===\n"
+            for (i, vid) in documentController.videos.enumerated() {
                 context += "Video \(i + 1): \(vid.title) (\(vid.platform.rawValue): \(vid.url))\n"
             }
             context += "\n"
         }
 
-        if !document.sources.isEmpty {
-            context += "=== LINKED BIBLIOGRAPHIC SOURCES (\(document.sources.count)) ===\n"
-            for (id, src) in document.sources {
+        if !documentController.document.sources.isEmpty {
+            context += "=== LINKED BIBLIOGRAPHIC SOURCES (\(documentController.document.sources.count)) ===\n"
+            for (id, src) in documentController.document.sources {
                 let authorsStr = src.authors.joined(separator: ", ")
                 let yearStr = src.year != nil ? String(src.year!) : "n.d."
                 context += "[\(id)]: \(authorsStr) (\(yearStr)). \(src.title). [Type: \(src.sourceType.rawValue)]\n"
@@ -1712,29 +1657,29 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func runLinter() {
-        lintIssues = CoreBridge.shared.lint(text: rawText, profile: "academic")
+        lintIssues = CoreBridge.shared.lint(text: documentController.rawText, profile: "academic")
     }
 
     // MARK: - Native .letters / .ltt Lossless Package Save & Open
     public func saveDocumentAsLetters() {
         let bundle = LettersDocumentBundle(
-            title: documentTitle,
-            rawText: rawText,
-            richTextData: richTextData,
-            tables: studioTables,
-            images: studioImages,
-            videos: studioVideos,
-            sources: document.sources,
-            citationStyle: activeCitationStyle,
-            pageSizePreset: pageSize,
-            marginPreset: marginPreset,
-            margins: margins,
-            fontFamily: fontFamily,
-            fontSize: Double(fontSize),
-            lineSpacing: Double(lineSpacing),
-            paragraphSpacing: Double(paragraphSpacing),
-            headerFooter: headerFooterConfig,
-            coverBanner: coverBannerConfig
+            title: documentController.title,
+            rawText: documentController.rawText,
+            richTextData: documentController.richTextData,
+            tables: documentController.tables,
+            images: documentController.images,
+            videos: documentController.videos,
+            sources: documentController.document.sources,
+            citationStyle: documentController.citationStyle,
+            pageSizePreset: documentController.pageSize,
+            marginPreset: documentController.marginPreset,
+            margins: documentController.margins,
+            fontFamily: documentController.fontFamily,
+            fontSize: Double(documentController.fontSize),
+            lineSpacing: Double(documentController.lineSpacing),
+            paragraphSpacing: Double(documentController.paragraphSpacing),
+            headerFooter: documentController.headerFooter,
+            coverBanner: documentController.coverBanner
         )
 
         guard let data = try? bundle.encodeToData() else {
@@ -1744,7 +1689,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
         let panel = NSSavePanel()
         panel.title = "Save Project Letters Document"
-        panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).letters"
+        panel.nameFieldStringValue = "\(documentController.title.replacingOccurrences(of: " ", with: "_")).letters"
         if let typeLetters = UTType(filenameExtension: "letters"),
            let typeLtt = UTType(filenameExtension: "ltt") {
             panel.allowedContentTypes = [typeLetters, typeLtt]
@@ -1779,35 +1724,35 @@ Letters is a next-generation desktop publishing and document studio combining gr
                 if ext == "letters" || ext == "ltt" {
                     let data = try Data(contentsOf: url)
                     let bundle = try LettersDocumentBundle.decode(from: data)
-                    documentTitle = bundle.title
-                    rawText = bundle.rawText
-                    richTextData = bundle.richTextData
-                    studioTables = bundle.tables
-                    studioImages = bundle.images
-                    studioVideos = bundle.videos
-                    document.sources = bundle.sources
-                    activeCitationStyle = bundle.citationStyle
-                    pageSize = bundle.pageSizePreset
-                    marginPreset = bundle.marginPreset
-                    margins = bundle.margins
-                    fontFamily = bundle.fontFamily
-                    fontSize = CGFloat(bundle.fontSize)
-                    lineSpacing = CGFloat(bundle.lineSpacing)
-                    paragraphSpacing = CGFloat(bundle.paragraphSpacing)
-                    headerFooterConfig = bundle.headerFooter
-                    coverBannerConfig = bundle.coverBanner
+                    documentController.title = bundle.title
+                    documentController.rawText = bundle.rawText
+                    documentController.richTextData = bundle.richTextData
+                    documentController.tables = bundle.tables
+                    documentController.images = bundle.images
+                    documentController.videos = bundle.videos
+                    documentController.document.sources = bundle.sources
+                    documentController.citationStyle = bundle.citationStyle
+                    documentController.pageSize = bundle.pageSizePreset
+                    documentController.marginPreset = bundle.marginPreset
+                    documentController.margins = bundle.margins
+                    documentController.fontFamily = bundle.fontFamily
+                    documentController.fontSize = CGFloat(bundle.fontSize)
+                    documentController.lineSpacing = CGFloat(bundle.lineSpacing)
+                    documentController.paragraphSpacing = CGFloat(bundle.paragraphSpacing)
+                    documentController.headerFooter = bundle.headerFooter
+                    documentController.coverBanner = bundle.coverBanner
                     showToast("✓ Opened .letters document: \(url.lastPathComponent)")
                 } else if ext == "md" || ext == "txt" {
                     let content = try String(contentsOf: url, encoding: .utf8)
-                    documentTitle = url.deletingPathExtension().lastPathComponent
-                    rawText = content
+                    documentController.title = url.deletingPathExtension().lastPathComponent
+                    documentController.rawText = content
                     showToast("✓ Opened file: \(url.lastPathComponent)")
                 } else if ext == "docx" {
                     let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
-                    documentTitle = url.deletingPathExtension().lastPathComponent
-                    rawText = attrStr.string
+                    documentController.title = url.deletingPathExtension().lastPathComponent
+                    documentController.rawText = attrStr.string
                     if let data = try? NSKeyedArchiver.archivedData(withRootObject: attrStr, requiringSecureCoding: false) {
-                        richTextData = data
+                        documentController.richTextData = data
                     }
                     showToast("✓ Opened Word file natively: \(url.lastPathComponent)")
                 }
@@ -1841,7 +1786,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     let text = attrStr.string
                     var finalAttrStr = attrStr
                     
-                    if let oldData = richTextData, let oldAttr = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: oldData) {
+                    if let oldData = documentController.richTextData, let oldAttr = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: oldData) {
                         let combined = NSMutableAttributedString(attributedString: oldAttr)
                         if selectionRange.location <= combined.length {
                             combined.replaceCharacters(in: selectionRange, with: attrStr)
@@ -1855,32 +1800,32 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     }
                     
                     if let data = try? NSKeyedArchiver.archivedData(withRootObject: finalAttrStr, requiringSecureCoding: false) {
-                        richTextData = data
+                        documentController.richTextData = data
                     }
                     
-                    if selectionRange.location <= (rawText as NSString).length {
-                        let ns = rawText as NSString
-                        rawText = ns.replacingCharacters(in: selectionRange, with: text)
+                    if selectionRange.location <= (documentController.rawText as NSString).length {
+                        let ns = documentController.rawText as NSString
+                        documentController.rawText = ns.replacingCharacters(in: selectionRange, with: text)
                     } else {
-                        rawText += (rawText.isEmpty ? "" : "\n\n") + text
+                        documentController.rawText += (documentController.rawText.isEmpty ? "" : "\n\n") + text
                     }
                     showToast("✓ Imported Word file natively: \(url.lastPathComponent)")
                 } else if ext == "md" || ext == "txt" {
                     let content = try String(contentsOf: url, encoding: .utf8)
-                    if selectionRange.location <= (rawText as NSString).length {
-                        let ns = rawText as NSString
-                        rawText = ns.replacingCharacters(in: selectionRange, with: content)
+                    if selectionRange.location <= (documentController.rawText as NSString).length {
+                        let ns = documentController.rawText as NSString
+                        documentController.rawText = ns.replacingCharacters(in: selectionRange, with: content)
                     } else {
-                        rawText += (rawText.isEmpty ? "" : "\n\n") + content
+                        documentController.rawText += (documentController.rawText.isEmpty ? "" : "\n\n") + content
                     }
                     showToast("✓ Imported text natively: \(url.lastPathComponent)")
                 } else if ext == "pdf" {
                     if let pdf = PDFDocument(url: url), let text = pdf.string {
-                        if selectionRange.location <= (rawText as NSString).length {
-                            let ns = rawText as NSString
-                            rawText = ns.replacingCharacters(in: selectionRange, with: text)
+                        if selectionRange.location <= (documentController.rawText as NSString).length {
+                            let ns = documentController.rawText as NSString
+                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: text)
                         } else {
-                            rawText += text
+                            documentController.rawText += text
                         }
                         showToast("✓ Imported PDF text from: \(url.lastPathComponent)")
                     } else {
@@ -1894,25 +1839,25 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     // MARK: - Word, PDF & Print
     public func saveDocumentAsDocx() {
-        var fullExport = rawText
-        if !studioTables.isEmpty {
-            fullExport += "\n\n" + studioTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        var fullExport = documentController.rawText
+        if !documentController.tables.isEmpty {
+            fullExport += "\n\n" + documentController.tables.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
-        if !studioImages.isEmpty {
-            fullExport += "\n\n" + studioImages.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        if !documentController.images.isEmpty {
+            fullExport += "\n\n" + documentController.images.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
-        if !studioVideos.isEmpty {
-            fullExport += "\n\n" + studioVideos.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        if !documentController.videos.isEmpty {
+            fullExport += "\n\n" + documentController.videos.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
 
-        guard let docxData = CoreBridge.shared.exportDocx(title: documentTitle, text: fullExport) else {
+        guard let docxData = CoreBridge.shared.exportDocx(title: documentController.title, text: fullExport) else {
             showToast("⚠️ Could not generate DOCX")
             return
         }
 
         let panel = NSSavePanel()
         panel.title = "Save Word Document"
-        panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).docx"
+        panel.nameFieldStringValue = "\(documentController.title.replacingOccurrences(of: " ", with: "_")).docx"
         if let type = UTType(filenameExtension: "docx") {
             panel.allowedContentTypes = [type]
         }
@@ -1930,24 +1875,24 @@ Letters is a next-generation desktop publishing and document studio combining gr
     public func exportDocumentAsPDF() {
         let panel = NSSavePanel()
         panel.title = "Export Vector PDF"
-        panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).pdf"
+        panel.nameFieldStringValue = "\(documentController.title.replacingOccurrences(of: " ", with: "_")).pdf"
         if let type = UTType(filenameExtension: "pdf") {
             panel.allowedContentTypes = [type]
         }
 
         if panel.runModal() == .OK, let url = panel.url {
-            let paperSize = NSSize(width: pageSize.dimensions.width, height: pageSize.dimensions.height)
+            let paperSize = NSSize(width: documentController.pageSize.dimensions.width, height: documentController.pageSize.dimensions.height)
             let printInfo = NSPrintInfo.shared
             printInfo.paperSize = paperSize
-            printInfo.topMargin = margins.top
-            printInfo.bottomMargin = margins.bottom
-            printInfo.leftMargin = margins.left
-            printInfo.rightMargin = margins.right
+            printInfo.topMargin = documentController.margins.top
+            printInfo.bottomMargin = documentController.margins.bottom
+            printInfo.leftMargin = documentController.margins.left
+            printInfo.rightMargin = documentController.margins.right
             printInfo.orientation = .portrait
 
             let textView = NSTextView(frame: NSRect(origin: .zero, size: paperSize))
-            textView.string = rawText
-            textView.font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+            textView.string = documentController.rawText
+            textView.font = resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)
             let pdfData = textView.dataWithPDF(inside: NSRect(origin: .zero, size: paperSize))
 
             do {
@@ -1960,17 +1905,17 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     public func printDocument() {
-        let paperSize = NSSize(width: pageSize.dimensions.width, height: pageSize.dimensions.height)
+        let paperSize = NSSize(width: documentController.pageSize.dimensions.width, height: documentController.pageSize.dimensions.height)
         let printInfo = NSPrintInfo.shared
         printInfo.paperSize = paperSize
-        printInfo.topMargin = margins.top
-        printInfo.bottomMargin = margins.bottom
-        printInfo.leftMargin = margins.left
-        printInfo.rightMargin = margins.right
+        printInfo.topMargin = documentController.margins.top
+        printInfo.bottomMargin = documentController.margins.bottom
+        printInfo.leftMargin = documentController.margins.left
+        printInfo.rightMargin = documentController.margins.right
 
         let textView = NSTextView(frame: NSRect(origin: .zero, size: paperSize))
-        textView.string = rawText
-        textView.font = resolveFontNamed(family: fontFamily, size: fontSize, bold: isBold, italic: isItalic)
+        textView.string = documentController.rawText
+        textView.font = resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)
 
         let op = NSPrintOperation(view: textView, printInfo: printInfo)
         op.showsPrintPanel = true
@@ -1978,20 +1923,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     public func saveDocumentAsMarkdown() {
-        var fullExport = rawText
-        if !studioTables.isEmpty {
-            fullExport += "\n\n" + studioTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        var fullExport = documentController.rawText
+        if !documentController.tables.isEmpty {
+            fullExport += "\n\n" + documentController.tables.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
-        if !studioImages.isEmpty {
-            fullExport += "\n\n" + studioImages.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        if !documentController.images.isEmpty {
+            fullExport += "\n\n" + documentController.images.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
-        if !studioVideos.isEmpty {
-            fullExport += "\n\n" + studioVideos.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        if !documentController.videos.isEmpty {
+            fullExport += "\n\n" + documentController.videos.map { $0.toMarkdown() }.joined(separator: "\n\n")
         }
 
         let panel = NSSavePanel()
         panel.title = "Save Markdown"
-        panel.nameFieldStringValue = "\(documentTitle.replacingOccurrences(of: " ", with: "_")).md"
+        panel.nameFieldStringValue = "\(documentController.title.replacingOccurrences(of: " ", with: "_")).md"
         if let type = UTType(filenameExtension: "md") {
             panel.allowedContentTypes = [type]
         }
@@ -2029,7 +1974,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(pageSize.rawValue) • \(marginPreset.rawValue)")
+                Text("\(documentController.pageSize.rawValue) • \(documentController.marginPreset.rawValue)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
             }
@@ -2053,11 +1998,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                 // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
                 StudioHeaderView(
-                    config: $headerFooterConfig,
+                    config: $documentController.headerFooter,
                     pageIndex: pageIndex,
                     totalPages: documentPages.count,
-                    documentTitle: documentTitle,
-                    margins: margins,
+                    documentTitle: documentController.title,
+                    margins: documentController.margins,
                     sheetWidth: currentSheetWidth,
                     isEditing: $isEditingHeaderFooter,
                     activeTarget: $activeHeaderFooterTarget
@@ -2068,7 +2013,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     PaperMarginGuidesView(
                         width: currentSheetWidth,
                         height: currentSheetHeight,
-                        margins: margins
+                        margins: documentController.margins
                     )
                 }
 
@@ -2085,11 +2030,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                 // 6. Running Footer (Page Numbers & Interactive In-Place Double-Click Editor)
                 StudioFooterView(
-                    config: $headerFooterConfig,
+                    config: $documentController.headerFooter,
                     pageIndex: pageIndex,
                     totalPages: documentPages.count,
-                    documentTitle: documentTitle,
-                    margins: margins,
+                    documentTitle: documentController.title,
+                    margins: documentController.margins,
                     sheetWidth: currentSheetWidth,
                     sheetHeight: currentSheetHeight,
                     isEditing: $isEditingHeaderFooter,
@@ -2105,10 +2050,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
     @ViewBuilder
     private func documentCanvasContent(pageIndex: Int) -> some View {
-        let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : rawText
+        let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : documentController.rawText
         let segments = parseCanvasSegments(for: pageStr, pageIndex: pageIndex)
-        let printableWidth = max(100, currentSheetWidth - margins.left - margins.right)
-        let printableHeight = max(100, currentSheetHeight - margins.top - margins.bottom)
+        let printableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        let printableHeight = max(100, currentSheetHeight - documentController.margins.top - documentController.margins.bottom)
 
         Group {
             if segments.count == 1, case .text = segments[0] {
@@ -2122,20 +2067,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             setPageText(pageIndex: pageIndex, newText: newVal)
                         }
                     ),
-                    richTextData: $richTextData,
+                    richTextData: $documentController.richTextData,
                     selectedText: $selectedText,
                     selectionRange: $selectionRange,
                     attributedText: getPageAttributedText(pageIndex: pageIndex),
                     sliceRange: getPageSliceRange(pageIndex: pageIndex),
                     controller: editorController,
-                    fontFamily: fontFamily,
-                    fontSize: fontSize,
+                    fontFamily: documentController.fontFamily,
+                    fontSize: documentController.fontSize,
                     isBold: isBold,
                     isItalic: isItalic,
                     isUnderline: isUnderline,
-                    alignment: textAlignment,
-                    lineSpacing: lineSpacing,
-                    paragraphSpacing: paragraphSpacing,
+                    alignment: documentController.textAlignment,
+                    lineSpacing: documentController.lineSpacing,
+                    paragraphSpacing: documentController.paragraphSpacing,
                     margins: PageMargins(),
                     pageIndex: pageIndex,
                     onSelectionChanged: { _, _, attrs in
@@ -2161,20 +2106,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                         setTextChunk(pageIndex: pageIndex, textIndex: textIdx, newText: newVal)
                                     }
                                 ),
-                                richTextData: $richTextData,
+                                richTextData: $documentController.richTextData,
                                 selectedText: $selectedText,
                                 selectionRange: $selectionRange,
                                 attributedText: getPageAttributedText(pageIndex: pageIndex),
                                 sliceRange: getPageSliceRange(pageIndex: pageIndex),
                                 controller: editorController,
-                                fontFamily: fontFamily,
-                                fontSize: fontSize,
+                                fontFamily: documentController.fontFamily,
+                                fontSize: documentController.fontSize,
                                 isBold: isBold,
                                 isItalic: isItalic,
                                 isUnderline: isUnderline,
-                                alignment: textAlignment,
-                                lineSpacing: lineSpacing,
-                                paragraphSpacing: paragraphSpacing,
+                                alignment: documentController.textAlignment,
+                                lineSpacing: documentController.lineSpacing,
+                                paragraphSpacing: documentController.paragraphSpacing,
                                 margins: PageMargins(),
                                 pageIndex: pageIndex,
                                 onSelectionChanged: { _, _, attrs in
@@ -2184,14 +2129,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .frame(width: printableWidth, height: h, alignment: .topLeading)
 
                         case .table(id: _, tableId: let tableId):
-                            if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
+                            if let idx = documentController.tables.firstIndex(where: { $0.id == tableId }) {
                                 SmartTableView(
-                                    tableData: $studioTables[idx], fontFamily: fontFamily,
+                                    store: documentController, tableId: tableId, fontFamily: documentController.fontFamily,
                                     onDelete: {
-                                        let idStr = studioTables[idx].id.uuidString
-                                        studioTables.remove(at: idx)
-                                        rawText = rawText.replacingOccurrences(of: "[[table:\(idStr)]]", with: "")
-                                        rawText = rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
+                                        let idStr = documentController.tables[idx].id.uuidString
+                                        documentController.tables.remove(at: idx)
+                                        documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[table:\(idStr)]]", with: "")
+                                        documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
                                         showToast("✓ Deleted table")
                                     },
                                     onChange: {
@@ -2204,13 +2149,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             }
 
                         case .image(id: _, imageId: let imageId):
-                            if let idx = studioImages.firstIndex(where: { $0.id == imageId }) {
+                            if let idx = documentController.images.firstIndex(where: { $0.id == imageId }) {
                                 StudioImageView(
-                                    imageBlock: $studioImages[idx],
+                                    imageBlock: $documentController.images[idx],
                                     onDelete: {
-                                        let idStr = studioImages[idx].id.uuidString
-                                        studioImages.remove(at: idx)
-                                        rawText = rawText.replacingOccurrences(of: "[[image:\(idStr)]]", with: "")
+                                        let idStr = documentController.images[idx].id.uuidString
+                                        documentController.images.remove(at: idx)
+                                        documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[image:\(idStr)]]", with: "")
                                         showToast("✓ Deleted figure")
                                     },
                                     onChange: {
@@ -2223,13 +2168,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             }
 
                         case .video(id: _, videoId: let videoId):
-                            if let idx = studioVideos.firstIndex(where: { $0.id == videoId }) {
+                            if let idx = documentController.videos.firstIndex(where: { $0.id == videoId }) {
                                 StudioVideoView(
-                                    videoBlock: $studioVideos[idx],
+                                    videoBlock: $documentController.videos[idx],
                                     onDelete: {
-                                        let idStr = studioVideos[idx].id.uuidString
-                                        studioVideos.remove(at: idx)
-                                        rawText = rawText.replacingOccurrences(of: "[[video:\(idStr)]]", with: "")
+                                        let idStr = documentController.videos[idx].id.uuidString
+                                        documentController.videos.remove(at: idx)
+                                        documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[video:\(idStr)]]", with: "")
                                         showToast("✓ Deleted video card")
                                     },
                                     onChange: {
@@ -2243,10 +2188,10 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                         case .bibliography(id: _):
                             DynamicBibliographyView(
-                                sources: document.sources,
-                                activeStyle: $activeCitationStyle,
+                                sources: documentController.document.sources,
+                                activeStyle: $documentController.citationStyle,
                                 onDelete: {
-                                    rawText = rawText.replacingOccurrences(of: "[[bibliography]]", with: "")
+                                    documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[bibliography]]", with: "")
                                     showToast("✓ Deleted Bibliography section")
                                 },
                                 onToast: { msg in
@@ -2256,9 +2201,9 @@ Letters is a next-generation desktop publishing and document studio combining gr
 
                         case .tableOfContents(id: _):
                             DynamicTOCView(
-                                rawText: rawText,
+                                rawText: documentController.rawText,
                                 onDelete: {
-                                    rawText = rawText.replacingOccurrences(of: "[[toc]]", with: "")
+                                    documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[toc]]", with: "")
                                     showToast("✓ Deleted Table of Contents")
                                 },
                                 onToast: { msg in
@@ -2272,20 +2217,20 @@ Letters is a next-generation desktop publishing and document studio combining gr
         }
         .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
         .clipped()
-        .offset(x: margins.left, y: margins.top)
+        .offset(x: documentController.margins.left, y: documentController.margins.top)
     }
 
     @ViewBuilder
     private var floatingSelectionActionMenu: some View {
         FloatingActionMenu(
             selectedText: selectedText,
-            fontFamily: selectionAttributes?.fontFamily ?? fontFamily,
-            fontSize: selectionAttributes?.fontSize ?? fontSize,
+            fontFamily: selectionAttributes?.fontFamily ?? documentController.fontFamily,
+            fontSize: selectionAttributes?.fontSize ?? documentController.fontSize,
             isBold: selectionAttributes?.isBold ?? isBold,
             isItalic: selectionAttributes?.isItalic ?? isItalic,
             isUnderline: selectionAttributes?.isUnderline ?? isUnderline,
-            textAlignment: selectionAttributes?.alignment ?? textAlignment,
-            lineSpacing: lineSpacing,
+            textAlignment: selectionAttributes?.alignment ?? documentController.textAlignment,
+            lineSpacing: documentController.lineSpacing,
             onBold: {
                 toggleBoldAction()
             },
@@ -2327,11 +2272,11 @@ Letters is a next-generation desktop publishing and document studio combining gr
             onTranslate: {
                 Task {
                     if let res = try? await TranslationService.shared.translate(text: selectedText) {
-                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-                            let ns = rawText as NSString
-                            rawText = ns.replacingCharacters(in: selectionRange, with: res)
+                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+                            let ns = documentController.rawText as NSString
+                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: res)
                         } else {
-                            rawText = rawText.replacingOccurrences(of: selectedText, with: res)
+                            documentController.rawText = documentController.rawText.replacingOccurrences(of: selectedText, with: res)
                         }
                     }
                 }
@@ -2352,13 +2297,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func replaceSelection(with newText: String) {
-        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-            let ns = rawText as NSString
-            rawText = ns.replacingCharacters(in: selectionRange, with: newText)
-        } else if !selectedText.isEmpty && rawText.contains(selectedText) {
-            rawText = rawText.replacingOccurrences(of: selectedText, with: newText)
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: newText)
+        } else if !selectedText.isEmpty && documentController.rawText.contains(selectedText) {
+            documentController.rawText = documentController.rawText.replacingOccurrences(of: selectedText, with: newText)
         } else {
-            rawText += "\n\n" + newText
+            documentController.rawText += "\n\n" + newText
         }
         selectedText = ""
         selectionRange = NSRange(location: 0, length: 0)
@@ -2366,16 +2311,16 @@ Letters is a next-generation desktop publishing and document studio combining gr
     }
 
     private func insertBelowSelection(newText: String) {
-        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (rawText as NSString).length {
-            let ns = rawText as NSString
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
             let insertPos = selectionRange.location + selectionRange.length
             let head = ns.substring(to: insertPos)
             let tail = ns.substring(from: insertPos)
-            rawText = head + "\n\n" + newText + tail
-        } else if !selectedText.isEmpty, let range = rawText.range(of: selectedText) {
-            rawText.insert(contentsOf: "\n\n" + newText, at: range.upperBound)
+            documentController.rawText = head + "\n\n" + newText + tail
+        } else if !selectedText.isEmpty, let range = documentController.rawText.range(of: selectedText) {
+            documentController.rawText.insert(contentsOf: "\n\n" + newText, at: range.upperBound)
         } else {
-            rawText += "\n\n" + newText
+            documentController.rawText += "\n\n" + newText
         }
         selectedText = ""
         selectionRange = NSRange(location: 0, length: 0)
@@ -2454,7 +2399,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
         let pageContent = pages[pageIndex]
         let updatedPage = replaceTextChunk(in: pageContent, textIndex: textIndex, with: newText)
         pages[pageIndex] = updatedPage
-        rawText = pages.joined(separator: "\n\n---pagebreak---\n\n")
+        documentController.rawText = pages.joined(separator: "\n\n---pagebreak---\n\n")
     }
 
     private func parseCanvasSegments(for pageContent: String, pageIndex: Int = 0) -> [DocumentCanvasSegment] {
@@ -2491,29 +2436,29 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     segments.append(DocumentCanvasSegment.tableOfContents(id: "p\(pageIndex)-toc-\(blockIdx)"))
                     blockIdx += 1
                 } else if kind == "table" {
-                    if let uuid = UUID(uuidString: idStr), studioTables.contains(where: { $0.id == uuid }) {
+                    if let uuid = UUID(uuidString: idStr), documentController.tables.contains(where: { $0.id == uuid }) {
                         segments.append(DocumentCanvasSegment.table(id: "p\(pageIndex)-table-\(uuid.uuidString)", tableId: uuid))
                         blockIdx += 1
-                    } else if idStr.lowercased() == "budget", let firstTable = studioTables.first {
+                    } else if idStr.lowercased() == "budget", let firstTable = documentController.tables.first {
                         segments.append(DocumentCanvasSegment.table(id: "p\(pageIndex)-table-\(firstTable.id.uuidString)", tableId: firstTable.id))
                         blockIdx += 1
-                    } else if let found = studioTables.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
+                    } else if let found = documentController.tables.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
                         segments.append(DocumentCanvasSegment.table(id: "p\(pageIndex)-table-\(found.id.uuidString)", tableId: found.id))
                         blockIdx += 1
                     }
                 } else if kind == "image" {
-                    if let uuid = UUID(uuidString: idStr), studioImages.contains(where: { $0.id == uuid }) {
+                    if let uuid = UUID(uuidString: idStr), documentController.images.contains(where: { $0.id == uuid }) {
                         segments.append(DocumentCanvasSegment.image(id: "p\(pageIndex)-image-\(uuid.uuidString)", imageId: uuid))
                         blockIdx += 1
-                    } else if let found = studioImages.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
+                    } else if let found = documentController.images.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
                         segments.append(DocumentCanvasSegment.image(id: "p\(pageIndex)-image-\(found.id.uuidString)", imageId: found.id))
                         blockIdx += 1
                     }
                 } else if kind == "video" {
-                    if let uuid = UUID(uuidString: idStr), studioVideos.contains(where: { $0.id == uuid }) {
+                    if let uuid = UUID(uuidString: idStr), documentController.videos.contains(where: { $0.id == uuid }) {
                         segments.append(DocumentCanvasSegment.video(id: "p\(pageIndex)-video-\(uuid.uuidString)", videoId: uuid))
                         blockIdx += 1
-                    } else if let found = studioVideos.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
+                    } else if let found = documentController.videos.first(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) {
                         segments.append(DocumentCanvasSegment.video(id: "p\(pageIndex)-video-\(found.id.uuidString)", videoId: found.id))
                         blockIdx += 1
                     }
@@ -2703,3 +2648,141 @@ struct EditorViewNotificationsModifier: ViewModifier {
     }
 }
 
+
+@MainActor
+public class LettersDocumentController: ObservableObject {
+    @Published public var title: String
+    @Published public var rawText: String
+    @Published public var richTextData: Data?
+    
+    @Published public var document: DocumentModel
+    @Published public var tables: [StudioTableData]
+    @Published public var images: [StudioImageBlock]
+    @Published public var videos: [StudioVideoBlock]
+    @Published public var citationStyle: CitationStyle
+    
+    @Published public var pageSize: PageSizePreset
+    @Published public var marginPreset: MarginPreset
+    @Published public var margins: PageMargins
+    @Published public var coverBanner: CoverBannerConfig
+    @Published public var headerFooter: HeaderFooterConfig
+    
+    @Published public var fontFamily: String
+    @Published public var fontSize: CGFloat
+    @Published public var lineSpacing: CGFloat
+    @Published public var paragraphSpacing: CGFloat
+    @Published public var textAlignment: TextAlignment
+    
+    public init(
+        title: String = "Untitled Document",
+        rawText: String = "",
+        richTextData: Data? = nil,
+        document: DocumentModel = DocumentModel(title: "Untitled", blocks: [], sources: [String: Source](), pageSize: .letter, margins: PageMargins(top: 72, bottom: 72, left: 72, right: 72)),
+        tables: [StudioTableData] = [],
+        images: [StudioImageBlock] = [],
+        videos: [StudioVideoBlock] = [],
+        citationStyle: CitationStyle = .apa7,
+        pageSize: PageSizePreset = .letter,
+        marginPreset: MarginPreset = .normal,
+        margins: PageMargins = PageMargins(top: 72, bottom: 72, left: 72, right: 72),
+        coverBanner: CoverBannerConfig = CoverBannerConfig(),
+        headerFooter: HeaderFooterConfig = HeaderFooterConfig(),
+        fontFamily: String = "Default Serif (Georgia)",
+        fontSize: CGFloat = 15.0,
+        lineSpacing: CGFloat = 1.15,
+        paragraphSpacing: CGFloat = 12.0,
+        textAlignment: TextAlignment = .leading
+    ) {
+        self.title = title
+        self.rawText = rawText
+        self.richTextData = richTextData
+        self.document = document
+        self.tables = tables
+        self.images = images
+        self.videos = videos
+        self.citationStyle = citationStyle
+        self.pageSize = pageSize
+        self.marginPreset = marginPreset
+        self.margins = margins
+        self.coverBanner = coverBanner
+        self.headerFooter = headerFooter
+        self.fontFamily = fontFamily
+        self.fontSize = fontSize
+        self.lineSpacing = lineSpacing
+        self.paragraphSpacing = paragraphSpacing
+        self.textAlignment = textAlignment
+    }
+    
+    private var activeUndoManager: UndoManager? {
+        NSApp.keyWindow?.undoManager ?? NSApp.mainWindow?.undoManager
+    }
+    
+    public func performMutation<Value>(
+        keyPath: ReferenceWritableKeyPath<LettersDocumentController, Value>,
+        newValue: Value,
+        actionName: String? = nil
+    ) {
+        let oldValue = self[keyPath: keyPath]
+        let um = activeUndoManager
+        
+        self[keyPath: keyPath] = newValue
+        
+        um?.registerUndo(withTarget: self) { target in
+            target.performMutation(keyPath: keyPath, newValue: oldValue, actionName: actionName)
+        }
+        
+        if let actionName = actionName {
+            um?.setActionName(actionName)
+        }
+    }
+
+    public func mutateTable(id: UUID, actionName: String? = nil, mutation: (inout StudioTableData) -> Void) {
+        guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
+        
+        let oldTable = tables[index]
+        var newTable = oldTable
+        mutation(&newTable)
+        
+        let um = activeUndoManager
+        self.tables[index] = newTable
+        
+        if let actionName = actionName {
+            um?.registerUndo(withTarget: self) { target in
+                target.mutateTable(id: id, actionName: actionName) { data in
+                    data = oldTable
+                }
+            }
+            um?.setActionName(actionName)
+        }
+    }
+    
+    public func addTable(_ table: StudioTableData) {
+        let um = activeUndoManager
+        um?.registerUndo(withTarget: self) { target in
+            target.removeTable(id: table.id)
+        }
+        um?.setActionName("Insert Table")
+        tables.append(table)
+    }
+    
+    public func removeTable(id: UUID) {
+        guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
+        let table = tables[index]
+        let um = activeUndoManager
+        
+        um?.registerUndo(withTarget: self) { target in
+            target.insertTable(table, at: index)
+        }
+        um?.setActionName("Delete Table")
+        tables.remove(at: index)
+    }
+    
+    public func insertTable(_ table: StudioTableData, at index: Int) {
+        let um = activeUndoManager
+        um?.registerUndo(withTarget: self) { target in
+            target.removeTable(id: table.id)
+        }
+        um?.setActionName("Insert Table")
+        tables.insert(table, at: index)
+    }
+}
