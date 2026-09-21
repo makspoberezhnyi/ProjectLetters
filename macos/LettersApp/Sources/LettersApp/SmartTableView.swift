@@ -252,23 +252,27 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
 
     /// Returns the computed text for a specific cell
     public func evaluatedCell(row: Int, col: Int) -> String {
-        guard rows.indices.contains(row), rows[row].indices.contains(col) else { return "" }
-        let raw = rows[row][col]
+        let grid = [headers] + rows
+        guard grid.indices.contains(row), grid[row].indices.contains(col) else { return "" }
+        let raw = grid[row][col]
         if raw.hasPrefix("=") {
             var visited: Set<String> = []
-            return TableFormulaEvaluator.evaluate(formula: raw, rows: rows, visited: &visited)
+            return TableFormulaEvaluator.evaluate(formula: raw, rows: grid, visited: &visited)
         }
         return raw
     }
 
+
     /// Evaluates all cells in the table for export
     public func evaluatedRows() -> [[String]] {
-        return (0..<rows.count).map { r in
+        let grid = [headers] + rows
+        return (0..<grid.count).map { r in
             (0..<headers.count).map { c in
                 evaluatedCell(row: r, col: c)
             }
         }
     }
+
 
     public func toMarkdown() -> String {
         let eval = evaluatedRows()
@@ -404,175 +408,43 @@ public struct SmartTableView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // 2. Interactive Spreadsheet Grid
-
-            VStack(spacing: 0) {
-                // Column Letter Indicator & Header Row
-
+        VStack(spacing: 0) {
+            let gridCount = tableData.rows.count + 1
+            ForEach(0..<gridCount, id: \.self) { rowIdx in
                 HStack(spacing: 0) {
-                    // Corner Gutter
-                    Text("")
-                        .frame(width: 24, height: 24)
-                        .background(Color.primary.opacity(0.04))
-                        .overlay(
-                            Rectangle()
-                                .frame(width: 1)
-                                .foregroundColor(Color.primary.opacity(0.1)),
-                            alignment: .trailing
-                        )
-
-
-                    // Header Columns
                     ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
-                        self.headerCellView(colIdx: colIdx)
+                        self.dataCellView(rowIdx: rowIdx, colIdx: colIdx)
                     }
                 }
                 .overlay(
                     Rectangle()
-                        .frame(height: 1.5)
-                        .foregroundColor(Color.black.opacity(0.18)),
+                        .frame(height: 1)
+                        .foregroundColor(Color.primary.opacity(0.1)),
                     alignment: .bottom
                 )
-
-                // Data Rows with Row Number Gutter (1, 2, 3...)
-                ForEach(0..<tableData.rows.count, id: \.self) { rowIdx in
-                    let rowNumber = rowIdx + 1
-                    HStack(spacing: 0) {
-                        // Left Row Number Gutter
-                        Text("\(rowNumber)")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 24)
-                            .frame(maxHeight: .infinity)
-                            .background(Color.primary.opacity(0.04))
-                            .overlay(
-                                Rectangle()
-                                    .frame(width: 1)
-                                    .foregroundColor(Color.primary.opacity(0.1)),
-                                alignment: .trailing
-                            )
-                            .contextMenu {
-                                Button("Add Row Above") { insertRow(at: rowIdx) }
-                                Button("Add Row Below") { insertRow(at: rowIdx + 1) }
-                                Button("Delete Row") { deleteRow(at: rowIdx) }
-                            }
-
-
-                        // Data Cells
-                        ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
-                            let cellKey = "\(rowIdx),\(colIdx)"
-                            let isEditing = activeEditingCell == cellKey
-                            let rawValue: String = {
-                                if tableData.rows.indices.contains(rowIdx), tableData.rows[rowIdx].indices.contains(colIdx) {
-                                    return tableData.rows[rowIdx][colIdx]
-                                }
-                                return ""
-                            }()
-                            let hasFormula = rawValue.hasPrefix("=")
-                            let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
-
-                            ZStack(alignment: .leading) {
-                                if isEditing || !hasFormula {
-                                    TextField("—", text: Binding(
-                                        get: { rawValue },
-                                        set: { newVal in
-                                            if tableData.rows.indices.contains(rowIdx) {
-                                                while tableData.rows[rowIdx].count <= colIdx {
-                                                    tableData.rows[rowIdx].append("")
-                                                }
-                                                tableData.rows[rowIdx][colIdx] = newVal
-                                                onChange?()
-                                            }
-                                        }
-                                    ))
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 11, design: hasFormula || Double(displayValue) != nil ? .monospaced : .default))
-                                    .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
-                                } else {
-                                    // Evaluated Display without fx tag
-                                    Text(displayValue.isEmpty ? "" : displayValue)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(hasFormula ? .accentColor : .primary)
-
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        activeEditingCell = cellKey
-                                    }
-                                    .help("Formula: \(rawValue)")
-                                }
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .overlay(
-                                Rectangle()
-                                    .frame(width: 1)
-                                    .foregroundColor(Color.primary.opacity(0.1)),
-                                alignment: .trailing
-                            )
-                        }
-
-                    }
-                    .background(rowIdx % 2 == 0 ? Color.white : Color(red: 0.98, green: 0.98, blue: 0.99))
-                    .overlay(
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(Color.black.opacity(0.06)),
-                        alignment: .bottom
-                    )
-                }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.black.opacity(0.18), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         }
+        .background(Color(NSColor.textBackgroundColor))
+        .overlay(
+            Rectangle()
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
         .padding(.vertical, 8)
     }
 
-        @ViewBuilder
-    private func headerCellView(colIdx: Int) -> some View {
-        let colLetter = TableFormulaEvaluator.columnLetter(for: colIdx)
-        HStack(spacing: 8) {
-            Text(colLetter)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.secondary)
-            
-            TextField("Header", text: Binding(
-                get: { tableData.headers.indices.contains(colIdx) ? tableData.headers[colIdx] : "" },
-                set: { tableData.headers[colIdx] = $0; onChange?() }
-            ))
-            .textFieldStyle(.plain)
-            .font(.system(size: 12, weight: .bold))
-            .foregroundColor(.primary)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.04))
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundColor(Color.primary.opacity(0.1)),
-            alignment: .trailing
-        )
-        .contextMenu {
-            Button("Add Column Before") { insertColumn(at: colIdx) }
-            Button("Add Column After") { insertColumn(at: colIdx + 1) }
-            Button("Delete Column") { deleteColumn(at: colIdx) }
-        }
-    }
 
-    @ViewBuilder
+        @ViewBuilder
     private func dataCellView(rowIdx: Int, colIdx: Int) -> some View {
         let cellKey = "\(rowIdx),\(colIdx)"
         let isEditing = activeEditingCell == cellKey
         let rawValue: String = {
-            if tableData.rows.indices.contains(rowIdx), tableData.rows[rowIdx].indices.contains(colIdx) {
-                return tableData.rows[rowIdx][colIdx]
+            if rowIdx == 0 {
+                return tableData.headers.indices.contains(colIdx) ? tableData.headers[colIdx] : ""
+            } else {
+                let dataRow = rowIdx - 1
+                if tableData.rows.indices.contains(dataRow), tableData.rows[dataRow].indices.contains(colIdx) {
+                    return tableData.rows[dataRow][colIdx]
+                }
             }
             return ""
         }()
@@ -584,12 +456,20 @@ public struct SmartTableView: View {
                 TextField("—", text: Binding(
                     get: { rawValue },
                     set: { newVal in
-                        if tableData.rows.indices.contains(rowIdx) {
-                            while tableData.rows[rowIdx].count <= colIdx {
-                                tableData.rows[rowIdx].append("")
+                        if rowIdx == 0 {
+                            if tableData.headers.indices.contains(colIdx) {
+                                tableData.headers[colIdx] = newVal
+                                onChange?()
                             }
-                            tableData.rows[rowIdx][colIdx] = newVal
-                            onChange?()
+                        } else {
+                            let dataRow = rowIdx - 1
+                            if tableData.rows.indices.contains(dataRow) {
+                                while tableData.rows[dataRow].count <= colIdx {
+                                    tableData.rows[dataRow].append("")
+                                }
+                                tableData.rows[dataRow][colIdx] = newVal
+                                onChange?()
+                            }
                         }
                     }
                 ))
@@ -616,7 +496,21 @@ public struct SmartTableView: View {
                 .foregroundColor(Color.primary.opacity(0.1)),
             alignment: .trailing
         )
+        .contextMenu {
+            Button("Add Row Above") { insertRow(at: rowIdx) }
+            Button("Add Row Below") { insertRow(at: rowIdx + 1) }
+            Button("Delete Row") { deleteRow(at: rowIdx) }
+            Divider()
+            Button("Add Column Before") { insertColumn(at: colIdx) }
+            Button("Add Column After") { insertColumn(at: colIdx + 1) }
+            Button("Delete Column") { deleteColumn(at: colIdx) }
+            Divider()
+            if let onDelete = onDelete {
+                Button("Delete Table", role: .destructive) { onDelete() }
+            }
+        }
     }
+
 
     // MARK: - Actions
 
@@ -637,24 +531,38 @@ public struct SmartTableView: View {
 
     private func insertRow(at index: Int) {
         let newRow = Array(repeating: "", count: tableData.headers.count)
-        tableData.rows.insert(newRow, at: max(0, min(index, tableData.rows.count)))
+        if index == 0 {
+            // Inserting before headers means new row becomes headers, old headers become row 0
+            tableData.rows.insert(tableData.headers, at: 0)
+            tableData.headers = newRow
+        } else {
+            tableData.rows.insert(newRow, at: max(0, min(index - 1, tableData.rows.count)))
+        }
         onChange?()
     }
 
     private func insertColumn(at index: Int) {
         let safeIndex = max(0, min(index, tableData.headers.count))
-        let colLetter = TableFormulaEvaluator.columnLetter(for: tableData.headers.count)
-        tableData.headers.insert("Col \(colLetter)", at: safeIndex)
+        tableData.headers.insert("", at: safeIndex)
         for r in 0..<tableData.rows.count {
             tableData.rows[r].insert("", at: safeIndex)
         }
         onChange?()
     }
 
-    private func deleteRow(at index: Int)
- {
-        guard tableData.rows.count > 1, tableData.rows.indices.contains(index) else { return }
-        tableData.rows.remove(at: index)
+    private func deleteRow(at index: Int) {
+        let totalRows = tableData.rows.count + 1
+        guard totalRows > 1 else { return } // Can't delete the only row
+        
+        if index == 0 {
+            // Deleting headers -> Row 0 becomes headers
+            tableData.headers = tableData.rows.removeFirst()
+        } else {
+            let dataRow = index - 1
+            if tableData.rows.indices.contains(dataRow) {
+                tableData.rows.remove(at: dataRow)
+            }
+        }
         onChange?()
     }
 
@@ -668,6 +576,7 @@ public struct SmartTableView: View {
         }
         onChange?()
     }
+
 
     private func copyTableForExcel() {
         let pasteboard = NSPasteboard.general
