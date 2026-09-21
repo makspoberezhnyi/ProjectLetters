@@ -429,6 +429,7 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
 
 // MARK: - Smart Table View
 public struct SmartTableView: View {
+    @Environment(\.undoManager) var undoManager
     @Binding var tableData: StudioTableData
     var onDelete: (() -> Void)? = nil
     var onChange: (() -> Void)? = nil
@@ -687,7 +688,18 @@ public struct SmartTableView: View {
                     let lastChar = activeText.last ?? " "
                     if "+-*/(,= ".contains(lastChar) {
                         let refStr = "\(TableFormulaEvaluator.columnLetter(for: colIdx))\(rowIdx + 1)"
-                        setRawValue(rowIdx: r, colIdx: c, val: activeText + refStr)
+                        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Insert Reference", onChange: onChange) { data in
+                            if r == 0 {
+                                if data.headers.indices.contains(c) {
+                                    data.headers[c] = activeText + refStr
+                                }
+                            } else {
+                                let dRow = r - 1
+                                if data.rows.indices.contains(dRow), data.rows[dRow].indices.contains(c) {
+                                    data.rows[dRow][c] = activeText + refStr
+                                }
+                            }
+                        }
                         return
                     }
                 }
@@ -802,66 +814,73 @@ public struct SmartTableView: View {
 
 
     private func addRow() {
-        let newRow = Array(repeating: "", count: tableData.headers.count)
-        tableData.rows.append(newRow)
-        onChange?()
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Add Row", onChange: onChange) { data in
+            let newRow = Array(repeating: "", count: data.headers.count)
+            data.rows.append(newRow)
+        }
     }
 
     private func addColumn() {
-        let colLetter = TableFormulaEvaluator.columnLetter(for: tableData.headers.count)
-        tableData.headers.append("Column \(colLetter)")
-        for r in 0..<tableData.rows.count {
-            tableData.rows[r].append("")
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Add Column", onChange: onChange) { data in
+            let colLetter = TableFormulaEvaluator.columnLetter(for: data.headers.count)
+            data.headers.append("Column \(colLetter)")
+            for r in 0..<data.rows.count {
+                data.rows[r].append("")
+            }
         }
-        onChange?()
     }
 
     private func insertRow(at index: Int) {
-        let newRow = Array(repeating: "", count: tableData.headers.count)
-        if index == 0 {
-            // Inserting before headers means new row becomes headers, old headers become row 0
-            tableData.rows.insert(tableData.headers, at: 0)
-            tableData.headers = newRow
-        } else {
-            tableData.rows.insert(newRow, at: max(0, min(index - 1, tableData.rows.count)))
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Insert Row", onChange: onChange) { data in
+            let newRow = Array(repeating: "", count: data.headers.count)
+            if index == 0 {
+                data.rows.insert(data.headers, at: 0)
+                data.headers = newRow
+            } else {
+                data.rows.insert(newRow, at: max(0, min(index - 1, data.rows.count)))
+            }
         }
-        onChange?()
     }
 
     private func insertColumn(at index: Int) {
-        let safeIndex = max(0, min(index, tableData.headers.count))
-        tableData.headers.insert("", at: safeIndex)
-        for r in 0..<tableData.rows.count {
-            tableData.rows[r].insert("", at: safeIndex)
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Insert Column", onChange: onChange) { data in
+            let safeIndex = max(0, min(index, data.headers.count))
+            data.headers.insert("", at: safeIndex)
+            for r in 0..<data.rows.count {
+                data.rows[r].insert("", at: safeIndex)
+            }
         }
-        onChange?()
     }
 
     private func deleteRow(at index: Int) {
         let totalRows = tableData.rows.count + 1
-        guard totalRows > 1 else { return } // Can't delete the only row
+        guard totalRows > 1 else { return }
         
-        if index == 0 {
-            // Deleting headers -> Row 0 becomes headers
-            tableData.headers = tableData.rows.removeFirst()
-        } else {
-            let dataRow = index - 1
-            if tableData.rows.indices.contains(dataRow) {
-                tableData.rows.remove(at: dataRow)
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Delete Row", onChange: onChange) { data in
+            if index == 0 {
+                data.headers = data.rows.removeFirst()
+            } else {
+                let dataRow = index - 1
+                if data.rows.indices.contains(dataRow) {
+                    data.rows.remove(at: dataRow)
+                }
             }
         }
-        onChange?()
     }
 
     private func deleteColumn(at index: Int) {
-        guard tableData.headers.count > 1, tableData.headers.indices.contains(index) else { return }
-        tableData.headers.remove(at: index)
-        for r in 0..<tableData.rows.count {
-            if tableData.rows[r].indices.contains(index) {
-                tableData.rows[r].remove(at: index)
+        guard tableData.headers.count > 1 else { return }
+        
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Delete Column", onChange: onChange) { data in
+            if data.headers.indices.contains(index) {
+                data.headers.remove(at: index)
+                for r in 0..<data.rows.count {
+                    if data.rows[r].indices.contains(index) {
+                        data.rows[r].remove(at: index)
+                    }
+                }
             }
         }
-        onChange?()
     }
 
 
@@ -922,5 +941,50 @@ private struct FormulaTipRow: View {
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
         }
+    }
+}
+
+class DocumentUndoToken: NSObject {}
+
+@MainActor
+public class DocumentUndoHelper {
+    public static func registerUndo<T>(
+        for binding: Binding<T>,
+        undoManager: UndoManager?,
+        oldData: T,
+        actionName: String? = nil,
+        onChange: (() -> Void)? = nil
+    ) {
+        let token = DocumentUndoToken()
+        
+        undoManager?.registerUndo(withTarget: token) { _ in
+            let current = binding.wrappedValue
+            DocumentUndoHelper.registerUndo(for: binding, undoManager: undoManager, oldData: current, actionName: actionName, onChange: onChange)
+            binding.wrappedValue = oldData
+            onChange?()
+        }
+        
+        if let actionName = actionName {
+            undoManager?.setActionName(actionName)
+        }
+    }
+
+    public static func perform<T>(
+        binding: Binding<T>,
+        undoManager: UndoManager?,
+        actionName: String? = nil,
+        onChange: (() -> Void)? = nil,
+        mutation: (inout T) -> Void
+    ) {
+        let oldData = binding.wrappedValue
+        mutation(&binding.wrappedValue)
+        
+        registerUndo(
+            for: binding,
+            undoManager: undoManager,
+            oldData: oldData,
+            actionName: actionName,
+            onChange: onChange
+        )
     }
 }
