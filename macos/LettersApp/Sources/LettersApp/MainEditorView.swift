@@ -900,7 +900,14 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     showToast("✓ Zoom: 100%")
                 }) { EmptyView() }
                     .keyboardShortcut("0", modifiers: [.command])
+                
+                // Global Command+A routing
+                Button(action: {
+                    NSApp.sendAction(#selector(NSResponder.selectAll(_:)), to: nil, from: nil)
+                }) { EmptyView() }
+                    .keyboardShortcut("a", modifiers: [.command])
             }
+
             .opacity(0)
             .allowsHitTesting(false)
         )

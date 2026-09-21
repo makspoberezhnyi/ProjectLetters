@@ -405,135 +405,8 @@ public struct SmartTableView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 1. Table Header & Toolbar
-            HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "tablecells.fill")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 12))
-
-                    TextField("Table Title", text: $tableData.title)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.15))
-                        .frame(minWidth: 120, maxWidth: 260)
-                }
-
-                Spacer()
-
-                // Action Buttons
-                HStack(spacing: 4) {
-                    // Formula Reference Helper
-                    Button {
-                        showingFormulaHelper.toggle()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text("fx")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.blue)
-                            Text("Formulas")
-                        }
-                        .font(.system(size: 10, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .popover(isPresented: $showingFormulaHelper, arrowEdge: .top) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Table Formulas & Cell References")
-                                .font(.system(size: 12, weight: .bold))
-
-                            Text("Use column letters (A, B, C...) and row numbers (1, 2, 3...) to write formulas:")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                FormulaTipRow(formula: "=A1+B1", desc: "Add two cells together")
-                                FormulaTipRow(formula: "=A1-B1", desc: "Subtract cell B1 from A1")
-                                FormulaTipRow(formula: "=A1*B1", desc: "Multiply quantity by price")
-                                FormulaTipRow(formula: "=A1/B1", desc: "Divide cells")
-                                FormulaTipRow(formula: "=SUM(A1:A5)", desc: "Sum a column range")
-                                FormulaTipRow(formula: "=AVERAGE(B1:B5)", desc: "Compute average of range")
-                                FormulaTipRow(formula: "=MIN(C1:C5)", desc: "Minimum value in range")
-                                FormulaTipRow(formula: "=MAX(C1:C5)", desc: "Maximum value in range")
-                            }
-                            .padding(8)
-                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-                        }
-                        .padding(14)
-                        .frame(width: 300)
-                    }
-
-                    // Add Row
-                    Button {
-                        addRow()
-                    } label: {
-                        Label("Row", systemImage: "plus")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .help("Add new row")
-
-                    // Add Column
-                    Button {
-                        addColumn()
-                    } label: {
-                        Label("Column", systemImage: "plus")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .help("Add new column")
-
-                    // Copy for Excel / TSV
-                    Button {
-                        copyTableForExcel()
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 10))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .help("Copy table formatted for Excel & Google Sheets")
-
-                    // Paste Excel
-                    Button {
-                        pasteFromExcel()
-                    } label: {
-                        Image(systemName: "arrow.up.doc")
-                            .font(.system(size: 10))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .help("Paste spreadsheet data copied from Excel")
-
-                    // Export CSV
-                    Button {
-                        exportTableAsCSV()
-                    } label: {
-                        Image(systemName: "arrow.down.doc")
-                            .font(.system(size: 10))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .help("Export as CSV file")
-
-                    // Delete Table
-                    if let onDelete = onDelete {
-                        Button(role: .destructive, action: onDelete) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 10))
-                                .foregroundColor(.red)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete table")
-                        .padding(.leading, 4)
-                    }
-                }
-            }
-            .padding(.horizontal, 4)
-
             // 2. Interactive Spreadsheet Grid
+
             VStack(spacing: 0) {
                 // Column Letter Indicator & Header Row
 
@@ -552,46 +425,7 @@ public struct SmartTableView: View {
 
                     // Header Columns
                     ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
-                        let colLetter = TableFormulaEvaluator.columnLetter(for: colIdx)
-                        HStack(spacing: 4) {
-                            // Column Letter Badge (A, B, C...)
-                            Text(colLetter)
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
-
-                            TextField("Header", text: Binding(
-                                get: { tableData.headers.indices.contains(colIdx) ? tableData.headers[colIdx] : "" },
-                                set: { tableData.headers[colIdx] = $0; onChange?() }
-                            ))
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.15))
-
-                            if tableData.headers.count > 1 {
-                                Button {
-                                    deleteColumn(at: colIdx)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 8))
-                                        .foregroundColor(.secondary.opacity(0.5))
-                                }
-                                .buttonStyle(.plain)
-                                .help("Delete column \(colLetter)")
-                            }
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(red: 0.93, green: 0.95, blue: 0.98))
-                        .overlay(
-                            Rectangle()
-                                .frame(width: 1)
-                                .foregroundColor(Color.black.opacity(0.1)),
-                            alignment: .trailing
-                        )
+                        self.headerCellView(colIdx: colIdx)
                     }
                 }
                 .overlay(
@@ -607,17 +441,23 @@ public struct SmartTableView: View {
                     HStack(spacing: 0) {
                         // Left Row Number Gutter
                         Text("\(rowNumber)")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.secondary.opacity(0.8))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
                             .frame(width: 24)
                             .frame(maxHeight: .infinity)
-                            .background(Color(red: 0.94, green: 0.95, blue: 0.97))
+                            .background(Color.primary.opacity(0.04))
                             .overlay(
                                 Rectangle()
                                     .frame(width: 1)
-                                    .foregroundColor(Color.black.opacity(0.1)),
+                                    .foregroundColor(Color.primary.opacity(0.1)),
                                 alignment: .trailing
                             )
+                            .contextMenu {
+                                Button("Add Row Above") { insertRow(at: rowIdx) }
+                                Button("Add Row Below") { insertRow(at: rowIdx + 1) }
+                                Button("Delete Row") { deleteRow(at: rowIdx) }
+                            }
+
 
                         // Data Cells
                         ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
@@ -693,7 +533,93 @@ public struct SmartTableView: View {
         .padding(.vertical, 8)
     }
 
+        @ViewBuilder
+    private func headerCellView(colIdx: Int) -> some View {
+        let colLetter = TableFormulaEvaluator.columnLetter(for: colIdx)
+        HStack(spacing: 8) {
+            Text(colLetter)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.secondary)
+            
+            TextField("Header", text: Binding(
+                get: { tableData.headers.indices.contains(colIdx) ? tableData.headers[colIdx] : "" },
+                set: { tableData.headers[colIdx] = $0; onChange?() }
+            ))
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, weight: .bold))
+            .foregroundColor(.primary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.04))
+        .overlay(
+            Rectangle()
+                .frame(width: 1)
+                .foregroundColor(Color.primary.opacity(0.1)),
+            alignment: .trailing
+        )
+        .contextMenu {
+            Button("Add Column Before") { insertColumn(at: colIdx) }
+            Button("Add Column After") { insertColumn(at: colIdx + 1) }
+            Button("Delete Column") { deleteColumn(at: colIdx) }
+        }
+    }
+
+    @ViewBuilder
+    private func dataCellView(rowIdx: Int, colIdx: Int) -> some View {
+        let cellKey = "\(rowIdx),\(colIdx)"
+        let isEditing = activeEditingCell == cellKey
+        let rawValue: String = {
+            if tableData.rows.indices.contains(rowIdx), tableData.rows[rowIdx].indices.contains(colIdx) {
+                return tableData.rows[rowIdx][colIdx]
+            }
+            return ""
+        }()
+        let hasFormula = rawValue.hasPrefix("=")
+        let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
+
+        ZStack(alignment: .leading) {
+            if isEditing || !hasFormula {
+                TextField("—", text: Binding(
+                    get: { rawValue },
+                    set: { newVal in
+                        if tableData.rows.indices.contains(rowIdx) {
+                            while tableData.rows[rowIdx].count <= colIdx {
+                                tableData.rows[rowIdx].append("")
+                            }
+                            tableData.rows[rowIdx][colIdx] = newVal
+                            onChange?()
+                        }
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: hasFormula || Double(displayValue) != nil ? .monospaced : .default))
+                .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
+            } else {
+                Text(displayValue.isEmpty ? "" : displayValue)
+                    .font(.system(size: 12))
+                    .foregroundColor(hasFormula ? .accentColor : .primary)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        activeEditingCell = cellKey
+                    }
+                    .help("Formula: \(rawValue)")
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            Rectangle()
+                .frame(width: 1)
+                .foregroundColor(Color.primary.opacity(0.1)),
+            alignment: .trailing
+        )
+    }
+
     // MARK: - Actions
+
     private func addRow() {
         let newRow = Array(repeating: "", count: tableData.headers.count)
         tableData.rows.append(newRow)
@@ -709,7 +635,24 @@ public struct SmartTableView: View {
         onChange?()
     }
 
-    private func deleteRow(at index: Int) {
+    private func insertRow(at index: Int) {
+        let newRow = Array(repeating: "", count: tableData.headers.count)
+        tableData.rows.insert(newRow, at: max(0, min(index, tableData.rows.count)))
+        onChange?()
+    }
+
+    private func insertColumn(at index: Int) {
+        let safeIndex = max(0, min(index, tableData.headers.count))
+        let colLetter = TableFormulaEvaluator.columnLetter(for: tableData.headers.count)
+        tableData.headers.insert("Col \(colLetter)", at: safeIndex)
+        for r in 0..<tableData.rows.count {
+            tableData.rows[r].insert("", at: safeIndex)
+        }
+        onChange?()
+    }
+
+    private func deleteRow(at index: Int)
+ {
         guard tableData.rows.count > 1, tableData.rows.indices.contains(index) else { return }
         tableData.rows.remove(at: index)
         onChange?()
