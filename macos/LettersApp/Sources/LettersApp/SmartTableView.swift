@@ -711,33 +711,38 @@ public struct SmartTableView: View {
         let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
 
         ZStack(alignment: .leading) {
-            Color.clear
-                .contentShape(Rectangle())
-
-                
+            // Always in hierarchy for reliable FocusState
+            TextField("—", text: Binding(
+                get: { rawValue },
+                set: { newVal in setRawValue(rowIdx: rowIdx, colIdx: colIdx, val: newVal) }
+            ))
+            .textFieldStyle(.plain)
+            .focused($activeEditingCell, equals: cellKey)
+            .font(getTableFont(size: 11))
+            .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
+            .opacity(isEditing || !hasFormula ? 1 : 0)
+            .onSubmit {
+                activeEditingCell = nil
+            }
             
-            if isEditing || !hasFormula {
-                TextField("—", text: Binding(
-
-                    get: { rawValue },
-                    set: { newVal in setRawValue(rowIdx: rowIdx, colIdx: colIdx, val: newVal) }
-                ))
-                .textFieldStyle(.plain)
-                .focused($activeEditingCell, equals: cellKey)
-                .font(getTableFont(size: 11))
-                .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
-            } else {
+            if !isEditing && hasFormula {
                 Text(displayValue.isEmpty ? "" : displayValue)
                     .font(getTableFont(size: 12))
-                    .foregroundColor(hasFormula ? .accentColor : .primary)
+                    .foregroundColor(.accentColor)
+                    .allowsHitTesting(false)
+            }
+            
+            if !isEditing {
+                Color.white.opacity(0.001)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        activeEditingCell = cellKey
+                        handleCellTap(rowIdx: rowIdx, colIdx: colIdx, cellKey: cellKey)
                     }
-                    .help("Formula: \(rawValue)")
             }
         }
         .padding(.horizontal, 6)
+
         .padding(.vertical, 6)
         .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil, alignment: .leading)
         .frame(width: getColumnWidth(colIdx), alignment: .leading)
