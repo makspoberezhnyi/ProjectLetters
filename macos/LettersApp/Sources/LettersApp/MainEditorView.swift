@@ -213,7 +213,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
     public var body: some View {
         VStack(spacing: 0) {
             // 1. Sleek Minimalist Glass Top Navigation Bar
-            HStack(spacing: 12) {
+            HStack(spacing: 16) {
                 // Left Island Sidebar Toggle Button
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
@@ -221,139 +221,154 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     }
                 }) {
                     Image(systemName: "sidebar.left")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(showIslandSidebar ? .accentColor : .primary.opacity(0.75))
-                        .frame(width: 28, height: 28)
+                        .frame(width: 32, height: 32)
                         .background(showIslandSidebar ? Color.accentColor.opacity(0.15) : Color.clear)
-                        .cornerRadius(6)
+                        .cornerRadius(8)
+                        .symbolEffect(.bounce, value: showIslandSidebar)
                 }
                 .buttonStyle(.plain)
-                .help("Toggle Floating Island Navigator (⌥⌘1)")
+                .help("Toggle Instruments Toolbar (⌥⌘1)")
 
-                // Document Title & Page Status
+                // Document Title
                 HStack(spacing: 8) {
                     Image(systemName: "doc.text.fill")
                         .foregroundColor(.accentColor)
-                        .font(.system(size: 14))
+                        .font(.system(size: 16))
 
                     TextField("Document Title", text: $documentTitle)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 180, maxWidth: 320)
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(minWidth: 140, maxWidth: 220)
+                }
+                
+                Divider().frame(height: 20)
 
-                    Text("• \(pageSize.rawValue)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
+                // Word-Style Font Formatting Controls
+                HStack(spacing: 8) {
+                    // Font Family
+                    Menu {
+                        ForEach(["System", "Georgia", "Helvetica Neue", "Times New Roman", "Menlo", "Courier New", "Avenir Next", "Baskerville", "Palatino", "Charter"], id: \.self) { fam in
+                            Button(fam) { setFontFamilyAction(fam) }
+                        }
+                    } label: {
+                        HStack {
+                            Text(selectionAttributes?.fontFamily ?? fontFamily)
+                                .font(.system(size: 13, weight: .medium))
+                                .frame(width: 100, alignment: .leading)
+                            Image(systemName: "chevron.down").font(.system(size: 10))
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 6)
+                        .background(Color.primary.opacity(0.06)).cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Font Size
+                    HStack(spacing: 2) {
+                        Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? fontSize) - 1) }) {
+                            Image(systemName: "minus")
+                        }.frame(width: 24, height: 26).background(Color.primary.opacity(0.06)).cornerRadius(4)
+                        
+                        Text("\(Int(selectionAttributes?.fontSize ?? fontSize))")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 28, alignment: .center)
+                            
+                        Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? fontSize) + 1) }) {
+                            Image(systemName: "plus")
+                        }.frame(width: 24, height: 26).background(Color.primary.opacity(0.06)).cornerRadius(4)
+                    }.buttonStyle(.plain)
+                    
+                    Divider().frame(height: 16)
+                    
+                    // Bold, Italic, Underline
+                    Button(action: { toggleBoldAction() }) {
+                        Image(systemName: "b.square")
+                            .font(.system(size: 15, weight: (selectionAttributes?.isBold ?? isBold) ? .bold : .regular))
+                            .foregroundColor((selectionAttributes?.isBold ?? isBold) ? .accentColor : .primary)
+                    }.buttonStyle(.plain)
+                    Button(action: { toggleItalicAction() }) {
+                        Image(systemName: "i.square")
+                            .font(.system(size: 15, weight: (selectionAttributes?.isItalic ?? isItalic) ? .bold : .regular))
+                            .foregroundColor((selectionAttributes?.isItalic ?? isItalic) ? .accentColor : .primary)
+                    }.buttonStyle(.plain)
+                    Button(action: { toggleUnderlineAction() }) {
+                        Image(systemName: "u.square")
+                            .font(.system(size: 15, weight: (selectionAttributes?.isUnderline ?? isUnderline) ? .bold : .regular))
+                            .foregroundColor((selectionAttributes?.isUnderline ?? isUnderline) ? .accentColor : .primary)
+                    }.buttonStyle(.plain)
+                    
+                    Divider().frame(height: 16)
+                    
+                    // Alignment
+                    Menu {
+                        Button("Left") { setAlignmentAction(.leading) }
+                        Button("Center") { setAlignmentAction(.center) }
+                        Button("Right") { setAlignmentAction(.trailing) }
+                    } label: {
+                        let align = selectionAttributes?.alignment ?? textAlignment
+                        let alignIcon = align == .leading ? "text.alignleft" : (align == .center ? "text.aligncenter" : "text.alignright")
+                        Image(systemName: alignIcon)
+                            .font(.system(size: 15))
+                            .padding(6)
+                            .background(Color.primary.opacity(0.06)).cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 Spacer()
 
-                // Quick Action Center & Navigation Toggles
-                HStack(spacing: 8) {
-                    // Editorial Cover Banner Toggle
-                    Button(action: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            coverBannerConfig.isEnabled.toggle()
-                        }
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: coverBannerConfig.isEnabled ? "photo.fill" : "photo")
-                                .font(.system(size: 11, weight: .medium))
-                            Text("Cover")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(coverBannerConfig.isEnabled ? StudioTheme.luminousAmber.opacity(0.18) : Color.primary.opacity(0.06))
-                        .foregroundColor(coverBannerConfig.isEnabled ? StudioTheme.luminousAmber : .primary)
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Toggle Editorial Hero Cover Banner (⌥⌘C)")
-
-                    // Reading Flow Timeline Toggle
+                // Quick Action Center (AI, Timeline, Command)
+                HStack(spacing: 12) {
+                    // Timeline
                     Button(action: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                             showDocumentTimeline.toggle()
                         }
                     }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "chart.bar.doc.horizontal")
-                                .font(.system(size: 11, weight: .medium))
-                            Text("Timeline")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(showDocumentTimeline ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
-                        .foregroundColor(showDocumentTimeline ? StudioTheme.luminousCyan : .primary)
-                        .cornerRadius(6)
+                        Image(systemName: showDocumentTimeline ? "chart.bar.doc.horizontal.fill" : "chart.bar.doc.horizontal")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(showDocumentTimeline ? StudioTheme.luminousCyan : .primary)
+                            .padding(8)
+                            .background(showDocumentTimeline ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
+                            .cornerRadius(8)
+                            .symbolEffect(.bounce, value: showDocumentTimeline)
                     }
                     .buttonStyle(.plain)
-                    .help("Toggle Reading Flow & Section Timeline (⌥⌘T)")
-
-                    Divider()
-                        .frame(height: 16)
-
-                    // Page Design Inspector Toggle
-                    Button(action: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            showPageDesignInspector.toggle()
-                        }
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "paintpalette.fill")
-                                .font(.system(size: 11, weight: .medium))
-                            Text("Design")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(showPageDesignInspector ? StudioTheme.luminousPurple.opacity(0.2) : Color.primary.opacity(0.06))
-                        .foregroundColor(showPageDesignInspector ? StudioTheme.luminousPurple : .primary)
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Toggle Page Design & Style Inspector (⌥⌘D)")
-
+                    .help("Toggle Reading Flow Timeline (⌥⌘T)")
+                    
                     // AI Copilot Toggle
                     Button(action: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                             showAIDrawer.toggle()
                         }
                     }) {
-                        HStack(spacing: 5) {
+                        HStack(spacing: 6) {
                             Image(systemName: "sparkles")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text("AI Copilot")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Copilot")
+                                .font(.system(size: 13, weight: .medium))
                         }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .background(showAIDrawer ? StudioTheme.luminousPurple.opacity(0.2) : Color.primary.opacity(0.06))
                         .foregroundColor(showAIDrawer ? StudioTheme.luminousPurple : .primary)
-                        .cornerRadius(6)
+                        .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
-                    .help("Toggle AI Copilot Companion (⌘J)")
-
+                    
                     // Command Center Button
                     Button(action: { showCommandPalette.toggle() }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "command")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("K")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(Color.primary.opacity(0.06))
-                        .cornerRadius(6)
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 14, weight: .bold))
+                            .padding(8)
+                            .background(Color.primary.opacity(0.06))
+                            .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
-                    .help("Open Command Center (⌘K)")
                 }
             }
+
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(StudioTheme.panelBackground)
@@ -371,20 +386,6 @@ Letters is a next-generation desktop publishing and document studio combining gr
                     ZStack(alignment: .topLeading) {
                         ScrollView([.vertical, .horizontal]) {
                             VStack(spacing: 36) {
-                                // Optional Editorial Hero Cover Banner
-                                if coverBannerConfig.isEnabled {
-                                    StudioCoverBannerView(
-                                        config: $coverBannerConfig,
-                                        documentTitle: $documentTitle,
-                                        sheetWidth: currentSheetWidth * zoomScale,
-                                        onBannerToggled: {
-                                            showToast(coverBannerConfig.isEnabled ? "Cover enabled" : "Cover disabled")
-                                        }
-                                    )
-                                    .frame(width: currentSheetWidth * zoomScale)
-                                    .padding(.bottom, 8)
-                                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                                }
 
                                 // Multi-Page Sheet Rendering
                                 ForEach(0..<documentPages.count, id: \.self) { pageIndex in
@@ -467,7 +468,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .zIndex(20)
                         }
 
-                        // 4. Floating Text Selection Quick Format HUD & Inline AI Canvas Editor
+                        // 4. Inline AI Canvas Editor (shows when text selected, no format buttons since they are in top bar)
                         if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isEditingHeaderFooter {
                             VStack {
                                 Spacer()
@@ -498,17 +499,13 @@ Letters is a next-generation desktop publishing and document studio combining gr
                                         insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 12)),
                                         removal: .opacity.combined(with: .scale(scale: 0.96))
                                     ))
-                                } else {
-                                    floatingSelectionActionMenu
-                                        .padding(.bottom, 74)
-                                        .transition(.move(edge: .bottom).combined(with: .opacity))
                                 }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                             .zIndex(20)
                         }
 
-                        // 5. Floating Find & Replace Bar Overlay (⌘F)
+                        // 5. Floating Find & Replace Bar Overlay
                         if showFindReplace {
                             VStack {
                                 Spacer()
@@ -630,36 +627,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                             .zIndex(15)
                         }
 
-                        // Floating Right Page Design & Style Inspector
-                        if showPageDesignInspector {
-                            VStack {
-                                HStack {
-                                    Spacer()
-                                    StudioPageDesignView(
-                                        isPresented: $showPageDesignInspector,
-                                        coverBannerConfig: $coverBannerConfig,
-                                        pageSize: $pageSize,
-                                        marginPreset: $marginPreset,
-                                        margins: $margins,
-                                        fontFamily: $fontFamily,
-                                        fontSize: $fontSize,
-                                        lineSpacing: $lineSpacing,
-                                        paragraphSpacing: $paragraphSpacing,
-                                        activeCitationStyle: $activeCitationStyle,
-                                        showMarginGuides: $showMarginGuides,
-                                        showCropMarks: $showCropMarks,
-                                        onToast: { msg in showToast(msg) }
-                                    )
-                                }
-                                Spacer()
-                            }
-                            .padding(.trailing, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                            .zIndex(16)
-                        }
-
+                        
                         // Floating Toast Notification
                         if let msg = toastMessage {
                             VStack {

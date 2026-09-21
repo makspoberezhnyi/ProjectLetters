@@ -1,41 +1,9 @@
 import SwiftUI
-#if canImport(LettersKit)
-import LettersKit
-#endif
-
-public enum SidebarNavSection: String, CaseIterable, Identifiable {
-    case pages = "Pages & Spreads"
-    case outline = "Headings Outline"
-    case sources = "Linked Sources"
-    case tables = "Smart Tables"
-    case assets = "Media Figures"
-
-    public var id: String { rawValue }
-
-    public var icon: String {
-        switch self {
-        case .pages: return "doc.on.doc.fill"
-        case .outline: return "list.bullet.indent"
-        case .sources: return "quote.bubble.fill"
-        case .tables: return "tablecells.fill"
-        case .assets: return "photo.fill"
-        }
-    }
-
-    public var color: Color {
-        switch self {
-        case .pages: return StudioTheme.luminousCyan
-        case .outline: return StudioTheme.luminousBlue
-        case .sources: return StudioTheme.luminousAmber
-        case .tables: return StudioTheme.luminousEmerald
-        case .assets: return StudioTheme.luminousPurple
-        }
-    }
-}
 
 public struct StudioFloatingSidebar: View {
     @Binding var isPresented: Bool
     @Binding var rawText: String
+    let documentPages: [String]
     @Binding var selectedPage: Int
     @Binding var sources: [String: Source]
     @Binding var tables: [StudioTableData]
@@ -44,15 +12,13 @@ public struct StudioFloatingSidebar: View {
     @Binding var showAIDrawer: Bool
     @Binding var showCommandPalette: Bool
 
-    var documentPages: [String]
     var onInsertSection: () -> Void
     var onInsertTable: () -> Void
     var onAddSource: () -> Void
     var onInsertPageBreak: () -> Void
-    var onToast: ((String) -> Void)? = nil
+    var onToast: ((String) -> Void)?
 
-    @State private var activeSection: SidebarNavSection = .pages
-    @State private var hoveredSection: SidebarNavSection? = nil
+    @State private var hoveredTool: String? = nil
 
     public init(
         isPresented: Binding<Bool>,
@@ -89,518 +55,77 @@ public struct StudioFloatingSidebar: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // 1. Workspace / App Identity & Collapse Button
-            HStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(LinearGradient(colors: [Color.accentColor, Color.purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 26, height: 26)
-
-                    Image(systemName: "feather")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Letters Studio")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.primary)
-                    Text("Pro Desktop Studio")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        isPresented = false
-                    }
-                } label: {
-                    Image(systemName: "sidebar.left")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help("Hide Sidebar (⌥⌘1)")
+        VStack(spacing: 16) {
+            // App Logo
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(LinearGradient(colors: [Color.accentColor, Color.purple], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: "feather")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
-
+            .padding(.top, 12)
+            
             Divider()
-                .padding(.horizontal, 8)
-
-            // 2. Navigation Categories (Floating Island Tabs)
-            VStack(spacing: 3) {
-                ForEach(SidebarNavSection.allCases) { sec in
-                    Button {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            activeSection = sec
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(sec.color.opacity(0.18))
-                                    .frame(width: 22, height: 22)
-
-                                Image(systemName: sec.icon)
-                                    .font(.system(size: 10.5, weight: .bold))
-                                    .foregroundColor(sec.color)
-                            }
-
-                            Text(sec.rawValue)
-                                .font(.system(size: 11.5, weight: activeSection == sec ? .semibold : .medium))
-                                .foregroundColor(activeSection == sec ? .primary : .secondary)
-
-                            Spacer()
-
-                            // Count Badges
-                            badgeForSection(sec)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(activeSection == sec ? Color.primary.opacity(0.08) : (hoveredSection == sec ? Color.primary.opacity(0.04) : Color.clear))
-                        )
+                .frame(width: 24)
+            
+            // Instruments
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 12) {
+                    instrumentButton(icon: "cursorarrow", name: "Select") { }
+                    instrumentButton(icon: "text.quote", name: "Text Box") { onInsertSection() }
+                    instrumentButton(icon: "photo", name: "Image") { 
+                        onToast?("Choose an image to insert") 
                     }
-                    .buttonStyle(.plain)
-                    .onHover { isHover in
-                        hoveredSection = isHover ? sec : nil
-                    }
+                    instrumentButton(icon: "tablecells", name: "Table") { onInsertTable() }
+                    instrumentButton(icon: "arrow.up.and.down.text.horizontal", name: "Page Break") { onInsertPageBreak() }
+                    
+                    Divider()
+                        .frame(width: 24)
+                        .padding(.vertical, 4)
+                        
+                    instrumentButton(icon: "book.closed", name: "Sources") { onAddSource() }
+                    instrumentButton(icon: "magnifyingglass", name: "Find") { showCommandPalette = true }
+                    instrumentButton(icon: "sparkles", name: "AI Copilot", color: .purple) { showAIDrawer.toggle() }
                 }
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 6)
-
-            Divider()
-                .padding(.horizontal, 8)
-
-            // 3. Dynamic Section Panel Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    switch activeSection {
-                    case .pages:
-                        pagesSpreadListView
-                    case .outline:
-                        headingsOutlineListView
-                    case .sources:
-                        sourcesListView
-                    case .tables:
-                        tablesListView
-                    case .assets:
-                        assetsListView
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-            }
-
-            Spacer(minLength: 0)
-
-            Divider()
-                .padding(.horizontal, 8)
-
-            // 4. Quick Action Micro-Buttons (Bottom of Island)
-            HStack(spacing: 6) {
-                Button {
-                    onInsertPageBreak()
-                    onToast?("✓ Page break inserted")
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "plus")
-                        Text("Page")
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help("Insert Page Break (⌘↵)")
-
-                Button {
-                    onInsertTable()
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "tablecells.badge.ellipsis")
-                        Text("Table")
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help("Insert Smart Table")
-
-                Spacer()
-
-                Button {
-                    showCommandPalette = true
-                } label: {
-                    Image(systemName: "command")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help("Open Command Palette (⌘K)")
-            }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
         }
-        .frame(width: 220)
+        .frame(width: 56)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(StudioTheme.islandBackground)
-                )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(NSColor.windowBackgroundColor).opacity(0.85))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.28), radius: 20, x: 0, y: 10)
-        .padding(.leading, 12)
-        .padding(.vertical, 12)
+        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
-
-    // MARK: - Section Badges
-    @ViewBuilder
-    private func badgeForSection(_ sec: SidebarNavSection) -> some View {
-        switch sec {
-        case .pages:
-            Text("\(documentPages.count)")
-                .font(.system(size: 9.5, weight: .bold))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1.5)
-                .background(Color.primary.opacity(0.06), in: Capsule())
-        case .outline:
-            EmptyView()
-        case .sources:
-            if !sources.isEmpty {
-                Text("\(sources.count)")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(StudioTheme.luminousAmber)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(StudioTheme.luminousAmber.opacity(0.15), in: Capsule())
-            }
-        case .tables:
-            if !tables.isEmpty {
-                Text("\(tables.count)")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(StudioTheme.luminousEmerald)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(StudioTheme.luminousEmerald.opacity(0.15), in: Capsule())
-            }
-        case .assets:
-            let total = images.count + videos.count
-            if total > 0 {
-                Text("\(total)")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(StudioTheme.luminousPurple)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(StudioTheme.luminousPurple.opacity(0.15), in: Capsule())
+    
+    private func instrumentButton(icon: String, name: String, color: Color = .primary, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            action()
+        }) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hoveredTool == name ? Color.primary.opacity(0.08) : Color.clear)
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(hoveredTool == name ? color : color.opacity(0.7))
+                    .symbolEffect(.bounce, value: hoveredTool == name)
             }
         }
-    }
-
-    // MARK: - Page Spreads List
-    private var pagesSpreadListView: some View {
-        VStack(spacing: 8) {
-            ForEach(0..<documentPages.count, id: \.self) { idx in
-                let pageNum = idx + 1
-                Button {
-                    selectedPage = pageNum
-                } label: {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.white)
-                                .frame(width: 24, height: 32)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .stroke(selectedPage == pageNum ? Color.accentColor : Color.black.opacity(0.15), lineWidth: selectedPage == pageNum ? 1.5 : 0.8)
-                                )
-                                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-
-                            Text("\(pageNum)")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(Color.black.opacity(0.7))
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Page \(pageNum)")
-                                .font(.system(size: 11, weight: selectedPage == pageNum ? .bold : .medium))
-                                .foregroundColor(selectedPage == pageNum ? .primary : .secondary)
-
-                            let wordCount = EditorPerformanceCache.countWords(in: documentPages[idx])
-                            Text("\(wordCount) words")
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(
-                        selectedPage == pageNum
-                            ? Color.accentColor.opacity(0.12)
-                            : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 6)
-                    )
-                }
-                .buttonStyle(.plain)
+        .buttonStyle(.plain)
+        .help(name)
+        .onHover { isHovered in
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                hoveredTool = isHovered ? name : nil
             }
         }
-    }
-
-    // MARK: - Headings Outline List
-    private var headingsOutlineListView: some View {
-        let headings = parseHeadings(from: rawText)
-        return VStack(alignment: .leading, spacing: 4) {
-            if headings.isEmpty {
-                Text("No headings found.\nType # Heading 1 to structure.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-            } else {
-                ForEach(headings, id: \.title) { h in
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(h.level == 1 ? StudioTheme.luminousCyan : (h.level == 2 ? StudioTheme.luminousBlue : StudioTheme.luminousPurple))
-                            .frame(width: 5, height: 5)
-                            .padding(.leading, CGFloat((h.level - 1) * 8))
-
-                        Text(h.title)
-                            .font(.system(size: 10.5, weight: h.level == 1 ? .semibold : .regular))
-                            .lineLimit(1)
-                            .foregroundColor(.primary)
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 3)
-                }
-            }
-        }
-    }
-
-    // MARK: - Sources List
-    private var sourcesListView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Citations (\(sources.count))")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Button("+ Add") { onAddSource() }
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .buttonStyle(.plain)
-                    .foregroundColor(.accentColor)
-            }
-
-            if sources.isEmpty {
-                Text("No linked sources.\nClick + Add to attach citations.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .padding(4)
-            } else {
-                ForEach(Array(sources.values), id: \.id) { src in
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(src.title)
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .lineLimit(1)
-                            Text(src.authors.joined(separator: ", ") + (src.year != nil ? " (\(src.year!))" : ""))
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        Button(action: {
-                            sources.removeValue(forKey: src.id)
-                            onToast?("✓ Removed citation '\(src.title)'")
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete citation")
-                    }
-                    .padding(5)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
-                }
-            }
-        }
-    }
-
-    // MARK: - Tables List
-    private var tablesListView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Smart Tables (\(tables.count))")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Button("+ New") { onInsertTable() }
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .buttonStyle(.plain)
-                    .foregroundColor(StudioTheme.luminousEmerald)
-            }
-
-            if tables.isEmpty {
-                Text("No smart tables.\nClick + New or Canvas > Table to create.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .padding(4)
-            } else {
-                ForEach(tables) { tbl in
-                    HStack {
-                        Image(systemName: "tablecells")
-                            .font(.system(size: 10))
-                            .foregroundColor(StudioTheme.luminousEmerald)
-                        Text(tbl.title)
-                            .font(.system(size: 10.5, weight: .medium))
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(tbl.rows.count)r × \(tbl.headers.count)c")
-                            .font(.system(size: 8.5))
-                            .foregroundColor(.secondary)
-                        Button(action: {
-                            deleteTable(tbl)
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(.secondary.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete smart table")
-                    }
-                    .padding(5)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
-                }
-            }
-        }
-    }
-
-    private func deleteTable(_ tbl: StudioTableData) {
-        if let idx = tables.firstIndex(where: { $0.id == tbl.id }) {
-            tables.remove(at: idx)
-            rawText = rawText.replacingOccurrences(of: "[[table:\(tbl.id.uuidString)]]", with: "")
-            rawText = rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
-            onToast?("✓ Deleted table '\(tbl.title)'")
-        }
-    }
-
-    // MARK: - Assets List
-    private var assetsListView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Figures & Media (\(images.count + videos.count))")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.secondary)
-
-            if images.isEmpty && videos.isEmpty {
-                Text("No media figures.\nDrag and drop or insert images/videos.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .padding(4)
-            } else {
-                ForEach(images) { img in
-                    HStack(spacing: 6) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 10))
-                            .foregroundColor(StudioTheme.luminousPurple)
-                        Text(img.caption)
-                            .font(.system(size: 10.5))
-                            .lineLimit(1)
-                        Spacer()
-                        Button(action: {
-                            if let idx = images.firstIndex(where: { $0.id == img.id }) {
-                                images.remove(at: idx)
-                                rawText = rawText.replacingOccurrences(of: "[[image:\(img.id.uuidString)]]", with: "")
-                                onToast?("✓ Deleted image figure")
-                            }
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete image")
-                    }
-                    .padding(5)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
-                }
-
-                ForEach(videos) { vid in
-                    HStack(spacing: 6) {
-                        Image(systemName: "play.rectangle.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(StudioTheme.luminousAmber)
-                        Text(vid.title)
-                            .font(.system(size: 10.5))
-                            .lineLimit(1)
-                        Spacer()
-                        Button(action: {
-                            if let idx = videos.firstIndex(where: { $0.id == vid.id }) {
-                                videos.remove(at: idx)
-                                rawText = rawText.replacingOccurrences(of: "[[video:\(vid.id.uuidString)]]", with: "")
-                                onToast?("✓ Deleted video card")
-                            }
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete video")
-                    }
-                    .padding(5)
-                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
-                }
-            }
-        }
-    }
-
-    private struct OutlineItem {
-        let level: Int
-        let title: String
-    }
-
-    private func parseHeadings(from text: String) -> [OutlineItem] {
-        var result: [OutlineItem] = []
-        let lines = text.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("### ") {
-                result.append(OutlineItem(level: 3, title: String(trimmed.dropFirst(4))))
-            } else if trimmed.hasPrefix("## ") {
-                result.append(OutlineItem(level: 2, title: String(trimmed.dropFirst(3))))
-            } else if trimmed.hasPrefix("# ") {
-                result.append(OutlineItem(level: 1, title: String(trimmed.dropFirst(2))))
-            }
-        }
-        return result
     }
 }
