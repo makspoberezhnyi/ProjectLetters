@@ -557,10 +557,26 @@ public struct SmartTableView: View {
             ForEach(0..<gridCount, id: \.self) { rowIdx in
                 HStack(spacing: 0) {
                     // Left Row Gutter (1, 2, 3...)
-                    Text("\(rowIdx + 1)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 32)
+                    VStack(spacing: 0) {
+                        Text("\(rowIdx + 1)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        
+                        TextField("(note)", text: Binding(
+                            get: { tableData.rowNotes?[rowIdx] ?? "" },
+                            set: { val in 
+                                if tableData.rowNotes == nil { tableData.rowNotes = [:] }
+                                tableData.rowNotes?[rowIdx] = val
+                                onChange?()
+                            }
+                        ))
+                        .textFieldStyle(.plain)
+                        .multilineTextAlignment(.center)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.8))
+                        .frame(width: 40)
+                    }
+                    .frame(width: 44)
                         .frame(maxHeight: .infinity)
                         .background(Color.primary.opacity(0.04))
                         .overlay(
