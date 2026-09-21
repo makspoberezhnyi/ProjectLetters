@@ -236,19 +236,29 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
     public var headers: [String]
     public var rows: [[String]]
 
+    public var columnWidths: [CGFloat]?
+    public var tableWidth: CGFloat?
+
     public init(
+
         title: String = "Table",
-        headers: [String] = ["Item", "Quantity (A)", "Unit Price (B)", "Total (A*B)"],
+        headers: [String] = ["", "", "", ""],
         rows: [[String]] = [
-            ["Platform Core", "10", "150", "=A1*B1"],
-            ["UI Components", "8", "120", "=A2*B2"],
-            ["AI Services", "5", "300", "=A3*B3"]
-        ]
+            ["", "", "", ""],
+            ["", "", "", ""],
+            ["", "", "", ""]
+        ],
+        columnWidths: [CGFloat]? = nil,
+        tableWidth: CGFloat? = nil
     ) {
         self.title = title
+
         self.headers = headers
         self.rows = rows
+        self.columnWidths = columnWidths
+        self.tableWidth = tableWidth
     }
+
 
     /// Returns the computed text for a specific cell
     public func evaluatedCell(row: Int, col: Int) -> String {
@@ -394,6 +404,9 @@ public struct SmartTableView: View {
 
     @State private var showingFormulaHelper: Bool = false
     @State private var activeEditingCell: String? = nil // "row,col"
+    @State private var actualTableWidth: CGFloat = 600
+    @State private var dragBaseTableWidth: CGFloat? = nil
+
     
     public var fontFamily: String
 
@@ -437,13 +450,34 @@ public struct SmartTableView: View {
                     Text(colLetter)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil)
+                        .frame(width: getColumnWidth(colIdx))
                         .frame(height: 24)
                         .background(Color.primary.opacity(0.04))
                         .overlay(
-                            Rectangle()
-                                .frame(width: 1)
-                                .foregroundColor(Color.primary.opacity(0.1)),
+                            ZStack(alignment: .trailing) {
+                                Rectangle()
+                                    .frame(width: 1)
+                                    .foregroundColor(Color.primary.opacity(0.1))
+                                
+                                // Column Resizer Handle
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .frame(width: 6)
+                                    .offset(x: 3)
+                                    .onHover { isHovered in
+                                        if isHovered { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                                    }
+                                    .gesture(
+                                        DragGesture()
+                                            .onChanged { val in
+                                                handleColumnDrag(colIdx: colIdx, translation: val.translation.width)
+                                            }
+                                            .onEnded { _ in
+                                                endColumnDrag()
+                                            }
+                                    )
+                            },
                             alignment: .trailing
                         )
                         .contextMenu {
@@ -451,6 +485,7 @@ public struct SmartTableView: View {
                             Button("Add Column After") { insertColumn(at: colIdx + 1) }
                             Button("Delete Column") { deleteColumn(at: colIdx) }
                         }
+
                 }
             }
             .overlay(
@@ -500,7 +535,41 @@ public struct SmartTableView: View {
             Rectangle()
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
+        .background(
+            GeometryReader { geo in
+                Color.clear.onAppear {
+                    self.actualTableWidth = geo.size.width
+                }
+            }
+        )
+        .frame(width: tableData.tableWidth)
+        .overlay(
+            // Bottom Right Drag Handle for Table Resizing
+            Rectangle()
+                .fill(Color.primary.opacity(0.2))
+                .frame(width: 8, height: 8)
+                .offset(x: 4, y: 4)
+                .onHover { isHovered in
+                    if isHovered { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                }
+                .gesture(
+                    DragGesture()
+                        .onChanged { val in
+                            if dragBaseTableWidth == nil {
+                                dragBaseTableWidth = tableData.tableWidth ?? actualTableWidth
+                            }
+                            let newW = max(200, (dragBaseTableWidth!) + val.translation.width)
+                            tableData.tableWidth = newW
+                            onChange?()
+                        }
+                        .onEnded { _ in
+                            dragBaseTableWidth = nil
+                        }
+                )
+            , alignment: .bottomTrailing
+        )
         .padding(.vertical, 8)
+
     }
 
     @ViewBuilder
@@ -559,10 +628,12 @@ public struct SmartTableView: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil, alignment: .leading)
+        .frame(width: getColumnWidth(colIdx), alignment: .leading)
         .overlay(
             Rectangle()
                 .frame(width: 1)
+
                 .foregroundColor(Color.primary.opacity(0.1)),
             alignment: .trailing
         )
@@ -578,7 +649,45 @@ public struct SmartTableView: View {
         }
     }
 
+        @State private var dragBaseColWidths: [CGFloat]? = nil
+
+    private func getColumnWidth(_ colIdx: Int) -> CGFloat? {
+        guard let cw = tableData.columnWidths, cw.indices.contains(colIdx) else { return nil }
+        return cw[colIdx]
+    }
+
+    private func handleColumnDrag(colIdx: Int, translation: CGFloat) {
+        if tableData.columnWidths == nil {
+            // If dragging for the first time, we need to freeze all current geometric widths.
+            // A simple approximation if we don't have true geometric widths is distributing evenly:
+            let defaultW = (actualTableWidth - 32) / CGFloat(tableData.headers.count) // 32 is row gutter
+            tableData.columnWidths = Array(repeating: defaultW, count: tableData.headers.count)
+            // also fix the overall table width so it doesn't jump
+            tableData.tableWidth = actualTableWidth
+        }
+        
+        if dragBaseColWidths == nil {
+            dragBaseColWidths = tableData.columnWidths
+        }
+        
+        if var cw = tableData.columnWidths, let base = dragBaseColWidths, base.indices.contains(colIdx) {
+            cw[colIdx] = max(40, base[colIdx] + translation)
+            tableData.columnWidths = cw
+            
+            // Adjust table width to match new sum
+            let newSum = cw.reduce(0, +) + 32
+            tableData.tableWidth = newSum
+            
+            onChange?()
+        }
+    }
+
+    private func endColumnDrag() {
+        dragBaseColWidths = nil
+    }
+
     // MARK: - Actions
+
 
 
 

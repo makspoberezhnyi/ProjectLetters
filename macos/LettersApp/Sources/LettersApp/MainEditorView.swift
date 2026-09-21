@@ -993,14 +993,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
             showToast("✓ Inserted Text Section")
         case .table:
             let newTable = StudioTableData(
-                title: "Data Table",
-                headers: ["Item", "Quantity", "Unit Price", "Total"],
+                title: "",
+                headers: ["", "", "", ""],
                 rows: [
-                    ["Item 1", "10", "25", "=A1*B1"],
-                    ["Item 2", "5", "50", "=A2*B2"],
-                    ["Summary", "=SUM(A1:A2)", "", "=SUM(D1:D2)"]
+                    ["", "", "", ""],
+                    ["", "", "", ""],
+                    ["", "", "", ""]
                 ]
             )
+
             studioTables.append(newTable)
             let marker = "\n\n[[table:\(newTable.id.uuidString)]]\n\n"
             if selectionRange.location <= (rawText as NSString).length {
