@@ -414,9 +414,25 @@ public struct AssistantSidebarView: View {
 
             // Content & Action Blocks
             VStack(alignment: .leading, spacing: 10) {
+                // Thinking & Reasoning Component
+                if let reasoning = msg.reasoning, !reasoning.isEmpty {
+                    AIThinkingView(
+                        reasoningText: reasoning,
+                        isGenerating: msg.isGenerating,
+                        durationSeconds: msg.reasoningDuration,
+                        initiallyExpanded: msg.isGenerating
+                    )
+                } else if msg.isGenerating && msg.content.isEmpty {
+                    AIThinkingView(
+                        reasoningText: "",
+                        isGenerating: true,
+                        initiallyExpanded: true
+                    )
+                }
+
                 let cleanText = extractDisplayableContent(from: msg.content)
-                if !cleanText.isEmpty || !isGenerating {
-                    Text(cleanText.isEmpty && isGenerating ? "Thinking..." : cleanText)
+                if !cleanText.isEmpty {
+                    Text(cleanText)
                         .font(.system(size: 12))
                         .foregroundColor(.primary)
                         .textSelection(.enabled)
@@ -1203,5 +1219,107 @@ public struct AIDocumentAction: Identifiable {
         case insertBibliography
         case replaceSelection(String)
         case appendDocument(String)
+    }
+}
+import SwiftUI
+
+public struct AIThinkingView: View {
+    let reasoningText: String
+    let isGenerating: Bool
+    let durationSeconds: TimeInterval?
+    
+    @State private var isExpanded: Bool
+    @State private var isPulsing: Bool = false
+    
+    public init(reasoningText: String, isGenerating: Bool, durationSeconds: TimeInterval? = nil, initiallyExpanded: Bool = true) {
+        self.reasoningText = reasoningText
+        self.isGenerating = isGenerating
+        self.durationSeconds = durationSeconds
+        self._isExpanded = State(initialValue: initiallyExpanded)
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Header Toggle Button
+            Button(action: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isGenerating ? "sparkles" : "checkmark.circle.fill")
+                        .foregroundColor(isGenerating ? .accentColor : .secondary)
+                        .symbolEffect(.pulse, options: .repeating, isActive: isGenerating)
+                    
+                    Text(headerText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(isGenerating ? .primary : .secondary)
+                        .opacity(isGenerating && isPulsing ? 0.6 : 1.0)
+                        
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
+                .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
+            .onAppear {
+                if isGenerating {
+                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                        isPulsing = true
+                    }
+                }
+            }
+            .onChange(of: isGenerating) { newValue in
+                if newValue {
+                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                        isPulsing = true
+                    }
+                } else {
+                    withAnimation {
+                        isPulsing = false
+                    }
+                }
+            }
+            
+            // Collapsible Content
+            if isExpanded && !reasoningText.isEmpty {
+                Text(reasoningText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .lineSpacing(4)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(NSColor.windowBackgroundColor).opacity(0.5))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                    )
+                    .padding(.leading, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var headerText: String {
+        if isGenerating {
+            return "Thinking..."
+        } else {
+            if let duration = durationSeconds {
+                return String(format: "Thought for %.1f seconds", duration)
+            } else {
+                return "Reasoning process"
+            }
+        }
     }
 }
