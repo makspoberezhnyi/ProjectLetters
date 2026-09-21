@@ -2185,7 +2185,7 @@ Letters is a next-generation desktop publishing and document studio combining gr
                         case .table(id: _, tableId: let tableId):
                             if let idx = studioTables.firstIndex(where: { $0.id == tableId }) {
                                 SmartTableView(
-                                    tableData: $studioTables[idx],
+                                    tableData: $studioTables[idx], fontFamily: fontFamily,
                                     onDelete: {
                                         let idStr = studioTables[idx].id.uuidString
                                         studioTables.remove(at: idx)
