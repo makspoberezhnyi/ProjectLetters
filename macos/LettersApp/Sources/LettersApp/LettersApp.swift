@@ -11,15 +11,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.mainMenu = AppCommandCenter.buildMainMenu()
 
-        let contentView = MainEditorView()
-        let hostingView = NSHostingView(rootView: contentView)
-
         let window = NSWindow(
+
             contentRect: NSRect(x: 0, y: 0, width: 1380, height: 900),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        let contentView = MainEditorView()
+        let hostingView = NSHostingView(rootView: contentView)
+
         window.minSize = NSSize(width: 1080, height: 720)
         window.center()
         window.title = "Letters"

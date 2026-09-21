@@ -431,6 +431,10 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
 public struct SmartTableView: View {
     @Environment(\.undoManager) var undoManager
     @Binding var tableData: StudioTableData
+
+    private var activeUndoManager: UndoManager? {
+        NSApp.keyWindow?.undoManager ?? NSApp.mainWindow?.undoManager
+    }
     var onDelete: (() -> Void)? = nil
     var onChange: (() -> Void)? = nil
     var onToast: ((String) -> Void)? = nil
@@ -688,7 +692,7 @@ public struct SmartTableView: View {
                     let lastChar = activeText.last ?? " "
                     if "+-*/(,= ".contains(lastChar) {
                         let refStr = "\(TableFormulaEvaluator.columnLetter(for: colIdx))\(rowIdx + 1)"
-                        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Insert Reference", onChange: onChange) { data in
+                        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Insert Reference", onChange: onChange) { data in
                             if r == 0 {
                                 if data.headers.indices.contains(c) {
                                     data.headers[c] = activeText + refStr
@@ -814,14 +818,14 @@ public struct SmartTableView: View {
 
 
     private func addRow() {
-        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Add Row", onChange: onChange) { data in
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Add Row", onChange: onChange) { data in
             let newRow = Array(repeating: "", count: data.headers.count)
             data.rows.append(newRow)
         }
     }
 
     private func addColumn() {
-        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Add Column", onChange: onChange) { data in
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Add Column", onChange: onChange) { data in
             let colLetter = TableFormulaEvaluator.columnLetter(for: data.headers.count)
             data.headers.append("Column \(colLetter)")
             for r in 0..<data.rows.count {
@@ -831,7 +835,7 @@ public struct SmartTableView: View {
     }
 
     private func insertRow(at index: Int) {
-        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Insert Row", onChange: onChange) { data in
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Insert Row", onChange: onChange) { data in
             let newRow = Array(repeating: "", count: data.headers.count)
             if index == 0 {
                 data.rows.insert(data.headers, at: 0)
@@ -843,7 +847,7 @@ public struct SmartTableView: View {
     }
 
     private func insertColumn(at index: Int) {
-        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Insert Column", onChange: onChange) { data in
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Insert Column", onChange: onChange) { data in
             let safeIndex = max(0, min(index, data.headers.count))
             data.headers.insert("", at: safeIndex)
             for r in 0..<data.rows.count {
@@ -856,7 +860,7 @@ public struct SmartTableView: View {
         let totalRows = tableData.rows.count + 1
         guard totalRows > 1 else { return }
         
-        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Delete Row", onChange: onChange) { data in
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Delete Row", onChange: onChange) { data in
             if index == 0 {
                 data.headers = data.rows.removeFirst()
             } else {
@@ -871,7 +875,7 @@ public struct SmartTableView: View {
     private func deleteColumn(at index: Int) {
         guard tableData.headers.count > 1 else { return }
         
-        DocumentUndoHelper.perform(binding: _tableData, undoManager: undoManager, actionName: "Delete Column", onChange: onChange) { data in
+        DocumentUndoHelper.perform(binding: _tableData, undoManager: activeUndoManager, actionName: "Delete Column", onChange: onChange) { data in
             if data.headers.indices.contains(index) {
                 data.headers.remove(at: index)
                 for r in 0..<data.rows.count {
