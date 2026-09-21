@@ -919,12 +919,13 @@ public struct AssistantSidebarView: View {
         inputPrompt = ""
 
         let assistantMsgId = UUID()
-        let assistantMsg = AIChatMessage(id: assistantMsgId, role: "assistant", content: "")
+        let assistantMsg = AIChatMessage(id: assistantMsgId, role: "assistant", content: "", isGenerating: true)
         messages.append(assistantMsg)
         isGenerating = true
 
         let docContext = currentDocumentContext()
 
+        let startDate = Date()
         Task {
             do {
                 try await AIGateway.shared.streamCompletion(
@@ -948,6 +949,10 @@ public struct AssistantSidebarView: View {
             }
             await MainActor.run {
                 isGenerating = false
+                if let idx = messages.firstIndex(where: { $0.id == assistantMsgId }) {
+                    messages[idx].isGenerating = false
+                    messages[idx].reasoningDuration = abs(startDate.timeIntervalSinceNow)
+                }
             }
         }
     }
