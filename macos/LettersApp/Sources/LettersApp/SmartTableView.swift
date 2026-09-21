@@ -492,7 +492,6 @@ public struct SmartTableView: View {
                             set: { val in 
                                 if tableData.columnNotes == nil { tableData.columnNotes = [:] }
                                 tableData.columnNotes?[colIdx] = val
-                                onChange?()
                             }
                         ))
                         .textFieldStyle(.plain)
@@ -561,7 +560,6 @@ public struct SmartTableView: View {
                             set: { val in 
                                 if tableData.rowNotes == nil { tableData.rowNotes = [:] }
                                 tableData.rowNotes?[rowIdx] = val
-                                onChange?()
                             }
                         ))
                         .textFieldStyle(.plain)
@@ -598,6 +596,10 @@ public struct SmartTableView: View {
             }
         }
         .background(Color(NSColor.textBackgroundColor))
+        .onChange(of: activeEditingCell) { _, _ in
+            onChange?()
+        }
+
         .overlay(
             Rectangle()
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
@@ -664,7 +666,6 @@ public struct SmartTableView: View {
         if rowIdx == 0 {
             if tableData.headers.indices.contains(colIdx) {
                 tableData.headers[colIdx] = val
-                onChange?()
             }
         } else {
             let dataRow = rowIdx - 1
@@ -673,7 +674,6 @@ public struct SmartTableView: View {
                     tableData.rows[dataRow].append("")
                 }
                 tableData.rows[dataRow][colIdx] = val
-                onChange?()
             }
         }
     }
