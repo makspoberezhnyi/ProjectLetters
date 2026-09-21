@@ -4,3 +4,7 @@ target/
 xcuserdata/
 DerivedData/
 .swiftpm/
+
+# Temp Files
+*.rb
+build.log
