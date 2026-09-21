@@ -97,7 +97,7 @@ public final class TableFormulaEvaluator {
     }
 
     // Cached regex for function matching
-    private static let functionRegex = try! NSRegularExpression(pattern: "(SUM|AVERAGE|AVG|MIN|MAX|COUNT|PRODUCT)\\s*\\(([^)]+)\\)", options: [.caseInsensitive])
+    private static let functionRegex = try! NSRegularExpression(pattern: "(SUM|AVERAGE|AVG|MIN|MAX|COUNT|PRODUCT|IF|CONCAT|CONCATENATE|ABS|ROUND|INT|MEDIAN|STDEV)\\s*\\(([^)]+)\\)", options: [.caseInsensitive])
     private static let cellRegex = try! NSRegularExpression(pattern: "\\b([A-Za-z]+[0-9]+)\\b", options: [])
 
     /// Evaluates any formula expression (e.g. "=A1-B1", "=SUM(A1:A3)", "=A1*1.15", "=AVERAGE(B1:B4)")
@@ -132,7 +132,9 @@ public final class TableFormulaEvaluator {
                     }
                 }
 
-                let resultVal: Double
+                var resultVal: Double = 0.0
+                var resultStr: String? = nil
+                
                 switch funcName {
                 case "SUM":
                     resultVal = numbers.reduce(0.0, +)
@@ -146,11 +148,43 @@ public final class TableFormulaEvaluator {
                     resultVal = Double(numbers.count)
                 case "PRODUCT":
                     resultVal = numbers.isEmpty ? 0.0 : numbers.reduce(1.0, *)
+                case "ABS":
+                    resultVal = numbers.first.map { abs($0) } ?? 0.0
+                case "ROUND":
+                    let val = numbers.first ?? 0.0
+                    let places = numbers.dropFirst().first ?? 0.0
+                    let multiplier = pow(10.0, places)
+                    resultVal = round(val * multiplier) / multiplier
+                case "INT":
+                    resultVal = numbers.first.map { floor($0) } ?? 0.0
+                case "MEDIAN":
+                    let sorted = numbers.sorted()
+                    if sorted.isEmpty { resultVal = 0.0 }
+                    else if sorted.count % 2 == 1 { resultVal = sorted[sorted.count / 2] }
+                    else { resultVal = (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2.0 }
+                case "IF":
+                    // basic IF parser: IF(A1, 1, 0)
+                    let cond = numbers.first ?? 0.0
+                    let trueVal = numbers.dropFirst().first ?? 0.0
+                    let falseVal = numbers.dropFirst(2).first ?? 0.0
+                    resultVal = cond != 0.0 ? trueVal : falseVal
+                case "CONCAT", "CONCATENATE":
+                    // special string handler
+                    resultStr = argTokens.map { token in
+                        let t = token.trimmingCharacters(in: .whitespaces)
+                        if t.hasPrefix("\"") && t.hasSuffix("\"") {
+                            return String(t.dropFirst().dropLast())
+                        } else if let coord = parseCellReference(t), rows.indices.contains(coord.row), rows[coord.row].indices.contains(coord.col) {
+                            return rows[coord.row][coord.col]
+                        }
+                        return t
+                    }.joined()
                 default:
                     resultVal = 0.0
                 }
 
-                expr = nsExpr.replacingCharacters(in: match.range, with: formatNumber(resultVal))
+                let finalReplacement = resultStr ?? formatNumber(resultVal)
+                expr = nsExpr.replacingCharacters(in: match.range, with: finalReplacement)
             }
 
         // 2. Replace remaining individual cell references (e.g. A1, B2, C3) with their numeric values
@@ -502,19 +536,19 @@ public struct SmartTableView: View {
             // 2. Interactive Spreadsheet Grid
             VStack(spacing: 0) {
                 // Column Letter Indicator & Header Row
+
                 HStack(spacing: 0) {
-                    // Corner Gutter (Row index placeholder)
-                    Text("#")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.secondary.opacity(0.7))
-                        .frame(width: 24, height: 32)
-                        .background(Color(red: 0.90, green: 0.92, blue: 0.95))
+                    // Corner Gutter
+                    Text("")
+                        .frame(width: 24, height: 24)
+                        .background(Color.primary.opacity(0.04))
                         .overlay(
                             Rectangle()
                                 .frame(width: 1)
-                                .foregroundColor(Color.black.opacity(0.12)),
+                                .foregroundColor(Color.primary.opacity(0.1)),
                             alignment: .trailing
                         )
+
 
                     // Header Columns
                     ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
@@ -616,16 +650,11 @@ public struct SmartTableView: View {
                                     .font(.system(size: 11, design: hasFormula || Double(displayValue) != nil ? .monospaced : .default))
                                     .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
                                 } else {
-                                    // Evaluated Display with fx tag
-                                    HStack(spacing: 4) {
-                                        Text("fx")
-                                            .font(.system(size: 8, weight: .bold))
-                                            .foregroundColor(.blue.opacity(0.7))
+                                    // Evaluated Display without fx tag
+                                    Text(displayValue.isEmpty ? "" : displayValue)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(hasFormula ? .accentColor : .primary)
 
-                                        Text(displayValue.isEmpty ? "—" : displayValue)
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.15))
-                                    }
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         activeEditingCell = cellKey
@@ -633,30 +662,17 @@ public struct SmartTableView: View {
                                     .help("Formula: \(rawValue)")
                                 }
                             }
-                            .padding(.horizontal, 8)
+                            .padding(.horizontal, 6)
                             .padding(.vertical, 6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .overlay(
                                 Rectangle()
                                     .frame(width: 1)
-                                    .foregroundColor(Color.black.opacity(0.08)),
+                                    .foregroundColor(Color.primary.opacity(0.1)),
                                 alignment: .trailing
                             )
                         }
 
-                        // Row Delete Button
-                        if tableData.rows.count > 1 {
-                            Button {
-                                deleteRow(at: rowIdx)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.red.opacity(0.5))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 5)
-                            .help("Delete row \(rowNumber)")
-                        }
                     }
                     .background(rowIdx % 2 == 0 ? Color.white : Color(red: 0.98, green: 0.98, blue: 0.99))
                     .overlay(
