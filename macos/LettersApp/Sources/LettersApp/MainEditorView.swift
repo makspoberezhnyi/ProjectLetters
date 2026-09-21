@@ -938,6 +938,15 @@ Letters is a next-generation desktop publishing and document studio combining gr
         )
         .onAppear {
             runLinter()
+            
+            editorController.onSelectAllRequested = {
+                let totalLength = documentPageSlices.last.map { $0.range.location + $0.range.length } ?? (rawText as NSString).length
+                self.selectionRange = NSRange(location: 0, length: totalLength)
+            }
+            
+            editorController.onImportFile = { url in
+                self.importFileNatively(url: url)
+            }
         }
     }
 
