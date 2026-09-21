@@ -262,6 +262,9 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
     public var columnWidths: [CGFloat]?
     public var tableWidth: CGFloat?
     public var tableHeight: CGFloat?
+    public var columnNotes: [Int: String]?
+    public var rowNotes: [Int: String]?
+
 
 
     public init(
@@ -275,9 +278,12 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
         ],
         columnWidths: [CGFloat]? = nil,
         tableWidth: CGFloat? = nil,
-        tableHeight: CGFloat? = nil
+        tableHeight: CGFloat? = nil,
+        columnNotes: [Int: String]? = nil,
+        rowNotes: [Int: String]? = nil
     ) {
         self.title = title
+
 
 
         self.headers = headers
@@ -285,7 +291,10 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
         self.columnWidths = columnWidths
         self.tableWidth = tableWidth
         self.tableHeight = tableHeight
+        self.columnNotes = columnNotes
+        self.rowNotes = rowNotes
     }
+
 
 
 
@@ -463,7 +472,7 @@ public struct SmartTableView: View {
             HStack(spacing: 0) {
                 // Top-Left Corner (Delete Table)
                 Text("")
-                    .frame(width: 32, height: 24)
+                    .frame(width: 44, height: 24)
                     .background(Color.primary.opacity(0.04))
                     .overlay(
                         Rectangle()
@@ -479,10 +488,26 @@ public struct SmartTableView: View {
 
                 ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
                     let colLetter = TableFormulaEvaluator.columnLetter(for: colIdx)
-                    Text(colLetter)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil)
+                    HStack(spacing: 2) {
+                        Text(colLetter)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        
+                        TextField("(note)", text: Binding(
+                            get: { tableData.columnNotes?[colIdx] ?? "" },
+                            set: { val in 
+                                if tableData.columnNotes == nil { tableData.columnNotes = [:] }
+                                tableData.columnNotes?[colIdx] = val
+                                onChange?()
+                            }
+                        ))
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.8))
+                        .frame(width: 40)
+                    }
+                    .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil)
+
                         .frame(width: getColumnWidth(colIdx))
                         .frame(height: 24)
                         .background(Color.primary.opacity(0.04))
@@ -632,8 +657,14 @@ public struct SmartTableView: View {
         let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
 
         ZStack(alignment: .leading) {
+            Color.clear
+                .contentShape(Rectangle())
+
+                
+            
             if isEditing || !hasFormula {
                 TextField("—", text: Binding(
+
                     get: { rawValue },
                     set: { newVal in
                         if rowIdx == 0 {
