@@ -1,3 +1,4 @@
+import JavaScriptCore
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
@@ -212,30 +213,23 @@ public final class TableFormulaEvaluator {
 
         if sanitized.isEmpty { return "" }
         
-        // Basic safety check for NSExpression to prevent obvious crashes
-        let unsafeChars = CharacterSet(charactersIn: "+-*/.")
-        if let last = sanitized.last, String(last).rangeOfCharacter(from: unsafeChars) != nil {
-            return "#ERROR"
-        }
-        if let first = sanitized.first, String(first).rangeOfCharacter(from: unsafeChars) != nil && first != "-" {
-            return "#ERROR"
-        }
-        
-        do {
-            // Using a simple regex to prevent severe syntax errors
-            let validRegex = try NSRegularExpression(pattern: "^[0-9\\+\\-\\*\\/\\(\\)\\.\\s]+$")
-            let range = NSRange(location: 0, length: (sanitized as NSString).length)
-            if validRegex.firstMatch(in: sanitized, options: [], range: range) != nil {
-                let mathExpr = NSExpression(format: sanitized)
-                if let result = mathExpr.expressionValue(with: nil, context: nil) as? NSNumber {
-                    return formatNumber(result.doubleValue)
+        // Use JavaScriptCore for 100% crash-safe mathematical evaluation
+        if let context = JSContext() {
+            context.exceptionHandler = { _, _ in } // Ignore JS exceptions
+            let result = context.evaluateScript(sanitized)
+            if result?.isNumber == true {
+                let num = result!.toNumber()!
+                if num.doubleValue.isInfinite {
+                    return "#DIV/0!"
+                } else if num.doubleValue.isNaN {
+                    return "#ERROR"
                 }
+                return formatNumber(num.doubleValue)
             } else {
                 return "#ERROR"
             }
-        } catch {
-            return "#ERROR"
         }
+
 
 
         return expr
