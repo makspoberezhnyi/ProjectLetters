@@ -210,10 +210,33 @@ public final class TableFormulaEvaluator {
             return formatNumber(num)
         }
 
-        let mathExpr = NSExpression(format: sanitized)
-        if let result = mathExpr.expressionValue(with: nil, context: nil) as? NSNumber {
-            return formatNumber(result.doubleValue)
+        if sanitized.isEmpty { return "" }
+        
+        // Basic safety check for NSExpression to prevent obvious crashes
+        let unsafeChars = CharacterSet(charactersIn: "+-*/.")
+        if let last = sanitized.last, String(last).rangeOfCharacter(from: unsafeChars) != nil {
+            return "#ERROR"
         }
+        if let first = sanitized.first, String(first).rangeOfCharacter(from: unsafeChars) != nil && first != "-" {
+            return "#ERROR"
+        }
+        
+        do {
+            // Using a simple regex to prevent severe syntax errors
+            let validRegex = try NSRegularExpression(pattern: "^[0-9\\+\\-\\*\\/\\(\\)\\.\\s]+$")
+            let range = NSRange(location: 0, length: (sanitized as NSString).length)
+            if validRegex.firstMatch(in: sanitized, options: [], range: range) != nil {
+                let mathExpr = NSExpression(format: sanitized)
+                if let result = mathExpr.expressionValue(with: nil, context: nil) as? NSNumber {
+                    return formatNumber(result.doubleValue)
+                }
+            } else {
+                return "#ERROR"
+            }
+        } catch {
+            return "#ERROR"
+        }
+
 
         return expr
     }
@@ -238,6 +261,8 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
 
     public var columnWidths: [CGFloat]?
     public var tableWidth: CGFloat?
+    public var tableHeight: CGFloat?
+
 
     public init(
 
@@ -249,15 +274,19 @@ public struct StudioTableData: Identifiable, Codable, Sendable, Hashable {
             ["", "", "", ""]
         ],
         columnWidths: [CGFloat]? = nil,
-        tableWidth: CGFloat? = nil
+        tableWidth: CGFloat? = nil,
+        tableHeight: CGFloat? = nil
     ) {
         self.title = title
+
 
         self.headers = headers
         self.rows = rows
         self.columnWidths = columnWidths
         self.tableWidth = tableWidth
+        self.tableHeight = tableHeight
     }
+
 
 
     /// Returns the computed text for a specific cell
@@ -403,9 +432,12 @@ public struct SmartTableView: View {
     var onToast: ((String) -> Void)? = nil
 
     @State private var showingFormulaHelper: Bool = false
-    @State private var activeEditingCell: String? = nil // "row,col"
+    @FocusState private var activeEditingCell: String?
     @State private var actualTableWidth: CGFloat = 600
     @State private var dragBaseTableWidth: CGFloat? = nil
+    @State private var dragBaseTableHeight: CGFloat? = nil
+    @State private var actualTableHeight: CGFloat = 200
+
 
     
     public var fontFamily: String
@@ -466,7 +498,7 @@ public struct SmartTableView: View {
                                     .frame(width: 6)
                                     .offset(x: 3)
                                     .onHover { isHovered in
-                                        if isHovered { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                                        if isHovered { NSCursor.crosshair.push() } else { NSCursor.pop() }
                                     }
                                     .gesture(
                                         DragGesture()
@@ -539,10 +571,13 @@ public struct SmartTableView: View {
             GeometryReader { geo in
                 Color.clear.onAppear {
                     self.actualTableWidth = geo.size.width
+                    self.actualTableHeight = geo.size.height
                 }
             }
         )
-        .frame(width: tableData.tableWidth)
+
+        .frame(width: tableData.tableWidth, height: tableData.tableHeight)
+
         .overlay(
             // Bottom Right Drag Handle for Table Resizing
             Rectangle()
@@ -550,21 +585,27 @@ public struct SmartTableView: View {
                 .frame(width: 8, height: 8)
                 .offset(x: 4, y: 4)
                 .onHover { isHovered in
-                    if isHovered { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    if isHovered { NSCursor.crosshair.push() } else { NSCursor.pop() }
                 }
                 .gesture(
                     DragGesture()
                         .onChanged { val in
                             if dragBaseTableWidth == nil {
                                 dragBaseTableWidth = tableData.tableWidth ?? actualTableWidth
+                                dragBaseTableHeight = tableData.tableHeight ?? actualTableHeight
                             }
                             let newW = max(200, (dragBaseTableWidth!) + val.translation.width)
+                            let newH = max(100, (dragBaseTableHeight!) + val.translation.height)
                             tableData.tableWidth = newW
+                            tableData.tableHeight = newH
                             onChange?()
+
                         }
                         .onEnded { _ in
                             dragBaseTableWidth = nil
+                            dragBaseTableHeight = nil
                         }
+
                 )
             , alignment: .bottomTrailing
         )
@@ -613,6 +654,7 @@ public struct SmartTableView: View {
                     }
                 ))
                 .textFieldStyle(.plain)
+                .focused($activeEditingCell, equals: cellKey)
                 .font(getTableFont(size: 11))
                 .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
             } else {
