@@ -2656,13 +2656,25 @@ struct EditorViewNotificationsModifier: ViewModifier {
 
 
 
-public struct HistorySnapshot: Identifiable, Equatable {
+
+public enum SnapshotActor: String, Codable, Equatable, Sendable {
+    case user
+    case ai
+}
+
+public struct HistoryNode: Identifiable, Equatable {
     public let id: UUID
+    public let parentId: UUID?
     public let timestamp: Date
-    public let actionName: String
+    public var actionName: String
+    public var diffSummary: String?
+    public let actor: SnapshotActor
+    public var isMilestone: Bool
+    public var isPinned: Bool
+    public var customName: String?
     public let bundle: LettersDocumentBundle
 
-    nonisolated public static func == (lhs: HistorySnapshot, rhs: HistorySnapshot) -> Bool {
+    nonisolated public static func == (lhs: HistoryNode, rhs: HistoryNode) -> Bool {
         lhs.id == rhs.id
     }
 }
@@ -2691,11 +2703,14 @@ public class LettersDocumentController: ObservableObject {
     @Published public var paragraphSpacing: CGFloat
     @Published public var textAlignment: TextAlignment
     
-    // MARK: - Time Travel History
-    @Published public var historyStack: [HistorySnapshot] = []
-    @Published public var historyIndex: Int = -1
+    // MARK: - DAG Time Travel Engine
+    @Published public var historyNodes: [UUID: HistoryNode] = [:]
+    @Published public var currentSnapshotId: UUID? = nil
+    @Published public var isPeeking: Bool = false
+    
     private var isReverting: Bool = false
     private var cancellables = Set<AnyCancellable>()
+    private var backupBundleForPeek: LettersDocumentBundle? = nil
     
     public init(
         title: String = "Untitled Document",
@@ -2738,15 +2753,15 @@ public class LettersDocumentController: ObservableObject {
         
         // Initial snapshot
         DispatchQueue.main.async {
-            self.commitSnapshot(actionName: "Created Document")
+            self.commitSnapshot(actionName: "Created Document", isMilestone: true)
         }
         
         $rawText
             .dropFirst()
             .debounce(for: .milliseconds(800), scheduler: RunLoop.main)
             .sink { [weak self] _ in
-                guard let self = self, !self.isReverting else { return }
-                self.commitSnapshot(actionName: "Typing")
+                guard let self = self, !self.isReverting, !self.isPeeking else { return }
+                self.commitSnapshot(actionName: "Typing", isMilestone: false)
             }
             .store(in: &cancellables)
     }
@@ -2791,55 +2806,120 @@ public class LettersDocumentController: ObservableObject {
         self.fontSize = CGFloat(bundle.fontSize)
         self.lineSpacing = CGFloat(bundle.lineSpacing)
         self.paragraphSpacing = CGFloat(bundle.paragraphSpacing)
-        self.textAlignment = .leading
     }
     
-    // MARK: - Snapshot Engine
-    public func commitSnapshot(actionName: String) {
-        if isReverting { return } // Don't record snapshots while time-traveling
+    // MARK: - DAG Engine Methods
+    
+    private func generateDiffSummary(old: LettersDocumentBundle, new: LettersDocumentBundle) -> String? {
+        var diffs = [String]()
         
-        let snapshot = HistorySnapshot(
+        let oldWords = old.rawText.split(whereSeparator: { $0.isWhitespace }).count
+        let newWords = new.rawText.split(whereSeparator: { $0.isWhitespace }).count
+        let wordDiff = newWords - oldWords
+        
+        if wordDiff > 0 { diffs.append("+\(wordDiff) words") }
+        else if wordDiff < 0 { diffs.append("\(wordDiff) words") }
+        
+        let tableDiff = new.tables.count - old.tables.count
+        if tableDiff > 0 { diffs.append("+\(tableDiff) table") }
+        else if tableDiff < 0 { diffs.append("\(tableDiff) table") }
+        
+        return diffs.isEmpty ? nil : diffs.joined(separator: ", ")
+    }
+    
+    public func commitSnapshot(actionName: String, actor: SnapshotActor = .user, isMilestone: Bool = false) {
+        if isReverting || isPeeking { return }
+        
+        let newBundle = createBundle()
+        var diffSummary: String? = nil
+        
+        if let parentId = currentSnapshotId, let parentNode = historyNodes[parentId] {
+            // Prevent duplicate identical snapshots
+            if parentNode.bundle.rawText == newBundle.rawText && parentNode.bundle.tables.count == newBundle.tables.count {
+                return 
+            }
+            diffSummary = generateDiffSummary(old: parentNode.bundle, new: newBundle)
+        }
+        
+        let newNode = HistoryNode(
             id: UUID(),
+            parentId: currentSnapshotId,
             timestamp: Date(),
             actionName: actionName,
-            bundle: createBundle()
+            diffSummary: diffSummary,
+            actor: actor,
+            isMilestone: isMilestone,
+            isPinned: false,
+            customName: nil,
+            bundle: newBundle
         )
         
-        // If we were back in time, discard future history
-        if historyIndex >= 0 && historyIndex < historyStack.count - 1 {
-            historyStack.removeSubrange((historyIndex + 1)...)
+        historyNodes[newNode.id] = newNode
+        currentSnapshotId = newNode.id
+        
+        // Memory cap: 200 nodes. Garbage collect oldest non-pinned leaves if necessary.
+        if historyNodes.count > 200 {
+            garbageCollectOldestNode()
         }
-        
-        historyStack.append(snapshot)
-        
-        // Cap history to 100 items to save memory
-        if historyStack.count > 100 {
-            historyStack.removeFirst()
-        }
-        
-        historyIndex = historyStack.count - 1
     }
     
-    public var canUndo: Bool { historyIndex > 0 }
-    public var canRedo: Bool { historyIndex >= 0 && historyIndex < historyStack.count - 1 }
+    private func garbageCollectOldestNode() {
+        let sorted = historyNodes.values
+            .filter { !$0.isPinned && $0.parentId == nil } // Try to kill roots first
+            .sorted { $0.timestamp < $1.timestamp }
+        
+        if let oldest = sorted.first {
+            historyNodes.removeValue(forKey: oldest.id)
+        }
+    }
+    
+    // MARK: - Time Travel & Peek
+    
+    public func revertTo(id: UUID) {
+        guard let node = historyNodes[id] else { return }
+        isReverting = true
+        currentSnapshotId = id
+        loadBundle(node.bundle)
+        isReverting = false
+    }
+    
+    public func startPeek(id: UUID) {
+        guard !isPeeking, let node = historyNodes[id] else { return }
+        isPeeking = true
+        backupBundleForPeek = createBundle()
+        
+        withAnimation(.easeInOut(duration: 0.2)) {
+            loadBundle(node.bundle)
+        }
+    }
+    
+    public func endPeek() {
+        guard isPeeking, let backup = backupBundleForPeek else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            loadBundle(backup)
+        }
+        backupBundleForPeek = nil
+        isPeeking = false
+    }
+    
+    public func togglePin(id: UUID) {
+        historyNodes[id]?.isPinned.toggle()
+    }
+    
+    // MARK: - Micro Undo/Redo (Linear path resolution)
     
     public func undo() {
-        guard canUndo else { return }
-        revertTo(index: historyIndex - 1)
+        guard let current = currentSnapshotId, let node = historyNodes[current], let parentId = node.parentId else { return }
+        revertTo(id: parentId)
     }
     
     public func redo() {
-        guard canRedo else { return }
-        revertTo(index: historyIndex + 1)
-    }
-    
-    public func revertTo(index: Int) {
-        guard index >= 0 && index < historyStack.count else { return }
-        isReverting = true
-        historyIndex = index
-        let targetSnapshot = historyStack[index]
-        loadBundle(targetSnapshot.bundle)
-        isReverting = false
+        // Redo follows the most recently created child of the current node
+        guard let current = currentSnapshotId else { return }
+        let children = historyNodes.values.filter { $0.parentId == current }.sorted { $0.timestamp > $1.timestamp }
+        if let mostRecentChild = children.first {
+            revertTo(id: mostRecentChild.id)
+        }
     }
 
     // MARK: - Tables API (Migrated to Snapshot Engine)
@@ -2851,23 +2931,23 @@ public class LettersDocumentController: ObservableObject {
         self.tables[index] = newTable
         
         if let name = actionName {
-            commitSnapshot(actionName: name)
+            commitSnapshot(actionName: name, isMilestone: true)
         }
     }
     
     public func addTable(_ table: StudioTableData) {
         tables.append(table)
-        commitSnapshot(actionName: "Insert Table")
+        commitSnapshot(actionName: "Insert Table", isMilestone: true)
     }
     
     public func removeTable(id: UUID) {
         guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
         tables.remove(at: index)
-        commitSnapshot(actionName: "Delete Table")
+        commitSnapshot(actionName: "Delete Table", isMilestone: true)
     }
     
     public func insertTable(_ table: StudioTableData, at index: Int) {
         tables.insert(table, at: index)
-        commitSnapshot(actionName: "Insert Table")
+        commitSnapshot(actionName: "Insert Table", isMilestone: true)
     }
 }
