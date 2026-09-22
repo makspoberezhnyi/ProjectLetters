@@ -42,6 +42,27 @@ public final class TableFormulaEvaluator {
     }
 
     /// Parses a range like "A1:A3" or "A1:C2" into a list of cell coordinates
+    public static func extrapolateFormula(_ formula: String, rowOffset: Int, colOffset: Int) -> String {
+        let pattern = "([A-Za-z]+)([0-9]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return formula }
+        let nsString = formula as NSString
+        let matches = regex.matches(in: formula, options: [], range: NSRange(location: 0, length: nsString.length))
+        
+        var result = formula
+        for match in matches.reversed() {
+            let colStr = nsString.substring(with: match.range(at: 1))
+            let rowStr = nsString.substring(with: match.range(at: 2))
+            
+            if let colIdx = columnIndex(for: colStr), let rowNum = Int(rowStr) {
+                let newCol = max(0, colIdx + colOffset)
+                let newRow = max(1, rowNum + rowOffset)
+                let newRef = "\(columnLetter(for: newCol))\(newRow)"
+                result = (result as NSString).replacingCharacters(in: match.range, with: newRef)
+            }
+        }
+        return result
+    }
+    
     public static func parseRangeReference(_ rangeStr: String) -> [(col: Int, row: Int)] {
         let parts = rangeStr.split(separator: ":")
         guard parts.count == 2,
@@ -440,6 +461,21 @@ public struct SmartTableView: View {
 
     @State private var showingFormulaHelper: Bool = false
     @FocusState private var activeEditingCell: String?
+    
+    public struct TableSelectionRect: Equatable {
+        public var minRow: Int
+        public var maxRow: Int
+        public var minCol: Int
+        public var maxCol: Int
+        public func contains(row: Int, col: Int) -> Bool {
+            return row >= minRow && row <= maxRow && col >= minCol && col <= maxCol
+        }
+    }
+    
+    @State private var selectionStart: (row: Int, col: Int)? = nil
+    @State private var selectedRect: TableSelectionRect? = nil
+    @State private var fillTargetRect: TableSelectionRect? = nil
+
     @State private var actualTableWidth: CGFloat = 600
     @State private var dragBaseTableWidth: CGFloat? = nil
     @State private var dragBaseTableHeight: CGFloat? = nil
@@ -512,9 +548,11 @@ public struct SmartTableView: View {
                         .background(Color.primary.opacity(0.04))
                         .overlay(
                             ZStack(alignment: .trailing) {
-                                Rectangle()
-                                    .frame(width: 1)
-                                    .foregroundColor(Color.primary.opacity(0.1))
+                                if colIdx < tableData.headers.count - 1 {
+                                    Rectangle()
+                                        .frame(width: 1)
+                                        .foregroundColor(Color.primary.opacity(0.1))
+                                }
                                 
                                 // Column Resizer Handle
                                 Rectangle()
@@ -685,6 +723,18 @@ public struct SmartTableView: View {
     }
 
     private func handleCellTap(rowIdx: Int, colIdx: Int, cellKey: String) {
+        if NSEvent.modifierFlags.contains(.shift), let start = selectionStart {
+            selectedRect = TableSelectionRect(
+                minRow: min(start.row, rowIdx), maxRow: max(start.row, rowIdx),
+                minCol: min(start.col, colIdx), maxCol: max(start.col, colIdx)
+            )
+            activeEditingCell = nil
+            return
+        }
+        
+        selectionStart = (row: rowIdx, col: colIdx)
+        selectedRect = TableSelectionRect(minRow: rowIdx, maxRow: rowIdx, minCol: colIdx, maxCol: colIdx)
+
         if let active = activeEditingCell, active != cellKey {
             let parts = active.split(separator: ",")
             if parts.count == 2, let r = Int(parts[0]), let c = Int(parts[1]) {
@@ -716,6 +766,14 @@ public struct SmartTableView: View {
     private func dataCellView(rowIdx: Int, colIdx: Int) -> some View {
         let cellKey = "\(rowIdx),\(colIdx)"
         let isEditing = activeEditingCell == cellKey
+        let isSelected = selectedRect?.contains(row: rowIdx, col: colIdx) ?? false
+        let isFillTarget = fillTargetRect?.contains(row: rowIdx, col: colIdx) ?? false
+        let isBottomRight = (selectedRect?.maxRow == rowIdx && selectedRect?.maxCol == colIdx) && activeEditingCell == nil
+        
+        let showTopBorder = isSelected && rowIdx == selectedRect!.minRow
+        let showBottomBorder = isSelected && rowIdx == selectedRect!.maxRow
+        let showLeftBorder = isSelected && colIdx == selectedRect!.minCol
+        let showRightBorder = isSelected && colIdx == selectedRect!.maxCol
         let rawValue: String = getRawValue(rowIdx: rowIdx, colIdx: colIdx)
         let hasFormula = rawValue.hasPrefix("=")
         let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
@@ -752,17 +810,89 @@ public struct SmartTableView: View {
             }
         }
         .padding(.horizontal, 6)
-
         .padding(.vertical, 6)
+        .background((isSelected || isFillTarget) ? Color.accentColor.opacity(0.15) : Color.clear)
+        .overlay(
+            ZStack {
+                if showTopBorder { Rectangle().frame(height: 2).foregroundColor(.accentColor).frame(maxHeight: .infinity, alignment: .top) }
+                if showBottomBorder { Rectangle().frame(height: 2).foregroundColor(.accentColor).frame(maxHeight: .infinity, alignment: .bottom) }
+                if showLeftBorder { Rectangle().frame(width: 2).foregroundColor(.accentColor).frame(maxWidth: .infinity, alignment: .leading) }
+                if showRightBorder { Rectangle().frame(width: 2).foregroundColor(.accentColor).frame(maxWidth: .infinity, alignment: .trailing) }
+                
+                if isBottomRight {
+                    Rectangle()
+                        .fill(Color.accentColor)
+                        .frame(width: 6, height: 6)
+                        .overlay(Rectangle().stroke(Color.white, lineWidth: 1))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .offset(x: 3, y: 3)
+                        .onHover { isHovered in
+                            if isHovered { NSCursor.crosshair.push() } else { NSCursor.pop() }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { val in
+                                    let avgCellHeight: CGFloat = 24.0
+                                    let avgCellWidth: CGFloat = 80.0
+                                    let dRows = Int(round(val.translation.height / avgCellHeight))
+                                    let dCols = Int(round(val.translation.width / avgCellWidth))
+                                    
+                                    if abs(dRows) > abs(dCols) {
+                                        let newMaxRow = max(selectedRect!.maxRow, min(tableData.rows.count - 1, selectedRect!.maxRow + dRows))
+                                        fillTargetRect = TableSelectionRect(minRow: selectedRect!.minRow, maxRow: newMaxRow, minCol: selectedRect!.minCol, maxCol: selectedRect!.maxCol)
+                                    } else {
+                                        let newMaxCol = max(selectedRect!.maxCol, min(tableData.headers.count - 1, selectedRect!.maxCol + dCols))
+                                        fillTargetRect = TableSelectionRect(minRow: selectedRect!.minRow, maxRow: selectedRect!.maxRow, minCol: selectedRect!.minCol, maxCol: newMaxCol)
+                                    }
+                                }
+                                .onEnded { _ in
+                                    executeFillTarget()
+                                }
+                        )
+                }
+            }
+        )
         .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil, alignment: .leading)
         .frame(width: getColumnWidth(colIdx), alignment: .leading)
         .overlay(
-            Rectangle()
-                .frame(width: 1)
-
-                .foregroundColor(Color.primary.opacity(0.1)),
+            Group {
+                if colIdx < tableData.headers.count - 1 {
+                    Rectangle()
+                        .frame(width: 1)
+                        .foregroundColor(Color.primary.opacity(0.1))
+                }
+            },
             alignment: .trailing
         )
+    }
+
+        private func executeFillTarget() {
+        guard let sel = selectedRect, let target = fillTargetRect else { return }
+        
+        store.mutateTable(id: tableId, actionName: "Auto-Fill") { data in
+            for r in target.minRow...target.maxRow {
+                for c in target.minCol...target.maxCol {
+                    if sel.contains(row: r, col: c) { continue }
+                    
+                    let sourceR = sel.minRow + ((r - sel.minRow) % (sel.maxRow - sel.minRow + 1))
+                    let sourceC = sel.minCol + ((c - sel.minCol) % (sel.maxCol - sel.minCol + 1))
+                    
+                    let rowOffset = r - sourceR
+                    let colOffset = c - sourceC
+                    
+                    let sourceVal = data.rows[sourceR][sourceC]
+                    if sourceVal.hasPrefix("=") {
+                        let newVal = TableFormulaEvaluator.extrapolateFormula(sourceVal, rowOffset: rowOffset, colOffset: colOffset)
+                        data.rows[r][c] = newVal
+                    } else {
+                        data.rows[r][c] = sourceVal
+                    }
+                }
+            }
+        }
+        
+        selectedRect = target
+        fillTargetRect = nil
     }
 
     private func getTableFont(size: CGFloat) -> Font {
