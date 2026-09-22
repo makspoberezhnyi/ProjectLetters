@@ -369,6 +369,7 @@ public struct MainEditorView: View {
                                     showCommandPalette: $showCommandPalette,
                                     onInsertSection: { handleToolAction(.text) },
                                     onInsertTable: { handleToolAction(.table) },
+                                    onInsertImage: { handleToolAction(.image) },
                                     onAddSource: { showingAddSourceSheet = true },
                                     onInsertPageBreak: { insertPageBreakAction() },
                                     onToast: { msg in showToast(msg) }

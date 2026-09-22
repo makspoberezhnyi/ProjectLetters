@@ -14,6 +14,7 @@ public struct StudioFloatingSidebar: View {
 
     var onInsertSection: () -> Void
     var onInsertTable: () -> Void
+    var onInsertImage: () -> Void
     var onAddSource: () -> Void
     var onInsertPageBreak: () -> Void
     var onToast: ((String) -> Void)?
@@ -33,6 +34,7 @@ public struct StudioFloatingSidebar: View {
         showCommandPalette: Binding<Bool>,
         onInsertSection: @escaping () -> Void,
         onInsertTable: @escaping () -> Void,
+        onInsertImage: @escaping () -> Void,
         onAddSource: @escaping () -> Void,
         onInsertPageBreak: @escaping () -> Void,
         onToast: ((String) -> Void)? = nil
@@ -49,6 +51,7 @@ public struct StudioFloatingSidebar: View {
         self._showCommandPalette = showCommandPalette
         self.onInsertSection = onInsertSection
         self.onInsertTable = onInsertTable
+        self.onInsertImage = onInsertImage
         self.onAddSource = onAddSource
         self.onInsertPageBreak = onInsertPageBreak
         self.onToast = onToast
@@ -74,21 +77,19 @@ public struct StudioFloatingSidebar: View {
             // Instruments
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 12) {
-                    instrumentButton(icon: "cursorarrow", name: "Select") { }
-                    instrumentButton(icon: "text.quote", name: "Text Box") { onInsertSection() }
-                    instrumentButton(icon: "photo", name: "Image") { 
-                        onToast?("Choose an image to insert") 
-                    }
-                    instrumentButton(icon: "tablecells", name: "Table") { onInsertTable() }
+                    instrumentButton(icon: "cursorarrow", name: "Select", shortcut: "v") { }
+                    instrumentButton(icon: "text.quote", name: "Text Box", shortcut: "t") { onInsertSection() }
+                    instrumentButton(icon: "photo", name: "Image", shortcut: "i") { onInsertImage() }
+                    instrumentButton(icon: "tablecells", name: "Table", shortcut: "s") { onInsertTable() }
                     instrumentButton(icon: "arrow.up.and.down.text.horizontal", name: "Page Break") { onInsertPageBreak() }
                     
                     Divider()
                         .frame(width: 24)
                         .padding(.vertical, 4)
                         
-                    instrumentButton(icon: "book.closed", name: "Sources") { onAddSource() }
-                    instrumentButton(icon: "magnifyingglass", name: "Find") { showCommandPalette = true }
-                    instrumentButton(icon: "sparkles", name: "AI Copilot", color: .purple) { showAIDrawer.toggle() }
+                    instrumentButton(icon: "book.closed", name: "Sources", shortcut: "c") { onAddSource() }
+                    instrumentButton(icon: "magnifyingglass", name: "Find", shortcut: "f", shortcutModifiers: [.command]) { showCommandPalette = true }
+                    instrumentButton(icon: "sparkles", name: "AI Copilot", shortcut: "a") { showAIDrawer.toggle() }
                 }
                 .padding(.bottom, 12)
             }
@@ -105,7 +106,14 @@ public struct StudioFloatingSidebar: View {
         .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
     }
     
-    private func instrumentButton(icon: String, name: String, color: Color = .primary, action: @escaping () -> Void) -> some View {
+    private func instrumentButton(
+        icon: String, 
+        name: String, 
+        shortcut: Character? = nil,
+        shortcutModifiers: EventModifiers = [],
+        color: Color = .primary, 
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: {
             action()
         }) {
@@ -121,11 +129,20 @@ public struct StudioFloatingSidebar: View {
             }
         }
         .buttonStyle(.plain)
-        .help(name)
+        .help(shortcut != nil ? "\(name) (\(shortcutModifiers.contains(.command) ? "⌘" : "")\(shortcutModifiers.contains(.option) ? "⌥" : "")\(shortcutModifiers.contains(.shift) ? "⇧" : "")\(String(shortcut!).uppercased()))" : name)
         .onHover { isHovered in
             withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
                 hoveredTool = isHovered ? name : nil
             }
         }
+        .background(
+            Group {
+                if let key = shortcut {
+                    Button("") { action() }
+                        .keyboardShortcut(KeyEquivalent(key), modifiers: shortcutModifiers)
+                        .hidden()
+                }
+            }
+        )
     }
 }

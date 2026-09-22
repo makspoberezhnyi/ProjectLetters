@@ -71,6 +71,7 @@ public struct StudioToolRail: View {
                 }
                 .buttonStyle(.plain)
                 .help("\(tool.rawValue) (\(tool.shortcut))")
+                .keyboardShortcut(KeyEquivalent(Character(tool.shortcut.lowercased())), modifiers: [])
             }
 
             Spacer()
