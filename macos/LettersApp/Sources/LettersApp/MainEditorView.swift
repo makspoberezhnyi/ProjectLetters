@@ -958,6 +958,8 @@ public struct MainEditorView: View {
             documentController.tables.append(newTable)
             documentController.commitSnapshot(actionName: "Insert Table", isMilestone: true)
             showToast("✓ Added Table with cell formula support")
+        case .image:
+            insertImageAction()
         case .citation:
             showingAddSourceSheet = true
             showToast("✓ Add Linked Citation")
@@ -2420,12 +2422,11 @@ public struct MainEditorView: View {
 
         for match in matches {
             let matchRange = match.range
-            if matchRange.location > lastLocation {
-                let textRange = NSRange(location: lastLocation, length: matchRange.location - lastLocation)
-                let chunkText = nsContent.substring(with: textRange)
-                segments.append(DocumentCanvasSegment.text(id: "p\(pageIndex)-text-\(textIdx)", textIndex: textIdx, initialContent: chunkText))
-                textIdx += 1
-            }
+            // Always emit a text segment, even if empty, so textIdx perfectly matches replaceTextChunk
+            let textRange = NSRange(location: lastLocation, length: max(0, matchRange.location - lastLocation))
+            let chunkText = textRange.length > 0 ? nsContent.substring(with: textRange) : ""
+            segments.append(DocumentCanvasSegment.text(id: "p\(pageIndex)-text-\(textIdx)", textIndex: textIdx, initialContent: chunkText))
+            textIdx += 1
 
             if match.numberOfRanges >= 2 {
                 let kind = nsContent.substring(with: match.range(at: 1))
@@ -2470,9 +2471,9 @@ public struct MainEditorView: View {
             lastLocation = matchRange.location + matchRange.length
         }
 
-        if lastLocation < nsContent.length {
+        if lastLocation <= nsContent.length {
             let textRange = NSRange(location: lastLocation, length: nsContent.length - lastLocation)
-            let chunkText = nsContent.substring(with: textRange)
+            let chunkText = textRange.length > 0 ? nsContent.substring(with: textRange) : ""
             segments.append(DocumentCanvasSegment.text(id: "p\(pageIndex)-text-\(textIdx)", textIndex: textIdx, initialContent: chunkText))
         }
 
