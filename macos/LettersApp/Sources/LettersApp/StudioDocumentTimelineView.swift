@@ -1,235 +1,146 @@
 import SwiftUI
-#if canImport(LettersKit)
-import LettersKit
-#endif
 
-public struct StudioDocumentTimelineView: View {
+public struct StudioDocumentHistoryView: View {
     @Binding var isPresented: Bool
-    @Binding var rawText: String
-    let wordCount: Int
-    let characterCount: Int
-    let readingTimeMinutes: Int
-    var onSelectHeading: ((String) -> Void)? = nil
-
-    @State private var hoveredHeading: String? = nil
-
-    public init(
-        isPresented: Binding<Bool>,
-        rawText: Binding<String>,
-        wordCount: Int,
-        characterCount: Int,
-        readingTimeMinutes: Int,
-        onSelectHeading: ((String) -> Void)? = nil
-    ) {
+    @ObservedObject var store: LettersDocumentController
+    
+    // Smooth auto-scroll to bottom/current
+    @State private var hoveredSnapshot: UUID? = nil
+    
+    public init(isPresented: Binding<Bool>, store: LettersDocumentController) {
         self._isPresented = isPresented
-        self._rawText = rawText
-        self.wordCount = wordCount
-        self.characterCount = characterCount
-        self.readingTimeMinutes = readingTimeMinutes
-        self.onSelectHeading = onSelectHeading
+        self.store = store
     }
-
-    private struct TimelineHeading: Identifiable {
-        let id = UUID()
-        let level: Int
-        let title: String
-        let approximateWords: Int
-    }
-
-    private var parsedTimeline: [TimelineHeading] {
-        var headings: [TimelineHeading] = []
-        let sections = rawText.components(separatedBy: .newlines)
-        var currentTitle = "Overview"
-        var currentLevel = 1
-        var currentWords = 0
-
-        for line in sections {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("### ") {
-                if currentWords > 0 {
-                    headings.append(TimelineHeading(level: currentLevel, title: currentTitle, approximateWords: currentWords))
-                }
-                currentTitle = String(trimmed.dropFirst(4))
-                currentLevel = 3
-                currentWords = 0
-            } else if trimmed.hasPrefix("## ") {
-                if currentWords > 0 {
-                    headings.append(TimelineHeading(level: currentLevel, title: currentTitle, approximateWords: currentWords))
-                }
-                currentTitle = String(trimmed.dropFirst(3))
-                currentLevel = 2
-                currentWords = 0
-            } else if trimmed.hasPrefix("# ") {
-                if currentWords > 0 {
-                    headings.append(TimelineHeading(level: currentLevel, title: currentTitle, approximateWords: currentWords))
-                }
-                currentTitle = String(trimmed.dropFirst(2))
-                currentLevel = 1
-                currentWords = 0
-            } else {
-                currentWords += EditorPerformanceCache.countWords(in: trimmed)
-            }
-        }
-        if currentWords > 0 || headings.isEmpty {
-            headings.append(TimelineHeading(level: currentLevel, title: currentTitle, approximateWords: max(1, currentWords)))
-        }
-        return headings
-    }
-
+    
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // 1. Header (Timeline Title & Dismiss)
+        VStack(spacing: 0) {
+            // Header
             HStack {
-                HStack(spacing: 5) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(StudioTheme.luminousAmber)
-                    Text("Reading Flow")
-                        .font(.system(size: 12, weight: .bold))
-                }
-
+                Text("Version History")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
                 Spacer()
-
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         isPresented = false
                     }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .padding(4)
-                        .background(Color.primary.opacity(0.05), in: Circle())
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.secondary.opacity(0.6))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
-
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+            
             Divider()
-                .padding(.horizontal, 8)
-
-            // 2. Circular Reading Progress Card (Inspired by reference app timer ring)
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 3)
-                        .frame(width: 36, height: 36)
-
-                    Circle()
-                        .trim(from: 0.0, to: min(1.0, Double(wordCount) / 1000.0))
-                        .stroke(
-                            LinearGradient(
-                                colors: [StudioTheme.luminousAmber, Color.orange],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 36, height: 36)
-
-                    Text("\(readingTimeMinutes)m")
-                        .font(.system(size: 9.5, weight: .bold))
-                        .foregroundColor(StudioTheme.luminousAmber)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(wordCount) words")
-                        .font(.system(size: 11, weight: .bold))
-                    Text("Est. ~\(readingTimeMinutes) min reading time")
-                        .font(.system(size: 9.5))
+            
+            if store.historyStack.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("No history recorded yet.")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(.secondary)
                 }
-
-                Spacer()
-            }
-            .padding(8)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .padding(.horizontal, 8)
-
-            // 3. Vertical Track Timeline of Sections
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(parsedTimeline.enumerated()), id: \.element.id) { index, item in
-                        HStack(alignment: .top, spacing: 8) {
-                            // Timeline track & circular node
-                            VStack(spacing: 0) {
-                                Circle()
-                                    .fill(item.level == 1 ? StudioTheme.luminousAmber : (item.level == 2 ? StudioTheme.luminousBlue : StudioTheme.luminousPurple))
-                                    .frame(width: 7, height: 7)
-                                    .padding(.top, 4)
-
-                                if index < parsedTimeline.count - 1 {
-                                    Rectangle()
-                                        .fill(Color.primary.opacity(0.12))
-                                        .frame(width: 1.5)
-                                        .frame(minHeight: 28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(store.historyStack.enumerated()), id: \.element.id) { index, snapshot in
+                                let isCurrent = (index == store.historyIndex)
+                                let isUndone = (index > store.historyIndex)
+                                
+                                HStack(alignment: .top, spacing: 12) {
+                                    // Track & Node
+                                    VStack(spacing: 0) {
+                                        Rectangle()
+                                            .fill(index == 0 ? Color.clear : (isUndone ? Color.secondary.opacity(0.1) : StudioTheme.luminousCyan.opacity(0.4)))
+                                            .frame(width: 2, height: 16)
+                                        
+                                        Circle()
+                                            .fill(isCurrent ? StudioTheme.luminousCyan : (isUndone ? Color.secondary.opacity(0.2) : StudioTheme.luminousCyan.opacity(0.7)))
+                                            .frame(width: isCurrent ? 10 : 8, height: isCurrent ? 10 : 8)
+                                            .shadow(color: isCurrent ? StudioTheme.luminousCyan.opacity(0.5) : Color.clear, radius: 4, x: 0, y: 0)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.white, lineWidth: isCurrent ? 2 : 0)
+                                            )
+                                        
+                                        Rectangle()
+                                            .fill(index == store.historyStack.count - 1 ? Color.clear : ((isUndone || isCurrent) ? Color.secondary.opacity(0.1) : StudioTheme.luminousCyan.opacity(0.4)))
+                                            .frame(width: 2)
+                                    }
+                                    
+                                    // Action Details
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(snapshot.actionName)
+                                            .font(.system(size: 13, weight: isCurrent ? .bold : .medium, design: .rounded))
+                                            .foregroundColor(isUndone ? .secondary.opacity(0.6) : .primary)
+                                            .padding(.top, 12)
+                                        
+                                        Text(timeFormatter.string(from: snapshot.timestamp))
+                                            .font(.system(size: 10, weight: .regular, design: .rounded))
+                                            .foregroundColor(.secondary.opacity(isUndone ? 0.4 : 0.8))
+                                            .padding(.bottom, 16)
+                                    }
+                                    
+                                    Spacer()
                                 }
-                            }
-                            .frame(width: 10)
-
-                            // Section Details Card
-                            Button {
-                                onSelectHeading?(item.title)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
-                                        .font(.system(size: 10.5, weight: item.level == 1 ? .semibold : .medium))
-                                        .foregroundColor(hoveredHeading == item.title ? .accentColor : .primary)
-                                        .lineLimit(1)
-
-                                    HStack(spacing: 4) {
-                                        Text("\(item.approximateWords) words")
-                                            .font(.system(size: 8.5))
-                                            .foregroundColor(.secondary)
+                                .padding(.horizontal, 16)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation {
+                                        store.revertTo(index: index)
                                     }
                                 }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    hoveredHeading == item.title
-                                        ? Color.primary.opacity(0.06)
-                                        : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 6)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { isHov in
-                                hoveredHeading = isHov ? item.title : nil
+                                .onHover { hovering in
+                                    if hovering {
+                                        hoveredSnapshot = snapshot.id
+                                    } else if hoveredSnapshot == snapshot.id {
+                                        hoveredSnapshot = nil
+                                    }
+                                }
+                                .background(hoveredSnapshot == snapshot.id ? Color.primary.opacity(0.04) : Color.clear)
+                                .id(index)
                             }
                         }
                     }
+                    .onChange(of: store.historyIndex) { newValue in
+                        withAnimation {
+                            proxy.scrollTo(newValue, anchor: .center)
+                        }
+                    }
+                    .onAppear {
+                        if store.historyStack.count > 0 {
+                            proxy.scrollTo(store.historyIndex, anchor: .center)
+                        }
+                    }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
             }
-
-            Spacer(minLength: 0)
         }
-        .frame(width: 200)
+        .frame(width: 240)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(StudioTheme.islandBackground)
-                )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.85))
         )
+        .background(Material.regular)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.15), radius: 24, x: 0, y: 12)
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.28), radius: 20, x: 0, y: 10)
-        .padding(.trailing, 12)
-        .padding(.vertical, 12)
+    }
+    
+    private var timeFormatter: DateFormatter {
+        let df = DateFormatter()
+        df.timeStyle = .medium
+        return df
     }
 }

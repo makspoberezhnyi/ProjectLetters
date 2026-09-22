@@ -1,10 +1,16 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
-import PDFKit
+import Combine
 #if canImport(LettersKit)
 import LettersKit
 #endif
+
+
+import UniformTypeIdentifiers
+import PDFKit
+
+
+
 
 public struct MainEditorView: View {
     @StateObject private var editorController = EditorActionController()
@@ -57,7 +63,7 @@ public struct MainEditorView: View {
 
     // Modern Dark Floating Island & Cover Banner States
         @State private var showIslandSidebar: Bool = true
-    @State private var showDocumentTimeline: Bool = false
+    @State private var showDocumentHistory: Bool = false
     @State private var showPageDesignInspector: Bool = false
 
     public init() {}
@@ -157,6 +163,10 @@ public struct MainEditorView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
+            Group {
+                Button("") { documentController.undo() }.keyboardShortcut("z", modifiers: .command).hidden()
+                Button("") { documentController.redo() }.keyboardShortcut("Z", modifiers: [.command, .shift]).hidden()
+            }
             // 1. Sleek Minimalist Glass Top Navigation Bar
             HStack(spacing: 16) {
                 // Left Island Sidebar Toggle Button
@@ -268,16 +278,16 @@ public struct MainEditorView: View {
                     // Timeline
                     Button(action: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            showDocumentTimeline.toggle()
+                            showDocumentHistory.toggle()
                         }
                     }) {
-                        Image(systemName: showDocumentTimeline ? "chart.bar.doc.horizontal.fill" : "chart.bar.doc.horizontal")
+                        Image(systemName: showDocumentHistory ? "chart.bar.doc.horizontal.fill" : "chart.bar.doc.horizontal")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(showDocumentTimeline ? StudioTheme.luminousCyan : .primary)
+                            .foregroundColor(showDocumentHistory ? StudioTheme.luminousCyan : .primary)
                             .padding(8)
-                            .background(showDocumentTimeline ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
+                            .background(showDocumentHistory ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
                             .cornerRadius(8)
-                            .symbolEffect(.bounce, value: showDocumentTimeline)
+                            .symbolEffect(.bounce, value: showDocumentHistory)
                     }
                     .buttonStyle(.plain)
                     .help("Toggle Reading Flow Timeline (⌥⌘T)")
@@ -368,25 +378,14 @@ public struct MainEditorView: View {
                             .padding(.leading, 16)
                             .padding(.top, 16)
                             .padding(.bottom, 16)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                            .zIndex(10)
                         }
 
                         // Floating Right Document Timeline Overlay
-                        if showDocumentTimeline {
+                        if showDocumentHistory {
                             VStack {
                                 HStack {
                                     Spacer()
-                                    StudioDocumentTimelineView(
-                                        isPresented: $showDocumentTimeline,
-                                        rawText: $documentController.rawText,
-                                        wordCount: wordCount,
-                                        characterCount: characterCount,
-                                        readingTimeMinutes: readingTimeMinutes,
-                                        onSelectHeading: { heading in
-                                            showToast("Jumped to: \(heading)")
-                                        }
-                                    )
+                                    StudioDocumentHistoryView(isPresented: $showDocumentHistory, store: documentController)
                                 }
                                 Spacer()
                             }
@@ -802,7 +801,7 @@ public struct MainEditorView: View {
                     .keyboardShortcut("1", modifiers: [.command, .option])
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showDocumentTimeline.toggle()
+                        showDocumentHistory.toggle()
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("t", modifiers: [.command, .option])
@@ -2650,6 +2649,25 @@ struct EditorViewNotificationsModifier: ViewModifier {
 
 
 @MainActor
+
+
+
+
+
+
+
+public struct HistorySnapshot: Identifiable, Equatable {
+    public let id: UUID
+    public let timestamp: Date
+    public let actionName: String
+    public let bundle: LettersDocumentBundle
+
+    nonisolated public static func == (lhs: HistorySnapshot, rhs: HistorySnapshot) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+@MainActor
 public class LettersDocumentController: ObservableObject {
     @Published public var title: String
     @Published public var rawText: String
@@ -2672,6 +2690,12 @@ public class LettersDocumentController: ObservableObject {
     @Published public var lineSpacing: CGFloat
     @Published public var paragraphSpacing: CGFloat
     @Published public var textAlignment: TextAlignment
+    
+    // MARK: - Time Travel History
+    @Published public var historyStack: [HistorySnapshot] = []
+    @Published public var historyIndex: Int = -1
+    private var isReverting: Bool = false
+    private var cancellables = Set<AnyCancellable>()
     
     public init(
         title: String = "Untitled Document",
@@ -2711,78 +2735,139 @@ public class LettersDocumentController: ObservableObject {
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
         self.textAlignment = textAlignment
-    }
-    
-    private var activeUndoManager: UndoManager? {
-        NSApp.keyWindow?.undoManager ?? NSApp.mainWindow?.undoManager
-    }
-    
-    public func performMutation<Value>(
-        keyPath: ReferenceWritableKeyPath<LettersDocumentController, Value>,
-        newValue: Value,
-        actionName: String? = nil
-    ) {
-        let oldValue = self[keyPath: keyPath]
-        let um = activeUndoManager
         
-        self[keyPath: keyPath] = newValue
-        
-        um?.registerUndo(withTarget: self) { target in
-            target.performMutation(keyPath: keyPath, newValue: oldValue, actionName: actionName)
+        // Initial snapshot
+        DispatchQueue.main.async {
+            self.commitSnapshot(actionName: "Created Document")
         }
         
-        if let actionName = actionName {
-            um?.setActionName(actionName)
+        $rawText
+            .dropFirst()
+            .debounce(for: .milliseconds(800), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self = self, !self.isReverting else { return }
+                self.commitSnapshot(actionName: "Typing")
+            }
+            .store(in: &cancellables)
+    }
+    
+    public func createBundle() -> LettersDocumentBundle {
+        LettersDocumentBundle(
+            title: title,
+            rawText: rawText,
+            richTextData: richTextData,
+            tables: tables,
+            images: images,
+            videos: videos,
+            sources: document.sources,
+            citationStyle: citationStyle,
+            pageSizePreset: pageSize,
+            marginPreset: marginPreset,
+            margins: margins,
+            fontFamily: fontFamily,
+            fontSize: Double(fontSize),
+            lineSpacing: Double(lineSpacing),
+            paragraphSpacing: Double(paragraphSpacing),
+            headerFooter: headerFooter,
+            coverBanner: coverBanner
+        )
+    }
+    
+    public func loadBundle(_ bundle: LettersDocumentBundle) {
+        self.title = bundle.title
+        self.rawText = bundle.rawText
+        self.richTextData = bundle.richTextData
+        self.tables = bundle.tables
+        self.images = bundle.images
+        self.videos = bundle.videos
+        self.document.sources = bundle.sources
+        self.citationStyle = bundle.citationStyle
+        self.pageSize = bundle.pageSizePreset
+        self.marginPreset = bundle.marginPreset
+        self.margins = bundle.margins
+        self.coverBanner = bundle.coverBanner
+        self.headerFooter = bundle.headerFooter
+        self.fontFamily = bundle.fontFamily
+        self.fontSize = CGFloat(bundle.fontSize)
+        self.lineSpacing = CGFloat(bundle.lineSpacing)
+        self.paragraphSpacing = CGFloat(bundle.paragraphSpacing)
+        self.textAlignment = .leading
+    }
+    
+    // MARK: - Snapshot Engine
+    public func commitSnapshot(actionName: String) {
+        if isReverting { return } // Don't record snapshots while time-traveling
+        
+        let snapshot = HistorySnapshot(
+            id: UUID(),
+            timestamp: Date(),
+            actionName: actionName,
+            bundle: createBundle()
+        )
+        
+        // If we were back in time, discard future history
+        if historyIndex >= 0 && historyIndex < historyStack.count - 1 {
+            historyStack.removeSubrange((historyIndex + 1)...)
         }
+        
+        historyStack.append(snapshot)
+        
+        // Cap history to 100 items to save memory
+        if historyStack.count > 100 {
+            historyStack.removeFirst()
+        }
+        
+        historyIndex = historyStack.count - 1
+    }
+    
+    public var canUndo: Bool { historyIndex > 0 }
+    public var canRedo: Bool { historyIndex >= 0 && historyIndex < historyStack.count - 1 }
+    
+    public func undo() {
+        guard canUndo else { return }
+        revertTo(index: historyIndex - 1)
+    }
+    
+    public func redo() {
+        guard canRedo else { return }
+        revertTo(index: historyIndex + 1)
+    }
+    
+    public func revertTo(index: Int) {
+        guard index >= 0 && index < historyStack.count else { return }
+        isReverting = true
+        historyIndex = index
+        let targetSnapshot = historyStack[index]
+        loadBundle(targetSnapshot.bundle)
+        isReverting = false
     }
 
+    // MARK: - Tables API (Migrated to Snapshot Engine)
+    
     public func mutateTable(id: UUID, actionName: String? = nil, mutation: (inout StudioTableData) -> Void) {
         guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
-        
-        let oldTable = tables[index]
-        var newTable = oldTable
+        var newTable = tables[index]
         mutation(&newTable)
-        
-        let um = activeUndoManager
         self.tables[index] = newTable
         
-        if let actionName = actionName {
-            um?.registerUndo(withTarget: self) { target in
-                target.mutateTable(id: id, actionName: actionName) { data in
-                    data = oldTable
-                }
-            }
-            um?.setActionName(actionName)
+        if let name = actionName {
+            commitSnapshot(actionName: name)
         }
     }
     
     public func addTable(_ table: StudioTableData) {
-        let um = activeUndoManager
-        um?.registerUndo(withTarget: self) { target in
-            target.removeTable(id: table.id)
-        }
-        um?.setActionName("Insert Table")
         tables.append(table)
+        commitSnapshot(actionName: "Insert Table")
     }
     
     public func removeTable(id: UUID) {
         guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
-        let table = tables[index]
-        let um = activeUndoManager
-        
-        um?.registerUndo(withTarget: self) { target in
-            target.insertTable(table, at: index)
-        }
-        um?.setActionName("Delete Table")
         tables.remove(at: index)
+        commitSnapshot(actionName: "Delete Table")
     }
     
     public func insertTable(_ table: StudioTableData, at index: Int) {
-        let um = activeUndoManager
-        um?.registerUndo(withTarget: self) { target in
-            target.removeTable(id: table.id)
-        }
-        um?.setActionName("Insert Table")
         tables.insert(table, at: index)
+        commitSnapshot(actionName: "Insert Table")
     }
 }
