@@ -516,7 +516,6 @@ public struct MainEditorView: View {
                                     rawText: $documentController.rawText,
                                     selectedText: $selectedText,
                                     onInsertTable: { table in
-                                        documentController.tables.append(table)
                                         let marker = "\n\n[[table:\(table.id.uuidString)]]\n\n"
                                         if selectionRange.location <= (documentController.rawText as NSString).length {
                                             let ns = documentController.rawText as NSString
@@ -524,6 +523,8 @@ public struct MainEditorView: View {
                                         } else {
                                             documentController.rawText += marker
                                         }
+                                        documentController.tables.append(table)
+                                        documentController.commitSnapshot(actionName: "Insert Table", isMilestone: true)
                                     },
                                     onInsertSource: { source in
                                         documentController.document.sources[source.id] = source
@@ -946,7 +947,6 @@ public struct MainEditorView: View {
                 ]
             )
 
-            documentController.tables.append(newTable)
             let marker = "\n\n[[table:\(newTable.id.uuidString)]]\n\n"
             if selectionRange.location <= (documentController.rawText as NSString).length {
                 let ns = documentController.rawText as NSString
@@ -954,6 +954,9 @@ public struct MainEditorView: View {
             } else {
                 documentController.rawText += marker
             }
+            // Append table AFTER modifying rawText so they are part of the same frame
+            documentController.tables.append(newTable)
+            documentController.commitSnapshot(actionName: "Insert Table", isMilestone: true)
             showToast("✓ Added Table with cell formula support")
         case .citation:
             showingAddSourceSheet = true
@@ -2139,7 +2142,7 @@ public struct MainEditorView: View {
                                         showToast("✓ Deleted table")
                                     },
                                     onChange: {
-                                        showToast("✓ Table updated")
+                                        documentController.commitSnapshot(actionName: "Edit Table", isMilestone: false)
                                     },
                                     onToast: { msg in
                                         showToast(msg)
@@ -2764,6 +2767,15 @@ public class LettersDocumentController: ObservableObject {
                 self.commitSnapshot(actionName: "Typing", isMilestone: false)
             }
             .store(in: &cancellables)
+
+        $tables
+            .dropFirst()
+            .debounce(for: .milliseconds(800), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self = self, !self.isReverting, !self.isPeeking else { return }
+                self.commitSnapshot(actionName: "Table Edit", isMilestone: false)
+            }
+            .store(in: &cancellables)
     }
     
     public func createBundle() -> LettersDocumentBundle {
@@ -2835,7 +2847,7 @@ public class LettersDocumentController: ObservableObject {
         
         if let parentId = currentSnapshotId, let parentNode = historyNodes[parentId] {
             // Prevent duplicate identical snapshots
-            if parentNode.bundle.rawText == newBundle.rawText && parentNode.bundle.tables.count == newBundle.tables.count {
+            if parentNode.bundle.rawText == newBundle.rawText && parentNode.bundle.tables == newBundle.tables {
                 return 
             }
             diffSummary = generateDiffSummary(old: parentNode.bundle, new: newBundle)
