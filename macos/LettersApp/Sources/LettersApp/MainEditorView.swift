@@ -892,7 +892,7 @@ public struct MainEditorView: View {
             with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
-        return max(32, ceil(rect.height) + 20)
+        return max(22, ceil(rect.height))
     }
 
     private var unreferencedTableIndices: [Int] {
