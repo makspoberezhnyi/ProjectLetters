@@ -2709,12 +2709,50 @@ public class LettersDocumentController: ObservableObject {
     // MARK: - DAG Time Travel Engine
     @Published public var historyNodes: [UUID: HistoryNode] = [:]
     @Published public var currentSnapshotId: UUID? = nil
+    @Published public var mainBranchHeadId: UUID? = nil
     @Published public var isPeeking: Bool = false
     
     private var isReverting: Bool = false
     private var cancellables = Set<AnyCancellable>()
     private var backupBundleForPeek: LettersDocumentBundle? = nil
     
+    
+    private static func scrubDeadTags(text: String, tables: [StudioTableData], images: [StudioImageBlock], videos: [StudioVideoBlock]) -> String {
+        let regex = EditorPerformanceCache.shared.canvasSegmentRegex
+        let ns = text as NSString
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: ns.length))
+        
+        var toRemove: [NSRange] = []
+        for match in matches {
+            let kind = ns.substring(with: match.range(at: 1))
+            let idStr = (match.numberOfRanges >= 3 && match.range(at: 2).location != NSNotFound) ? ns.substring(with: match.range(at: 2)) : ""
+            
+            if kind == "table" {
+                if let uuid = UUID(uuidString: idStr), tables.contains(where: { $0.id == uuid }) { continue }
+                if idStr.lowercased() == "budget" && !tables.isEmpty { continue }
+                if tables.contains(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) { continue }
+                toRemove.append(match.range)
+            } else if kind == "image" {
+                if let uuid = UUID(uuidString: idStr), images.contains(where: { $0.id == uuid }) { continue }
+                if images.contains(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) { continue }
+                toRemove.append(match.range)
+            } else if kind == "video" {
+                if let uuid = UUID(uuidString: idStr), videos.contains(where: { $0.id == uuid }) { continue }
+                if videos.contains(where: { $0.id.uuidString.lowercased() == idStr.lowercased() }) { continue }
+                toRemove.append(match.range)
+            }
+        }
+        
+        var cleanText = text
+        for range in toRemove.reversed() {
+            let nsMutable = NSMutableString(string: cleanText)
+            nsMutable.deleteCharacters(in: range)
+            cleanText = nsMutable as String
+        }
+        
+        return cleanText
+    }
+
     public init(
         title: String = "Untitled Document",
         rawText: String = "",
@@ -2736,7 +2774,7 @@ public class LettersDocumentController: ObservableObject {
         textAlignment: TextAlignment = .leading
     ) {
         self.title = title
-        self.rawText = rawText
+        self.rawText = Self.scrubDeadTags(text: rawText, tables: tables, images: images, videos: videos)
         self.richTextData = richTextData
         self.document = document
         self.tables = tables
@@ -2802,11 +2840,11 @@ public class LettersDocumentController: ObservableObject {
     
     public func loadBundle(_ bundle: LettersDocumentBundle) {
         self.title = bundle.title
-        self.rawText = bundle.rawText
-        self.richTextData = bundle.richTextData
         self.tables = bundle.tables
         self.images = bundle.images
         self.videos = bundle.videos
+        self.rawText = Self.scrubDeadTags(text: bundle.rawText, tables: bundle.tables, images: bundle.images, videos: bundle.videos)
+        self.richTextData = bundle.richTextData
         self.document.sources = bundle.sources
         self.citationStyle = bundle.citationStyle
         self.pageSize = bundle.pageSizePreset
@@ -2867,6 +2905,9 @@ public class LettersDocumentController: ObservableObject {
         )
         
         historyNodes[newNode.id] = newNode
+        if mainBranchHeadId == nil || currentSnapshotId == mainBranchHeadId {
+            mainBranchHeadId = newNode.id
+        }
         currentSnapshotId = newNode.id
         
         // Memory cap: 200 nodes. Garbage collect oldest non-pinned leaves if necessary.
@@ -2887,6 +2928,13 @@ public class LettersDocumentController: ObservableObject {
     
     // MARK: - Time Travel & Peek
     
+    public func setAsMainBranch(nodeId: UUID) {
+        mainBranchHeadId = nodeId
+        if currentSnapshotId != nodeId {
+            revertTo(id: nodeId)
+        }
+    }
+
     public func revertTo(id: UUID) {
         guard let node = historyNodes[id] else { return }
         isReverting = true

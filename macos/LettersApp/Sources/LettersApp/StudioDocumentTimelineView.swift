@@ -12,9 +12,9 @@ public struct StudioDocumentHistoryView: View {
     }
     
     // Calculate the active thread from root to current HEAD
-    private var activeThread: [HistoryNode] {
+    private var mainThread: [HistoryNode] {
         var path = [HistoryNode]()
-        var current = store.currentSnapshotId
+        var current = store.mainBranchHeadId ?? store.currentSnapshotId
         while let currId = current, let node = store.historyNodes[currId] {
             path.append(node)
             current = node.parentId
@@ -24,8 +24,8 @@ public struct StudioDocumentHistoryView: View {
     
     // Find leaf nodes of alternate branches
     private var alternateBranches: [HistoryNode] {
-        let activeSet = Set(activeThread.map { $0.id })
-        // All nodes that are not in the active thread
+        let activeSet = Set(mainThread.map { $0.id })
+        // All nodes that are not in the main thread
         let inactive = store.historyNodes.values.filter { !activeSet.contains($0.id) && ($0.isMilestone || $0.isPinned) }
         
         // Find leaves: nodes that are NOT a parentId to any other inactive node
@@ -76,7 +76,7 @@ public struct StudioDocumentHistoryView: View {
                                     .padding(.top, 16)
                                     .padding(.bottom, 8)
                                 
-                                let thread = activeThread
+                                let thread = mainThread
                                 ForEach(Array(thread.enumerated()), id: \.element.id) { index, node in
                                     let isCurrent = (node.id == store.currentSnapshotId)
                                     NodeRow(
@@ -107,7 +107,7 @@ public struct StudioDocumentHistoryView: View {
                                     ForEach(alts, id: \.id) { node in
                                         NodeRow(
                                             node: node,
-                                            isCurrent: false,
+                                            isCurrent: (node.id == store.currentSnapshotId),
                                             isLast: true,
                                             store: store,
                                             hoveredSnapshot: $hoveredSnapshot,
@@ -189,6 +189,7 @@ fileprivate struct NodeRow: View {
                     .frame(width: 2)
             }
             
+            .frame(width: 16, alignment: .center)
             // Details
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -217,7 +218,26 @@ fileprivate struct NodeRow: View {
                             .foregroundColor(diff.contains("+") ? .green.opacity(0.8) : .secondary)
                     }
                 }
-                .padding(.bottom, 16)
+                
+                if isAlternate {
+                    Button(action: {
+                        withAnimation {
+                            store.setAsMainBranch(nodeId: node.id)
+                        }
+                    }) {
+                        Text("Set as Main")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.2))
+                            .foregroundColor(.orange)
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.top, 2)
+                }
+                
+                Spacer().frame(height: 16)
             }
         }
         .padding(.horizontal, 16)
