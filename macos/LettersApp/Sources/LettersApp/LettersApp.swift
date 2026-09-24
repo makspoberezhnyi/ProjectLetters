@@ -4,6 +4,7 @@ import AppKit
 import LettersKit
 #endif
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
 
@@ -25,7 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Letters"
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
-        // Ensure the hosting view has a concrete frame before attachment
         hostingView.frame = window.contentRect(forFrameRect: window.frame)
         window.contentView = hostingView
         self.window = window
@@ -33,20 +33,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bringToFront()
     }
 
-    // Called both on first launch AND every time the app is re-activated (e.g. clicking the dock icon).
-    // This guarantees the window appears even when Xcode holds focus during debug launch.
     func applicationWillBecomeActive(_ notification: Notification) {
         bringToFront()
     }
 
     private func bringToFront() {
         guard let w = window else { return }
-        // Forcefully push our app to the front of the window stack.
-        // NSRunningApplication.current.activate is the strongest possible activation signal.
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
         w.makeKeyAndOrderFront(nil)
         w.orderFrontRegardless()
-        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
