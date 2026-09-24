@@ -31,6 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.window = window
 
         NSApp.activate(ignoringOtherApps: true)
+        
+        // Force the app to the front in case Xcode or another app swallowed focus during launch
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
