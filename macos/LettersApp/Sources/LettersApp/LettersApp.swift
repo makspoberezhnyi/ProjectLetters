@@ -25,18 +25,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Letters"
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
+        // Give the hosting view a concrete frame before attaching so SwiftUI
+        // doesn't render into a zero-size container.
+        hostingView.frame = window.contentRect(forFrameRect: window.frame)
         window.contentView = hostingView
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
         self.window = window
 
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
-        
-        // Force the app to the front in case Xcode or another app swallowed focus during launch
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-        }
+    }
+
+    // When launched from Xcode, the app is often not in the active state at
+    // applicationDidFinishLaunching time, so the window is created but never
+    // brought to the front. Hooking applicationWillBecomeActive guarantees
+    // the window appears as soon as the app gets focus, regardless of how it
+    // was started.
+    func applicationWillBecomeActive(_ notification: Notification) {
+        window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
