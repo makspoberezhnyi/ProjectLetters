@@ -677,14 +677,15 @@ public struct SmartTableView: View {
                             }
                             let newW = max(200, (dragBaseTableWidth!) + val.translation.width)
                             let newH = max(100, (dragBaseTableHeight!) + val.translation.height)
-                            store.mutateTable(id: tableId, actionName: "Resize Table") { $0.tableWidth = newW
-                            $0.tableHeight = newH }
-                            onChange?()
-
+                            store.mutateTable(id: tableId) { 
+                                $0.tableWidth = newW
+                                $0.tableHeight = newH 
+                            }
                         }
                         .onEnded { _ in
                             dragBaseTableWidth = nil
                             dragBaseTableHeight = nil
+                            store.commitSnapshot(actionName: "Resize Table", isMilestone: true)
                         }
 
                 )

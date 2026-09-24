@@ -2114,7 +2114,7 @@ public struct MainEditorView: View {
                                 richTextData: $documentController.richTextData,
                                 selectedText: $selectedText,
                                 selectionRange: $selectionRange,
-                                attributedText: getPageAttributedText(pageIndex: pageIndex),
+                                attributedText: nil, // Do not inject full page RTF into a partial chunk!
                                 sliceRange: getPageSliceRange(pageIndex: pageIndex),
                                 controller: editorController,
                                 fontFamily: documentController.fontFamily,
