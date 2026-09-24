@@ -119,7 +119,7 @@ public struct StudioDocumentHistoryView: View {
                         }
                         .padding(.bottom, 32)
                     }
-                    .onChange(of: store.currentSnapshotId) { newValue in
+                    .onChange(of: store.currentSnapshotId) { _, newValue in
                         if let nv = newValue {
                             withAnimation { proxy.scrollTo(nv, anchor: .center) }
                         }
