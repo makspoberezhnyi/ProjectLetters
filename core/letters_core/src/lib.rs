@@ -48,10 +48,10 @@ mod tests {
             suffix: None,
         };
 
-        let apa = table.render_inline(&reference, &CitationStyle::Apa7);
+        let apa = table.render_inline(&reference, &CitationStyle::Apa7).unwrap();
         assert_eq!(apa, "(Smith & Doe, 2024, p. 48)");
 
-        let mla = table.render_inline(&reference, &CitationStyle::Mla9);
+        let mla = table.render_inline(&reference, &CitationStyle::Mla9).unwrap();
         assert_eq!(mla, "(Smith p. 48)");
 
         let bib_apa = table.render_bibliography_entry(&source, &CitationStyle::Apa7);

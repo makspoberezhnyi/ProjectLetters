@@ -600,7 +600,13 @@ public struct TextKit2EditorView: NSViewRepresentable {
     }
 
     public func makeNSView(context: Context) -> StudioTextView {
-        let textView = StudioTextView()
+        let textView: StudioTextView
+        if #available(macOS 12.0, *) {
+            textView = StudioTextView(usingTextLayoutManager: true)
+        } else {
+            textView = StudioTextView()
+        }
+        
         textView.actionController = controller
         textView.isRichText = true
         textView.allowsUndo = true
@@ -647,10 +653,6 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = false
         textView.autoresizingMask = [.width, .height]
-
-        if let layoutManager = textView.layoutManager {
-            layoutManager.allowsNonContiguousLayout = true
-        }
 
         context.coordinator.isUpdatingProgrammatically = true
         textView.string = text

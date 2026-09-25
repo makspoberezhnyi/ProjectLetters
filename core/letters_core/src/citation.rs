@@ -104,10 +104,10 @@ impl SourceTable {
     }
 
     /// Render inline citation based on active style
-    pub fn render_inline(&self, reference: &CitationReference, style: &CitationStyle) -> String {
+    pub fn render_inline(&self, reference: &CitationReference, style: &CitationStyle) -> Result<String, crate::error::LettersError> {
         let source = match self.get_source(&reference.source_id) {
             Some(s) => s,
-            None => return format!("[Source '{}' not found]", reference.source_id),
+            None => return Err(crate::error::LettersError::Citation(format!("Source '{}' not found", reference.source_id))),
         };
 
         let author_lead = source
@@ -171,7 +171,7 @@ impl SourceTable {
             body = format!("{} {}", prefix, body);
         }
 
-        body
+        Ok(body)
     }
 
     /// Render full bibliography entry

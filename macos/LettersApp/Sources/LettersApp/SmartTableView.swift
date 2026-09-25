@@ -675,8 +675,10 @@ public struct SmartTableView: View {
                                 dragBaseTableWidth = tableData.tableWidth ?? actualTableWidth
                                 dragBaseTableHeight = tableData.tableHeight ?? actualTableHeight
                             }
-                            let newW = max(200, (dragBaseTableWidth!) + val.translation.width)
-                            let newH = max(100, (dragBaseTableHeight!) + val.translation.height)
+                            let safeBaseW = dragBaseTableWidth ?? tableData.tableWidth ?? actualTableWidth
+                            let safeBaseH = dragBaseTableHeight ?? tableData.tableHeight ?? actualTableHeight
+                            let newW = max(200, safeBaseW + val.translation.width)
+                            let newH = max(100, safeBaseH + val.translation.height)
                             store.mutateTable(id: tableId) { 
                                 $0.tableWidth = newW
                                 $0.tableHeight = newH 
@@ -771,10 +773,10 @@ public struct SmartTableView: View {
         let isFillTarget = fillTargetRect?.contains(row: rowIdx, col: colIdx) ?? false
         let isBottomRight = (selectedRect?.maxRow == rowIdx && selectedRect?.maxCol == colIdx) && activeEditingCell == nil
         
-        let showTopBorder = isSelected && rowIdx == selectedRect!.minRow
-        let showBottomBorder = isSelected && rowIdx == selectedRect!.maxRow
-        let showLeftBorder = isSelected && colIdx == selectedRect!.minCol
-        let showRightBorder = isSelected && colIdx == selectedRect!.maxCol
+        let showTopBorder = isSelected && rowIdx == (selectedRect?.minRow ?? -1)
+        let showBottomBorder = isSelected && rowIdx == (selectedRect?.maxRow ?? -1)
+        let showLeftBorder = isSelected && colIdx == (selectedRect?.minCol ?? -1)
+        let showRightBorder = isSelected && colIdx == (selectedRect?.maxCol ?? -1)
         let rawValue: String = getRawValue(rowIdx: rowIdx, colIdx: colIdx)
         let hasFormula = rawValue.hasPrefix("=")
         let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
@@ -838,12 +840,14 @@ public struct SmartTableView: View {
                                     let dRows = Int(round(val.translation.height / avgCellHeight))
                                     let dCols = Int(round(val.translation.width / avgCellWidth))
                                     
-                                    if abs(dRows) > abs(dCols) {
-                                        let newMaxRow = max(selectedRect!.maxRow, min(tableData.rows.count - 1, selectedRect!.maxRow + dRows))
-                                        fillTargetRect = TableSelectionRect(minRow: selectedRect!.minRow, maxRow: newMaxRow, minCol: selectedRect!.minCol, maxCol: selectedRect!.maxCol)
-                                    } else {
-                                        let newMaxCol = max(selectedRect!.maxCol, min(tableData.headers.count - 1, selectedRect!.maxCol + dCols))
-                                        fillTargetRect = TableSelectionRect(minRow: selectedRect!.minRow, maxRow: selectedRect!.maxRow, minCol: selectedRect!.minCol, maxCol: newMaxCol)
+                                    if let sRect = selectedRect {
+                                        if abs(dRows) > abs(dCols) {
+                                            let newMaxRow = max(sRect.maxRow, min(tableData.rows.count - 1, sRect.maxRow + dRows))
+                                            fillTargetRect = TableSelectionRect(minRow: sRect.minRow, maxRow: newMaxRow, minCol: sRect.minCol, maxCol: sRect.maxCol)
+                                        } else {
+                                            let newMaxCol = max(sRect.maxCol, min(tableData.headers.count - 1, sRect.maxCol + dCols))
+                                            fillTargetRect = TableSelectionRect(minRow: sRect.minRow, maxRow: sRect.maxRow, minCol: sRect.minCol, maxCol: newMaxCol)
+                                        }
                                     }
                                 }
                                 .onEnded { _ in
@@ -930,13 +934,12 @@ public struct SmartTableView: View {
         if var cw = tableData.columnWidths, let base = dragBaseColWidths, base.indices.contains(colIdx) {
             cw[colIdx] = max(40, base[colIdx] + translation)
             store.mutateTable(id: tableId) { $0.columnWidths = cw; $0.tableWidth = cw.reduce(0, +) + 32 }
-            
-            onChange?()
         }
     }
 
     private func endColumnDrag() {
         dragBaseColWidths = nil
+        store.commitSnapshot(actionName: "Resize Column", isMilestone: true)
     }
 
     // MARK: - Actions

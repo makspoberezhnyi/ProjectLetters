@@ -126,138 +126,80 @@ impl Document {
         out
     }
 
-    /// Parse markdown or plain text into a structured Document AST
     pub fn from_markdown_or_text(title: &str, text: &str) -> Self {
         let mut doc = Document::new(title);
-
-        for line in text.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            if let Some(rest) = trimmed.strip_prefix("#### ") {
-                doc.blocks.push(BlockElement::Heading {
-                    level: HeadingLevel::Heading4,
-                    runs: Self::parse_inline_runs(rest),
-                });
-            } else if let Some(rest) = trimmed.strip_prefix("### ") {
-                doc.blocks.push(BlockElement::Heading {
-                    level: HeadingLevel::Heading3,
-                    runs: Self::parse_inline_runs(rest),
-                });
-            } else if let Some(rest) = trimmed.strip_prefix("## ") {
-                doc.blocks.push(BlockElement::Heading {
-                    level: HeadingLevel::Heading2,
-                    runs: Self::parse_inline_runs(rest),
-                });
-            } else if let Some(rest) = trimmed.strip_prefix("# ") {
-                doc.blocks.push(BlockElement::Heading {
-                    level: HeadingLevel::Heading1,
-                    runs: Self::parse_inline_runs(rest),
-                });
-            } else if let Some(rest) = trimmed.strip_prefix("* ") {
-                doc.blocks.push(BlockElement::BulletItem {
-                    runs: Self::parse_inline_runs(rest),
-                    indent_level: 0,
-                });
-            } else if let Some(rest) = trimmed.strip_prefix("- ") {
-                doc.blocks.push(BlockElement::BulletItem {
-                    runs: Self::parse_inline_runs(rest),
-                    indent_level: 0,
-                });
-            } else if let Some(rest) = trimmed.strip_prefix("> ") {
-                doc.blocks.push(BlockElement::Blockquote {
-                    runs: Self::parse_inline_runs(rest),
-                });
-            } else if trimmed == "---" || trimmed == "***" {
-                doc.blocks.push(BlockElement::PageBreak);
-            } else {
-                // Check numbered list like "1. ", "2. "
-                let mut is_numbered = false;
-                if let Some(dot_idx) = trimmed.find(". ") {
-                    if let Ok(num) = trimmed[..dot_idx].parse::<usize>() {
-                        let rest = &trimmed[dot_idx + 2..];
-                        doc.blocks.push(BlockElement::NumberedItem {
-                            runs: Self::parse_inline_runs(rest),
-                            number: num,
-                        });
-                        is_numbered = true;
+        use pulldown_cmark::{Parser, Event, Tag, TagEnd};
+        
+        let parser = Parser::new(text);
+        let mut current_runs = Vec::new();
+        let mut is_bold = false;
+        let mut is_italic = false;
+        
+        for event in parser {
+            match event {
+                Event::Start(tag) => {
+                    match tag {
+                        Tag::Strong => is_bold = true,
+                        Tag::Emphasis => is_italic = true,
+                        _ => {}
                     }
                 }
-
-                if !is_numbered {
-                    doc.blocks.push(BlockElement::Paragraph {
-                        runs: Self::parse_inline_runs(trimmed),
-                        alignment: None,
-                    });
+                Event::End(tag_end) => {
+                    match tag_end {
+                        TagEnd::Paragraph => {
+                            doc.blocks.push(BlockElement::Paragraph {
+                                runs: std::mem::take(&mut current_runs),
+                                alignment: None,
+                            });
+                        }
+                        TagEnd::Heading(level) => {
+                            let doc_level = match level {
+                                pulldown_cmark::HeadingLevel::H1 => HeadingLevel::Heading1,
+                                pulldown_cmark::HeadingLevel::H2 => HeadingLevel::Heading2,
+                                pulldown_cmark::HeadingLevel::H3 => HeadingLevel::Heading3,
+                                _ => HeadingLevel::Heading4,
+                            };
+                            doc.blocks.push(BlockElement::Heading {
+                                level: doc_level,
+                                runs: std::mem::take(&mut current_runs),
+                            });
+                        }
+                        TagEnd::Item => {
+                            doc.blocks.push(BlockElement::BulletItem {
+                                runs: std::mem::take(&mut current_runs),
+                                indent_level: 0,
+                            });
+                        }
+                        TagEnd::BlockQuote(_) => {
+                            doc.blocks.push(BlockElement::Blockquote {
+                                runs: std::mem::take(&mut current_runs),
+                            });
+                        }
+                        TagEnd::Strong => is_bold = false,
+                        TagEnd::Emphasis => is_italic = false,
+                        _ => {}
+                    }
                 }
+                Event::Text(t) => {
+                    let mut run = TextRun::plain(t.into_string());
+                    run.bold = is_bold;
+                    run.italic = is_italic;
+                    current_runs.push(run);
+                }
+                Event::SoftBreak | Event::HardBreak => {
+                    let mut run = TextRun::plain(" ");
+                    run.bold = is_bold;
+                    run.italic = is_italic;
+                    current_runs.push(run);
+                }
+                Event::Rule => {
+                    doc.blocks.push(BlockElement::PageBreak);
+                }
+                _ => {}
             }
         }
-
+        
         doc
-    }
-
-    /// Parse inline formatting (bold **, italic *)
-    pub fn parse_inline_runs(text: &str) -> Vec<TextRun> {
-        let mut runs = Vec::new();
-        let mut current = String::new();
-        let chars: Vec<char> = text.chars().collect();
-        let len = chars.len();
-        let mut i = 0;
-
-        while i < len {
-            if i + 1 < len && chars[i] == '*' && chars[i + 1] == '*' {
-                // Bold marker
-                if !current.is_empty() {
-                    runs.push(TextRun::plain(std::mem::take(&mut current)));
-                }
-                i += 2;
-                let mut bold_text = String::new();
-                while i < len {
-                    if i + 1 < len && chars[i] == '*' && chars[i + 1] == '*' {
-                        i += 2;
-                        break;
-                    }
-                    bold_text.push(chars[i]);
-                    i += 1;
-                }
-                let mut r = TextRun::plain(bold_text);
-                r.bold = true;
-                runs.push(r);
-            } else if chars[i] == '*' {
-                // Italic marker
-                if !current.is_empty() {
-                    runs.push(TextRun::plain(std::mem::take(&mut current)));
-                }
-                i += 1;
-                let mut italic_text = String::new();
-                while i < len {
-                    if chars[i] == '*' {
-                        i += 1;
-                        break;
-                    }
-                    italic_text.push(chars[i]);
-                    i += 1;
-                }
-                let mut r = TextRun::plain(italic_text);
-                r.italic = true;
-                runs.push(r);
-            } else {
-                current.push(chars[i]);
-                i += 1;
-            }
-        }
-
-        if !current.is_empty() {
-            runs.push(TextRun::plain(current));
-        }
-
-        if runs.is_empty() {
-            runs.push(TextRun::plain(text));
-        }
-
-        runs
     }
 
     /// Collect all referenced citation IDs in the document

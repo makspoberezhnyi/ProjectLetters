@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(LettersKit)
+import LettersKit
+#endif
 
 public struct StudioFloatingSidebar: View {
     @Binding var isPresented: Bool
@@ -97,7 +100,7 @@ public struct StudioFloatingSidebar: View {
         .frame(width: 56)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(NSColor.windowBackgroundColor).opacity(0.85))
+                .fill(.regularMaterial)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)

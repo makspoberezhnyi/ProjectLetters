@@ -1,6 +1,9 @@
 import SwiftUI
 import AppKit
 import Foundation
+#if canImport(LettersKit)
+import LettersKit
+#endif
 
 public struct DocumentPageSlice: Identifiable, Equatable {
     public var id: Int { pageIndex }

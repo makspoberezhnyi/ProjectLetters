@@ -88,8 +88,10 @@ pub unsafe extern "C" fn letters_render_citation(
     let mut table = SourceTable::new();
     table.add_source(source);
 
-    let rendered = table.render_inline(&citation_ref, &style);
-    rust_to_c_str(rendered)
+    match table.render_inline(&citation_ref, &style) {
+        Ok(rendered) => rust_to_c_str(rendered),
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 /// Export a document given its Markdown text directly to DOCX bytes, returns pointer and length
@@ -117,10 +119,8 @@ pub unsafe extern "C" fn letters_export_docx_from_markdown(
             if !out_len.is_null() {
                 *out_len = bytes.len();
             }
-            let mut boxed = bytes.into_boxed_slice();
-            let ptr = boxed.as_mut_ptr();
-            std::mem::forget(boxed);
-            ptr
+            let boxed = bytes.into_boxed_slice();
+            Box::into_raw(boxed) as *mut u8
         }
         Err(_) => {
             if !out_len.is_null() {
@@ -162,10 +162,8 @@ pub unsafe extern "C" fn letters_export_docx_from_json(
             if !out_len.is_null() {
                 *out_len = bytes.len();
             }
-            let mut boxed = bytes.into_boxed_slice();
-            let ptr = boxed.as_mut_ptr();
-            std::mem::forget(boxed);
-            ptr
+            let boxed = bytes.into_boxed_slice();
+            Box::into_raw(boxed) as *mut u8
         }
         Err(_) => {
             if !out_len.is_null() {
@@ -179,6 +177,7 @@ pub unsafe extern "C" fn letters_export_docx_from_json(
 #[no_mangle]
 pub unsafe extern "C" fn letters_free_bytes(ptr: *mut u8, len: usize) {
     if !ptr.is_null() {
-        let _ = Box::from_raw(std::slice::from_raw_parts_mut(ptr, len));
+        let fat_ptr = std::ptr::slice_from_raw_parts_mut(ptr, len);
+        let _ = Box::from_raw(fat_ptr);
     }
 }

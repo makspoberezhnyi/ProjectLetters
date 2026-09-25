@@ -23,9 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         window.minSize = NSSize(width: 1080, height: 720)
         window.center()
+        window.setFrameAutosaveName("MainEditorWindow")
         window.title = "Letters"
         window.titleVisibility = .visible
-        window.titlebarAppearsTransparent = false
+        window.titlebarAppearsTransparent = true
         hostingView.frame = window.contentRect(forFrameRect: window.frame)
         window.contentView = hostingView
         self.window = window
@@ -39,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func bringToFront() {
         guard let w = window else { return }
+        // Forcefully push our app to the front of the window stack.
+        // NSRunningApplication.current.activate is the strongest possible activation signal.
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
         w.makeKeyAndOrderFront(nil)
         w.orderFrontRegardless()
         if #available(macOS 14.0, *) {
@@ -53,11 +57,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor private var sharedDelegate: AppDelegate?
+
 @main
+@MainActor
 enum LettersMain {
     static func main() {
         let app = NSApplication.shared
         let delegate = AppDelegate()
+        sharedDelegate = delegate
         app.delegate = delegate
         app.run()
     }
