@@ -81,32 +81,73 @@ public struct DocumentPaginator {
 
         var slices: [DocumentPageSlice] = []
         var pageIndex = 0
+        var currentIndex = 0
+        let nsString = attrString.string as NSString
+        let fullLength = nsString.length
 
-        let storage = NSTextStorage(attributedString: attrString)
-        let layoutManager = NSLayoutManager()
-        storage.addLayoutManager(layoutManager)
-
-        var hasMoreInThisSection = true
-        while hasMoreInThisSection {
-            let container = NSTextContainer(containerSize: NSSize(width: printableWidth, height: printableHeight))
-            container.widthTracksTextView = false
-            container.heightTracksTextView = false
-            container.lineFragmentPadding = 4.0
-            layoutManager.addTextContainer(container)
-
-            layoutManager.ensureLayout(for: container)
-            let glyphRange = layoutManager.glyphRange(for: container)
-            let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
-
-            let pageSliceAttrText = attrString.attributedSubstring(from: charRange)
-            let pageSliceText = pageSliceAttrText.string
-
-            slices.append(DocumentPageSlice(pageIndex: pageIndex, text: pageSliceText, range: charRange, attributedText: pageSliceAttrText))
-            pageIndex += 1
-
-            let totalGlyphs = layoutManager.numberOfGlyphs
-            if glyphRange.location + glyphRange.length >= totalGlyphs || glyphRange.length == 0 {
-                hasMoreInThisSection = false
+        while currentIndex < fullLength {
+            let remainingText = attrString.attributedSubstring(from: NSRange(location: currentIndex, length: fullLength - currentIndex))
+            
+            var tempStorage: NSTextContentStorage
+            var lm: NSTextLayoutManager
+            
+            if #available(macOS 12.0, *) {
+                tempStorage = NSTextContentStorage()
+                tempStorage.attributedString = remainingText
+                lm = NSTextLayoutManager()
+                tempStorage.addTextLayoutManager(lm)
+                
+                let container = NSTextContainer(size: NSSize(width: printableWidth, height: printableHeight))
+                container.lineFragmentPadding = 0 // Match Editor settings
+                lm.textContainer = container
+                
+                lm.ensureLayout(for: lm.documentRange)
+                
+                var lastVisibleLoc = 0
+                lm.enumerateTextLayoutFragments(from: lm.documentRange.location, options: [.ensuresLayout]) { fragment in
+                    if fragment.layoutFragmentFrame.maxY <= printableHeight {
+                        let range = fragment.rangeInElement
+                        let startOffset = tempStorage.offset(from: tempStorage.documentRange.location, to: range.location)
+                        let length = tempStorage.offset(from: range.location, to: range.endLocation)
+                        lastVisibleLoc = max(lastVisibleLoc, startOffset + length)
+                        return true
+                    } else {
+                        return false
+                    }
+                }
+                
+                // Safety fallback to prevent infinite loops if height is too small to fit even one line
+                if lastVisibleLoc == 0 {
+                    lastVisibleLoc = remainingText.length > 0 ? 1 : 0
+                }
+                
+                let sliceRange = NSRange(location: currentIndex, length: lastVisibleLoc)
+                let pageSliceAttrText = attrString.attributedSubstring(from: sliceRange)
+                slices.append(DocumentPageSlice(pageIndex: pageIndex, text: pageSliceAttrText.string, range: sliceRange, attributedText: pageSliceAttrText))
+                
+                currentIndex += lastVisibleLoc
+                pageIndex += 1
+            } else {
+                // Legacy TextKit 1 fallback for older macOS
+                let storage = NSTextStorage(attributedString: remainingText)
+                let layoutManager = NSLayoutManager()
+                storage.addLayoutManager(layoutManager)
+                
+                let container = NSTextContainer(containerSize: NSSize(width: printableWidth, height: printableHeight))
+                container.lineFragmentPadding = 0
+                layoutManager.addTextContainer(container)
+                
+                layoutManager.ensureLayout(for: container)
+                let glyphRange = layoutManager.glyphRange(for: container)
+                let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+                
+                let sliceRange = NSRange(location: currentIndex, length: charRange.length)
+                let pageSliceAttrText = attrString.attributedSubstring(from: sliceRange)
+                slices.append(DocumentPageSlice(pageIndex: pageIndex, text: pageSliceAttrText.string, range: sliceRange, attributedText: pageSliceAttrText))
+                
+                currentIndex += charRange.length
+                pageIndex += 1
+                if charRange.length == 0 { break }
             }
         }
 

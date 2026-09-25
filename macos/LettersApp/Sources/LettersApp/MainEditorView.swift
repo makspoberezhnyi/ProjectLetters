@@ -882,6 +882,7 @@ public struct MainEditorView: View {
         paragraphStyle.lineHeightMultiple = documentController.lineSpacing
         paragraphStyle.paragraphSpacing = documentController.paragraphSpacing
         let availableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        
         let attrStr = NSAttributedString(
             string: textContent.isEmpty ? " " : textContent,
             attributes: [
@@ -889,11 +890,27 @@ public struct MainEditorView: View {
                 .paragraphStyle: paragraphStyle
             ]
         )
-        let rect = attrStr.boundingRect(
-            with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
-        return max(22, ceil(rect.height))
+        
+        if #available(macOS 12.0, *) {
+            let textContentStorage = NSTextContentStorage()
+            textContentStorage.attributedString = attrStr
+            
+            let layoutManager = NSTextLayoutManager()
+            textContentStorage.addTextLayoutManager(layoutManager)
+            
+            let textContainer = NSTextContainer(size: NSSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
+            textContainer.lineFragmentPadding = 0 // Match Editor settings
+            layoutManager.textContainer = textContainer
+            
+            layoutManager.ensureLayout(for: layoutManager.documentRange)
+            return max(22, ceil(layoutManager.usageBoundsForTextContainer.height))
+        } else {
+            let rect = attrStr.boundingRect(
+                with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            )
+            return max(22, ceil(rect.height))
+        }
     }
 
     private var unreferencedTableIndices: [Int] {
