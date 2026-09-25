@@ -23,5 +23,9 @@ This skill documents architectural patterns and layout mechanics for high-perfor
 
 For multi-page editorial rendering (e.g. Letter, A4, Executive):
 * Parse structured inline markers (`[[table:id]]`, `[[image:id]]`, `[[toc]]`, `[[bibliography]]`, `---pagebreak---`).
-* Slice continuous text streams into distinct per-page viewport containers while maintaining continuous cursor navigation.
+* **CRITICAL TEXTKIT 2 LIMITATION:** Unlike TextKit 1 (`NSLayoutManager`), the modern `NSTextLayoutManager` natively supports only **ONE** `NSTextContainer`. 
+* **Pagination Strategies:**
+  1. **Single Viewport with Gaps:** Use one infinitely tall `NSTextContainer` and inject horizontal `exclusionPaths` at page boundaries to simulate gaps between pages natively.
+  2. **Manual Layout Slicing (Current approach):** Use a headless `NSTextContentStorage` with `NSTextLayoutManager`. Instead of relying on `boundingRect`, use `layoutManager.usageBoundsForTextContainer.height` for accurate height measurement. Iterate through `layoutManager.enumerateTextLayoutFragments` to slice characters per physical page bounds.
+  3. **DO NOT** use `NSAttributedString.boundingRect` or `NSLayoutManager` to measure TextKit 2 UI geometry, as the engine mismatch will cause jumping text and duplicate inline tags.
 * Compute live Table of Contents markers dynamically from AST headings.
