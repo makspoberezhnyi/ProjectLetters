@@ -27,6 +27,7 @@ public struct MainEditorView: View {
     @State private var toastMessage: String? = nil
     @State private var zoomScale: Double = 1.15
     @State private var showingAddSourceSheet: Bool = false
+    @State private var showingCrossReferenceSheet: Bool = false
     @State private var showingAddVideoSheet: Bool = false
     @State private var newVideoURLInput: String = ""
     @State private var showFindReplace: Bool = false
@@ -102,33 +103,48 @@ public struct MainEditorView: View {
             isItalic: isItalic,
             lineSpacing: documentController.lineSpacing,
             paragraphSpacing: documentController.paragraphSpacing,
-            alignment: documentController.textAlignment
+            alignment: documentController.textAlignment,
+            columnCount: documentController.columnCount,
+            columnGap: 24.0,
+            footnotes: documentController.footnotes,
+            sideNotes: documentController.sideNotes
         )
     }
 
     private var documentPages: [String] {
         documentPageSlices.map { $0.text }
     }
-
-    private func getPageText(pageIndex: Int) -> String {
-        let slices = documentPageSlices
-        guard pageIndex < slices.count else { return "" }
-        return slices[pageIndex].text
+    
+    private var totalPages: Int {
+        let cols = max(1, documentController.columnCount)
+        return Int(ceil(Double(documentPageSlices.count) / Double(cols)))
     }
 
-    private func getPageAttributedText(pageIndex: Int) -> NSAttributedString? {
+    private func getColumnText(columnIndex: Int) -> String {
         let slices = documentPageSlices
-        guard pageIndex < slices.count else { return nil }
-        return slices[pageIndex].attributedText
+        guard columnIndex < slices.count else { return "" }
+        return slices[columnIndex].text
     }
 
-    private func getPageSliceRange(pageIndex: Int) -> NSRange? {
+    private func getColumnAttributedText(columnIndex: Int) -> NSAttributedString? {
         let slices = documentPageSlices
-        guard pageIndex < slices.count else { return nil }
-        return slices[pageIndex].range
+        guard columnIndex < slices.count else { return nil }
+        return slices[columnIndex].attributedText
     }
 
-    private func setPageText(pageIndex: Int, newText: String) {
+    private func getColumnSliceRange(columnIndex: Int) -> NSRange? {
+        let slices = documentPageSlices
+        guard columnIndex < slices.count else { return nil }
+        return slices[columnIndex].range
+    }
+
+    private func getColumnIsContinuation(columnIndex: Int) -> Bool {
+        let slices = documentPageSlices
+        guard columnIndex < slices.count else { return false }
+        return slices[columnIndex].isContinuation
+    }
+
+    private func setColumnText(columnIndex: Int, newText: String) {
         if let activeSize = editorController.currentSelectionAttributes()?.fontSize,
            activeSize > 0,
            abs(activeSize - documentController.fontSize) > 0.5,
@@ -138,11 +154,11 @@ public struct MainEditorView: View {
 
         let oldPageCount = documentPageSlices.count
         let slices = documentPageSlices
-        guard pageIndex < slices.count else {
+        guard columnIndex < slices.count else {
             documentController.rawText += (documentController.rawText.isEmpty ? "" : "\n\n") + newText
             return
         }
-        let slice = slices[pageIndex]
+        let slice = slices[columnIndex]
         let ns = documentController.rawText as NSString
         let loc = slice.range.location
         let len = slice.range.length
@@ -153,11 +169,11 @@ public struct MainEditorView: View {
         }
 
         let newSlices = documentPageSlices
-        if newSlices.count > pageIndex + 1 && newText.count > newSlices[pageIndex].text.count {
-            let overflowLength = max(1, newText.count - newSlices[pageIndex].text.count)
-            editorController.focusPage(pageIndex + 1, at: overflowLength)
-        } else if newSlices.count > oldPageCount && pageIndex + 1 < newSlices.count {
-            editorController.focusPage(pageIndex + 1, at: 0)
+        if newSlices.count > columnIndex + 1 && newText.count > newSlices[columnIndex].text.count {
+            let overflowLength = max(1, newText.count - newSlices[columnIndex].text.count)
+            editorController.focusPage(columnIndex + 1, at: overflowLength)
+        } else if newSlices.count > oldPageCount && columnIndex + 1 < newSlices.count {
+            editorController.focusPage(columnIndex + 1, at: 0)
         }
     }
 
@@ -292,6 +308,33 @@ public struct MainEditorView: View {
                     .buttonStyle(.plain)
                     .help("Toggle Reading Flow Timeline (⌥⌘T)")
                     
+                    // Insert Pull Quote
+                    Button(action: {
+                        let newId = UUID()
+                        // Find the current page to insert the pull quote on (default to 0 for simplicity, or we can use editorController.activePageIndex if we exposed it, let's just use 0)
+                        let newElement = StudioFloatingElement(
+                            id: newId,
+                            text: "“Design is not just what it looks like and feels like. Design is how it works.”",
+                            position: CGPoint(x: 200, y: 150),
+                            size: CGSize(width: 300, height: 150),
+                            pageIndex: 0
+                        )
+                        documentController.floatingElements.append(newElement)
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "quote.bubble.fill")
+                            Text("Quote")
+                        }
+                        .font(.system(size: 13, weight: .medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.primary.opacity(0.06))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Divider().frame(height: 16)
+                    
                     // AI Copilot Toggle
                     Button(action: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -343,7 +386,7 @@ public struct MainEditorView: View {
                             VStack(spacing: 36) {
 
                                 // Multi-Page Sheet Rendering
-                                ForEach(0..<documentPages.count, id: \.self) { pageIndex in
+                                ForEach(0..<totalPages, id: \.self) { pageIndex in
                                     documentPageSheet(pageIndex: pageIndex)
                                 }
                             }
@@ -367,11 +410,13 @@ public struct MainEditorView: View {
                                     videos: $documentController.videos,
                                     showAIDrawer: $showAIDrawer,
                                     showCommandPalette: $showCommandPalette,
+                                    showPageDesignInspector: $showPageDesignInspector,
                                     onInsertSection: { handleToolAction(.text) },
                                     onInsertTable: { handleToolAction(.table) },
                                     onInsertImage: { handleToolAction(.image) },
                                     onAddSource: { showingAddSourceSheet = true },
                                     onInsertPageBreak: { insertPageBreakAction() },
+                                    onTogglePageDesign: { showPageDesignInspector.toggle() },
                                     onToast: { msg in showToast(msg) }
                                 )
                                 Spacer()
@@ -650,6 +695,49 @@ public struct MainEditorView: View {
             }
             .padding(20)
         }
+        .sheet(isPresented: $showingCrossReferenceSheet) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Insert Cross Reference")
+                    .font(.headline)
+                
+                if documentController.images.isEmpty {
+                    Text("No figures available to reference.")
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    List {
+                        ForEach(documentController.images) { img in
+                            Button {
+                                insertCrossReference(targetId: img.id.uuidString, type: "Figure")
+                                showingCrossReferenceSheet = false
+                            } label: {
+                                HStack {
+                                    Image(systemName: "photo")
+                                    Text("Figure \((documentController.images.firstIndex(where: { $0.id == img.id }) ?? 0) + 1)")
+                                        .bold()
+                                    if !img.caption.isEmpty {
+                                        Text("- \(img.caption)").foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(height: 200)
+                }
+                
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        showingCrossReferenceSheet = false
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 400)
+        }
         .sheet(isPresented: $showingAddVideoSheet) {
             VStack(spacing: 16) {
                 Text("Embed YouTube / Web Video")
@@ -699,6 +787,28 @@ public struct MainEditorView: View {
                 citationStyle: $documentController.citationStyle,
                 pageSize: $documentController.pageSize,
                 marginPreset: $documentController.marginPreset,
+                showMarginGuides: $showMarginGuides,
+                showCropMarks: $showCropMarks,
+                onToast: { msg in showToast(msg) }
+            )
+        }
+        .sheet(isPresented: $showPageDesignInspector) {
+            StudioPageDesignView(
+                isPresented: $showPageDesignInspector,
+                coverBannerConfig: $documentController.coverBanner,
+                pageSize: $documentController.pageSize,
+                columnCount: $documentController.columnCount,
+                showLineNumbers: $documentController.showLineNumbers,
+                watermarkText: $documentController.watermarkText,
+                kern: $documentController.kern,
+                hangingIndent: $documentController.hangingIndent,
+                marginPreset: $documentController.marginPreset,
+                margins: $documentController.margins,
+                fontFamily: $documentController.fontFamily,
+                fontSize: $documentController.fontSize,
+                lineSpacing: $documentController.lineSpacing,
+                paragraphSpacing: $documentController.paragraphSpacing,
+                activeCitationStyle: $documentController.citationStyle,
                 showMarginGuides: $showMarginGuides,
                 showCropMarks: $showCropMarks,
                 onToast: { msg in showToast(msg) }
@@ -1179,6 +1289,22 @@ public struct MainEditorView: View {
         }
     }
 
+    private func toggleKeepLinesTogetherAction() {
+        editorController.toggleKeepLinesTogether()
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.selectionAttributes = attrs
+            showToast(attrs.isKeepLinesTogether ? "✓ Keep Lines Together enabled" : "Keep Lines Together disabled")
+        }
+    }
+
+    private func toggleKeepWithNextAction() {
+        editorController.toggleKeepWithNext()
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.selectionAttributes = attrs
+            showToast(attrs.isKeepWithNext ? "✓ Keep With Next enabled" : "Keep With Next disabled")
+        }
+    }
+
     private func toggleItalicAction() {
         editorController.toggleItalic()
         if let attrs = editorController.currentSelectionAttributes() {
@@ -1229,6 +1355,60 @@ public struct MainEditorView: View {
 
     private func insertCitationForSelection() {
         showingAddSourceSheet = true
+    }
+
+    private func insertFootnote() {
+        let fnNumber = documentController.footnotes.count + 1
+        let footnoteId = UUID()
+        let marker = "\(fnNumber)"
+        
+        // Add model
+        documentController.footnotes.append(StudioFootnote(id: footnoteId, referenceMarker: marker, text: "New Footnote Text"))
+        
+        // Insert into text
+        let refStr = "[\(marker)]"
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            let replaced = ns.replacingCharacters(in: selectionRange, with: refStr)
+            documentController.rawText = replaced
+        } else {
+            // Append to current location if cursor is available, else append to end
+            documentController.rawText += refStr
+        }
+        
+        documentController.commitSnapshot(actionName: "Insert Footnote", isMilestone: false)
+    }
+
+    private func insertCrossReference(targetId: String, type: String) {
+        if documentController.richTextData == nil {
+            let attrStr = NSAttributedString(string: documentController.rawText)
+            if let data = try? NSKeyedArchiver.archivedData(withRootObject: attrStr, requiringSecureCoding: false) {
+                documentController.richTextData = data
+            }
+        }
+        
+        let attachment = CrossReferenceAttachment(targetId: targetId, targetType: type)
+        editorController.insertAttachment(attachment)
+        documentController.commitSnapshot(actionName: "Insert Cross Reference", isMilestone: false)
+    }
+
+    private func insertSideNote() {
+        let snNumber = documentController.sideNotes.count + 1
+        let snId = UUID()
+        let marker = "note:\(snNumber)"
+        
+        documentController.sideNotes.append(StudioSideNote(id: snId, referenceMarker: marker, text: "New Side Note"))
+        
+        let refStr = "[\(marker)]"
+        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+            let ns = documentController.rawText as NSString
+            let replaced = ns.replacingCharacters(in: selectionRange, with: refStr)
+            documentController.rawText = replaced
+        } else {
+            documentController.rawText += refStr
+        }
+        
+        documentController.commitSnapshot(actionName: "Insert Side Note", isMilestone: false)
     }
 
     private func executeDirectCLICommand(_ query: String) -> Bool {
@@ -1992,7 +2172,7 @@ public struct MainEditorView: View {
         VStack(spacing: 8) {
             // Page Number Badge
             HStack {
-                Text("PAGE \(pageIndex + 1) OF \(documentPages.count)")
+                Text("PAGE \(pageIndex + 1) OF \(totalPages)")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -2015,14 +2195,21 @@ public struct MainEditorView: View {
                     .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
                     .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
                     .onTapGesture {
-                        editorController.focusPage(pageIndex, at: (getPageText(pageIndex: pageIndex) as NSString).length)
+                        let cols = max(1, documentController.columnCount)
+                        let lastColIdx = min(documentPageSlices.count - 1, pageIndex * cols + cols - 1)
+                        if lastColIdx >= 0 {
+                            let length = (getColumnText(columnIndex: lastColIdx) as NSString).length
+                            editorController.focusPage(lastColIdx, at: length)
+                        } else {
+                            editorController.focusPage(0, at: 0)
+                        }
                     }
 
                 // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
                 StudioHeaderView(
                     config: $documentController.headerFooter,
                     pageIndex: pageIndex,
-                    totalPages: documentPages.count,
+                    totalPages: totalPages,
                     documentTitle: documentController.title,
                     margins: documentController.margins,
                     sheetWidth: currentSheetWidth,
@@ -2047,14 +2234,42 @@ public struct MainEditorView: View {
                     )
                 }
 
+                // 4.5 Watermark (Beneath Text Layer)
+                if !documentController.watermarkText.isEmpty {
+                    Text(documentController.watermarkText.uppercased())
+                        .font(.system(size: 140, weight: .black, design: .default))
+                        .foregroundColor(Color.gray.opacity(0.12))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.2)
+                        .rotationEffect(.degrees(-45))
+                        .frame(width: currentSheetWidth, height: currentSheetHeight)
+                        .allowsHitTesting(false)
+                }
+
                 // 5. Document Content (Dynamic In-Flow TextKit 2 Segments + Tables + Media)
                 documentCanvasContent(pageIndex: pageIndex)
+
+                // 5.5 Floating Rich Media & Pull-Quotes
+                ForEach(documentController.floatingElements.filter { $0.pageIndex == pageIndex }) { element in
+                    StudioFloatingElementView(
+                        element: element,
+                        onDelete: {
+                            documentController.floatingElements.removeAll(where: { $0.id == element.id })
+                        }
+                    )
+                    .frame(width: element.size.width, height: element.size.height)
+                    // Offset by margins because the position is relative to the printable area
+                    .position(
+                        x: element.position.x + element.size.width/2 + documentController.margins.left,
+                        y: element.position.y + element.size.height/2 + documentController.margins.top
+                    )
+                }
 
                 // 6. Running Footer (Page Numbers & Interactive In-Place Double-Click Editor)
                 StudioFooterView(
                     config: $documentController.headerFooter,
                     pageIndex: pageIndex,
-                    totalPages: documentPages.count,
+                    totalPages: totalPages,
                     documentTitle: documentController.title,
                     margins: documentController.margins,
                     sheetWidth: currentSheetWidth,
@@ -2072,10 +2287,28 @@ public struct MainEditorView: View {
 
     @ViewBuilder
     private func documentCanvasContent(pageIndex: Int) -> some View {
-        let pageStr = pageIndex < documentPages.count ? documentPages[pageIndex] : documentController.rawText
-        let segments = parseCanvasSegments(for: pageStr, pageIndex: pageIndex)
-        let printableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        let cols = max(1, documentController.columnCount)
+        let gap: CGFloat = 24.0
+        let totalPrintableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        let availableWidthForColumns = totalPrintableWidth - (CGFloat(cols - 1) * gap)
+        let columnWidth = max(50, availableWidthForColumns / CGFloat(cols))
         let printableHeight = max(100, currentSheetHeight - documentController.margins.top - documentController.margins.bottom)
+
+        HStack(alignment: .top, spacing: gap) {
+            ForEach(0..<cols, id: \.self) { c in
+                let colIdx = pageIndex * cols + c
+                documentColumnContent(columnIndex: colIdx, width: columnWidth, height: printableHeight)
+            }
+        }
+        .offset(x: documentController.margins.left, y: documentController.margins.top)
+    }
+
+    @ViewBuilder
+    private func documentColumnContent(columnIndex: Int, width: CGFloat, height: CGFloat) -> some View {
+        let colStr = columnIndex < documentPageSlices.count ? documentPageSlices[columnIndex].text : documentController.rawText
+        let segments = parseCanvasSegments(for: colStr, pageIndex: columnIndex)
+        let printableWidth = width
+        let printableHeight = height
 
         Group {
             if segments.count == 1, case .text = segments[0] {
@@ -2083,17 +2316,17 @@ public struct MainEditorView: View {
                 TextKit2EditorView(
                     text: Binding(
                         get: {
-                            getPageText(pageIndex: pageIndex)
+                            getColumnText(columnIndex: columnIndex)
                         },
                         set: { newVal in
-                            setPageText(pageIndex: pageIndex, newText: newVal)
+                            setColumnText(columnIndex: columnIndex, newText: newVal)
                         }
                     ),
                     richTextData: $documentController.richTextData,
                     selectedText: $selectedText,
                     selectionRange: $selectionRange,
-                    attributedText: getPageAttributedText(pageIndex: pageIndex),
-                    sliceRange: getPageSliceRange(pageIndex: pageIndex),
+                    attributedText: getColumnAttributedText(columnIndex: columnIndex),
+                    sliceRange: getColumnSliceRange(columnIndex: columnIndex),
                     controller: editorController,
                     fontFamily: documentController.fontFamily,
                     fontSize: documentController.fontSize,
@@ -2104,10 +2337,15 @@ public struct MainEditorView: View {
                     lineSpacing: documentController.lineSpacing,
                     paragraphSpacing: documentController.paragraphSpacing,
                     margins: PageMargins(),
-                    pageIndex: pageIndex,
+                    pageIndex: columnIndex,
+                    showLineNumbers: documentController.showLineNumbers,
+                    kern: documentController.kern,
+                    hangingIndent: documentController.hangingIndent,
+                    isContinuation: getColumnIsContinuation(columnIndex: columnIndex),
                     onSelectionChanged: { _, _, attrs in
                         self.selectionAttributes = attrs
-                    }
+                    },
+                    exclusionPaths: getExclusionPaths(forColumn: columnIndex, columnWidth: width)
                 )
                 .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
             } else {
@@ -2116,23 +2354,23 @@ public struct MainEditorView: View {
                     ForEach(segments) { segment in
                         switch segment {
                         case .text(id: _, textIndex: let textIdx, initialContent: let initialChunk):
-                            let displayChunk = getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
+                            let displayChunk = getTextChunk(columnIndex: columnIndex, textIndex: textIdx)
                             let h = calculateEditorHeight(for: displayChunk.isEmpty ? initialChunk : displayChunk)
 
                             TextKit2EditorView(
                                 text: Binding(
                                     get: {
-                                        getTextChunk(pageIndex: pageIndex, textIndex: textIdx)
+                                        getTextChunk(columnIndex: columnIndex, textIndex: textIdx)
                                     },
                                     set: { newVal in
-                                        setTextChunk(pageIndex: pageIndex, textIndex: textIdx, newText: newVal)
+                                        setTextChunk(columnIndex: columnIndex, textIndex: textIdx, newText: newVal)
                                     }
                                 ),
                                 richTextData: $documentController.richTextData,
                                 selectedText: $selectedText,
                                 selectionRange: $selectionRange,
                                 attributedText: nil, // Do not inject full page RTF into a partial chunk!
-                                sliceRange: getPageSliceRange(pageIndex: pageIndex),
+                                sliceRange: getColumnSliceRange(columnIndex: columnIndex),
                                 controller: editorController,
                                 fontFamily: documentController.fontFamily,
                                 fontSize: documentController.fontSize,
@@ -2143,10 +2381,15 @@ public struct MainEditorView: View {
                                 lineSpacing: documentController.lineSpacing,
                                 paragraphSpacing: documentController.paragraphSpacing,
                                 margins: PageMargins(),
-                                pageIndex: pageIndex,
+                                pageIndex: columnIndex,
+                                showLineNumbers: documentController.showLineNumbers,
+                                kern: documentController.kern,
+                                hangingIndent: documentController.hangingIndent,
+                                isContinuation: getColumnIsContinuation(columnIndex: columnIndex),
                                 onSelectionChanged: { _, _, attrs in
                                     self.selectionAttributes = attrs
-                                }
+                                },
+                                exclusionPaths: getExclusionPaths(forColumn: columnIndex, columnWidth: width)
                             )
                             .frame(width: printableWidth, height: h, alignment: .topLeading)
 
@@ -2238,8 +2481,76 @@ public struct MainEditorView: View {
             }
         }
         .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
-        .clipped()
-        .offset(x: documentController.margins.left, y: documentController.margins.top)
+        .overlay(alignment: .bottomLeading) {
+            if columnIndex < documentPageSlices.count {
+                let footnoteIds = documentPageSlices[columnIndex].footnoteIds
+                if !footnoteIds.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Divider()
+                            .frame(width: 100)
+                            .padding(.top, 4)
+                        
+                        ForEach(footnoteIds, id: \.self) { fnId in
+                            if let fn = documentController.footnotes.first(where: { $0.id == fnId }) {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text(fn.referenceMarker)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .baselineOffset(4)
+                                    let binding = Binding(
+                                        get: { fn.text },
+                                        set: { newText in
+                                            if let idx = documentController.footnotes.firstIndex(where: { $0.id == fnId }) {
+                                                documentController.footnotes[idx].text = newText
+                                            }
+                                        }
+                                    )
+                                    
+                                    TextField("Footnote text...", text: binding, axis: .vertical)
+                                        .font(.system(size: 11))
+                                        .lineLimit(nil)
+                                        .textFieldStyle(.plain)
+                                }
+                                .foregroundColor(.primary.opacity(0.8))
+                            }
+                        }
+                    }
+                    .padding(.bottom, 0)
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if columnIndex < documentPageSlices.count {
+                let sideNotes = documentPageSlices[columnIndex].sideNotes
+                ForEach(sideNotes, id: \.id) { snRef in
+                    if let sn = documentController.sideNotes.first(where: { $0.id == snRef.id }) {
+                        let binding = Binding(
+                            get: { sn.text },
+                            set: { newText in
+                                if let idx = documentController.sideNotes.firstIndex(where: { $0.id == snRef.id }) {
+                                    documentController.sideNotes[idx].text = newText
+                                }
+                            }
+                        )
+                        
+                        HStack(alignment: .top, spacing: 4) {
+                            Text(sn.referenceMarker)
+                                .font(.system(size: 11, weight: .bold))
+                            
+                            TextField("Note...", text: binding, axis: .vertical)
+                                .font(.system(size: 11))
+                                .lineLimit(nil)
+                                .textFieldStyle(.plain)
+                                .frame(width: 120)
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(6)
+                        .background(Color(nsColor: .windowBackgroundColor).opacity(0.8))
+                        .cornerRadius(6)
+                        .offset(x: printableWidth + 10, y: snRef.yPos)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -2251,6 +2562,8 @@ public struct MainEditorView: View {
             isBold: selectionAttributes?.isBold ?? isBold,
             isItalic: selectionAttributes?.isItalic ?? isItalic,
             isUnderline: selectionAttributes?.isUnderline ?? isUnderline,
+            isKeepLinesTogether: selectionAttributes?.isKeepLinesTogether ?? false,
+            isKeepWithNext: selectionAttributes?.isKeepWithNext ?? false,
             textAlignment: selectionAttributes?.alignment ?? documentController.textAlignment,
             lineSpacing: documentController.lineSpacing,
             onBold: {
@@ -2314,6 +2627,21 @@ public struct MainEditorView: View {
             },
             onCommandPalette: {
                 showCommandPalette = true
+            },
+            onAddFootnote: {
+                insertFootnote()
+            },
+            onAddSideNote: {
+                insertSideNote()
+            },
+            onAddCrossReference: {
+                showingCrossReferenceSheet = true
+            },
+            onToggleKeepLinesTogether: {
+                toggleKeepLinesTogetherAction()
+            },
+            onToggleKeepWithNext: {
+                toggleKeepWithNextAction()
             }
         )
     }
@@ -2406,22 +2734,21 @@ public struct MainEditorView: View {
         return result
     }
 
-    private func getTextChunk(pageIndex: Int, textIndex: Int) -> String {
-        let pages = documentPages
-        guard pageIndex < pages.count else { return "" }
-        let pageContent = pages[pageIndex]
-        let chunks = extractTextChunks(from: pageContent)
+    private func getTextChunk(columnIndex: Int, textIndex: Int) -> String {
+        let slices = documentPageSlices
+        guard columnIndex < slices.count else { return "" }
+        let columnContent = slices[columnIndex].text
+        let chunks = extractTextChunks(from: columnContent)
         guard textIndex < chunks.count else { return "" }
         return chunks[textIndex]
     }
 
-    private func setTextChunk(pageIndex: Int, textIndex: Int, newText: String) {
-        var pages = documentPages
-        guard pageIndex < pages.count else { return }
-        let pageContent = pages[pageIndex]
-        let updatedPage = replaceTextChunk(in: pageContent, textIndex: textIndex, with: newText)
-        pages[pageIndex] = updatedPage
-        documentController.rawText = pages.joined(separator: "\n\n---pagebreak---\n\n")
+    private func setTextChunk(columnIndex: Int, textIndex: Int, newText: String) {
+        let slices = documentPageSlices
+        guard columnIndex < slices.count else { return }
+        let columnContent = slices[columnIndex].text
+        let updatedColumn = replaceTextChunk(in: columnContent, textIndex: textIndex, with: newText)
+        setColumnText(columnIndex: columnIndex, newText: updatedColumn)
     }
 
     private func parseCanvasSegments(for pageContent: String, pageIndex: Int = 0) -> [DocumentCanvasSegment] {
@@ -2703,6 +3030,7 @@ public struct HistoryNode: Identifiable, Equatable {
 
 @MainActor
 public class LettersDocumentController: ObservableObject {
+    public static weak var active: LettersDocumentController?
     @Published public var title: String
     @Published public var rawText: String
     @Published public var richTextData: Data?
@@ -2711,6 +3039,9 @@ public class LettersDocumentController: ObservableObject {
     @Published public var tables: [StudioTableData]
     @Published public var images: [StudioImageBlock]
     @Published public var videos: [StudioVideoBlock]
+    @Published public var floatingElements: [StudioFloatingElement]
+    @Published public var footnotes: [StudioFootnote]
+    @Published public var sideNotes: [StudioSideNote]
     @Published public var citationStyle: CitationStyle
     
     @Published public var pageSize: PageSizePreset
@@ -2724,6 +3055,11 @@ public class LettersDocumentController: ObservableObject {
     @Published public var lineSpacing: CGFloat
     @Published public var paragraphSpacing: CGFloat
     @Published public var textAlignment: TextAlignment
+    @Published public var columnCount: Int
+    @Published public var showLineNumbers: Bool
+    @Published public var watermarkText: String
+    @Published public var kern: CGFloat
+    @Published public var hangingIndent: CGFloat
     
     // MARK: - DAG Time Travel Engine
     @Published public var historyNodes: [UUID: HistoryNode] = [:]
@@ -2780,6 +3116,9 @@ public class LettersDocumentController: ObservableObject {
         tables: [StudioTableData] = [],
         images: [StudioImageBlock] = [],
         videos: [StudioVideoBlock] = [],
+        floatingElements: [StudioFloatingElement] = [],
+        footnotes: [StudioFootnote] = [],
+        sideNotes: [StudioSideNote] = [],
         citationStyle: CitationStyle = .apa7,
         pageSize: PageSizePreset = .letter,
         marginPreset: MarginPreset = .normal,
@@ -2790,7 +3129,12 @@ public class LettersDocumentController: ObservableObject {
         fontSize: CGFloat = 15.0,
         lineSpacing: CGFloat = 1.15,
         paragraphSpacing: CGFloat = 12.0,
-        textAlignment: TextAlignment = .leading
+        textAlignment: TextAlignment = .leading,
+        columnCount: Int = 1,
+        showLineNumbers: Bool = false,
+        watermarkText: String = "",
+        kern: CGFloat = 0.0,
+        hangingIndent: CGFloat = 0.0
     ) {
         self.title = title
         self.rawText = Self.scrubDeadTags(text: rawText, tables: tables, images: images, videos: videos)
@@ -2799,6 +3143,9 @@ public class LettersDocumentController: ObservableObject {
         self.tables = tables
         self.images = images
         self.videos = videos
+        self.floatingElements = floatingElements
+        self.footnotes = footnotes
+        self.sideNotes = sideNotes
         self.citationStyle = citationStyle
         self.pageSize = pageSize
         self.marginPreset = marginPreset
@@ -2810,7 +3157,12 @@ public class LettersDocumentController: ObservableObject {
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
         self.textAlignment = textAlignment
-        
+        self.columnCount = columnCount
+        self.showLineNumbers = showLineNumbers
+        self.watermarkText = watermarkText
+        self.kern = kern
+        self.hangingIndent = hangingIndent
+        Self.active = self
         // Initial snapshot
         DispatchQueue.main.async {
             self.commitSnapshot(actionName: "Created Document", isMilestone: true)
@@ -2843,6 +3195,9 @@ public class LettersDocumentController: ObservableObject {
             tables: tables,
             images: images,
             videos: videos,
+            floatingElements: floatingElements,
+            footnotes: footnotes,
+            sideNotes: sideNotes,
             sources: document.sources,
             citationStyle: citationStyle,
             pageSizePreset: pageSize,
@@ -2852,6 +3207,11 @@ public class LettersDocumentController: ObservableObject {
             fontSize: Double(fontSize),
             lineSpacing: Double(lineSpacing),
             paragraphSpacing: Double(paragraphSpacing),
+            columnCount: columnCount,
+            showLineNumbers: showLineNumbers,
+            watermarkText: watermarkText,
+            kern: Double(kern),
+            hangingIndent: Double(hangingIndent),
             headerFooter: headerFooter,
             coverBanner: coverBanner
         )
@@ -2862,6 +3222,9 @@ public class LettersDocumentController: ObservableObject {
         self.tables = bundle.tables
         self.images = bundle.images
         self.videos = bundle.videos
+        self.floatingElements = bundle.floatingElements
+        self.footnotes = bundle.footnotes
+        self.sideNotes = bundle.sideNotes
         self.rawText = Self.scrubDeadTags(text: bundle.rawText, tables: bundle.tables, images: bundle.images, videos: bundle.videos)
         self.richTextData = bundle.richTextData
         self.document.sources = bundle.sources
@@ -2869,12 +3232,17 @@ public class LettersDocumentController: ObservableObject {
         self.pageSize = bundle.pageSizePreset
         self.marginPreset = bundle.marginPreset
         self.margins = bundle.margins
+        self.columnCount = bundle.columnCount
+        self.showLineNumbers = bundle.showLineNumbers
+        self.watermarkText = bundle.watermarkText
         self.coverBanner = bundle.coverBanner
         self.headerFooter = bundle.headerFooter
         self.fontFamily = bundle.fontFamily
         self.fontSize = CGFloat(bundle.fontSize)
         self.lineSpacing = CGFloat(bundle.lineSpacing)
         self.paragraphSpacing = CGFloat(bundle.paragraphSpacing)
+        self.kern = CGFloat(bundle.kern)
+        self.hangingIndent = CGFloat(bundle.hangingIndent)
     }
     
     // MARK: - DAG Engine Methods
@@ -3028,5 +3396,74 @@ public class LettersDocumentController: ObservableObject {
     public func insertTable(_ table: StudioTableData, at index: Int) {
         tables.insert(table, at: index)
         commitSnapshot(actionName: "Insert Table", isMilestone: true)
+    }
+}
+
+extension MainEditorView {
+    private func getExclusionPaths(forColumn columnIndex: Int, columnWidth: CGFloat) -> [NSBezierPath] {
+        let cols = max(1, documentController.columnCount)
+        let pageIndex = columnIndex / cols
+        let colIndexOnPage = columnIndex % cols
+        let gap: CGFloat = 24.0
+        
+        let columnXOffset = CGFloat(colIndexOnPage) * (columnWidth + gap)
+        
+        var paths: [NSBezierPath] = []
+        for element in documentController.floatingElements where element.pageIndex == pageIndex {
+            // Check if element overlaps with this column
+            let colRect = CGRect(x: columnXOffset, y: 0, width: columnWidth, height: .greatestFiniteMagnitude)
+            let elemRect = CGRect(origin: element.position, size: element.size)
+            
+            if colRect.intersects(elemRect) {
+                // Translate rect to column's local coordinate space
+                let localRect = CGRect(
+                    x: elemRect.minX - columnXOffset,
+                    y: elemRect.minY,
+                    width: elemRect.width,
+                    height: elemRect.height
+                )
+                let path = NSBezierPath(rect: localRect)
+                paths.append(path)
+            }
+        }
+        return paths
+    }
+}
+
+struct StudioFloatingElementView: View {
+    var element: StudioFloatingElement
+    var onDelete: () -> Void
+    @State private var isHovered = false
+    
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            // Background & Content
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+                )
+            
+            Text(element.text)
+                .font(.system(size: 24, weight: .bold, design: .serif))
+                .foregroundColor(.accentColor)
+                .multilineTextAlignment(.center)
+                .padding()
+            
+            // Delete button on hover
+            if isHovered {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                        .background(Circle().fill(Color.white))
+                }
+                .buttonStyle(.plain)
+                .padding(8)
+                .offset(x: 12, y: -12)
+            }
+        }
+        .onHover { h in isHovered = h }
     }
 }

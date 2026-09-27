@@ -57,6 +57,11 @@ public struct StudioPageDesignView: View {
     @Binding var isPresented: Bool
     @Binding var coverBannerConfig: CoverBannerConfig
     @Binding var pageSize: PageSizePreset
+    @Binding var columnCount: Int
+    @Binding var showLineNumbers: Bool
+    @Binding var watermarkText: String
+    @Binding var kern: CGFloat
+    @Binding var hangingIndent: CGFloat
     @Binding var marginPreset: MarginPreset
     @Binding var margins: PageMargins
     @Binding var fontFamily: String
@@ -79,6 +84,11 @@ public struct StudioPageDesignView: View {
         isPresented: Binding<Bool>,
         coverBannerConfig: Binding<CoverBannerConfig>,
         pageSize: Binding<PageSizePreset>,
+        columnCount: Binding<Int>,
+        showLineNumbers: Binding<Bool>,
+        watermarkText: Binding<String>,
+        kern: Binding<CGFloat>,
+        hangingIndent: Binding<CGFloat>,
         marginPreset: Binding<MarginPreset>,
         margins: Binding<PageMargins>,
         fontFamily: Binding<String>,
@@ -93,6 +103,11 @@ public struct StudioPageDesignView: View {
         self._isPresented = isPresented
         self._coverBannerConfig = coverBannerConfig
         self._pageSize = pageSize
+        self._columnCount = columnCount
+        self._showLineNumbers = showLineNumbers
+        self._watermarkText = watermarkText
+        self._kern = kern
+        self._hangingIndent = hangingIndent
         self._marginPreset = marginPreset
         self._margins = margins
         self._fontFamily = fontFamily
@@ -112,50 +127,15 @@ public struct StudioPageDesignView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
-                    // 2. Title & Preset / Custom Segmented Switcher
+                    // 2. Title
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Page Design")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.primary)
-
-                        // Segmented Control (Pill Switcher)
-                        HStack(spacing: 0) {
-                            ForEach(PageDesignTab.allCases, id: \.self) { tab in
-                                Button {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                        activeTab = tab
-                                    }
-                                } label: {
-                                    Text(tab.rawValue)
-                                        .font(.system(size: 12, weight: activeTab == tab ? .bold : .medium))
-                                        .foregroundColor(activeTab == tab ? .white : .secondary)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 7)
-                                        .background(
-                                            activeTab == tab
-                                                ? RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.16))
-                                                : RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.clear)
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(3)
-                        .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
                     }
-
-                    // 3. Hero 3D Stacked Theme Preview Card
-                    heroThemePreviewCard
 
                     // 4. Section: Page Level Settings
                     pageSectionGroup
-
-                    // 5. Section: Block & Element Styling
-                    blockSectionGroup
                 }
                 .padding(16)
             }
@@ -209,35 +189,6 @@ public struct StudioPageDesignView: View {
             .buttonStyle(.plain)
 
             Spacer()
-
-            // Page Selector Pill
-            HStack(spacing: 6) {
-                Text("PAGE")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundColor(.secondary)
-
-                Divider()
-                    .frame(height: 10)
-
-                Image(systemName: "house.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(StudioTheme.luminousCyan)
-
-                Text("Document")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.primary)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Color.black.opacity(0.25), in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-            )
         }
         .padding(.horizontal, 14)
         .padding(.top, 14)
@@ -423,7 +374,7 @@ public struct StudioPageDesignView: View {
                     }
 
                     // 3. Typography Font Family
-                    designRowItem(icon: "textformat", color: StudioTheme.luminousBlue, title: "Font Family", value: "Abc") {
+                    designRowItem(icon: "textformat", color: StudioTheme.luminousBlue, title: "Font Family", value: fontFamily) {
                         Menu {
                             Button("Default Serif (Georgia)") { fontFamily = "Default Serif (Georgia)" }
                             Button("SF Pro (Modern Sans)") { fontFamily = "SF Pro (Modern Sans)" }
@@ -431,8 +382,8 @@ public struct StudioPageDesignView: View {
                             Button("SF Mono (Code)") { fontFamily = "SF Mono (Code)" }
                         } label: {
                             HStack(spacing: 4) {
-                                Text("Abc")
-                                    .font(.system(size: 12, weight: .bold))
+                                Text(fontFamily)
+                                    .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(.primary)
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.system(size: 8))
@@ -454,6 +405,37 @@ public struct StudioPageDesignView: View {
                                 .foregroundColor(.secondary)
                         }
                         .menuStyle(.borderlessButton)
+                    }
+
+                    // 4.5 Columns
+                    designRowItem(icon: "rectangle.split.2x1", color: StudioTheme.luminousEmerald, title: "Columns", value: "\(columnCount) Columns") {
+                        Menu {
+                            Button("1 Column") { columnCount = 1 }
+                            Button("2 Columns") { columnCount = 2 }
+                            Button("3 Columns") { columnCount = 3 }
+                        } label: {
+                            Text("\(columnCount) Columns")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+
+                    // 4.6 Line Numbers
+                    designRowItem(icon: "list.number", color: StudioTheme.luminousCyan, title: "Line Numbers", value: showLineNumbers ? "On" : "Off") {
+                        Toggle("", isOn: $showLineNumbers)
+                            .toggleStyle(SwitchToggleStyle(tint: StudioTheme.luminousCyan))
+                            .labelsHidden()
+                    }
+
+                    // 4.7 Watermark
+                    designRowItem(icon: "drop.halffull", color: StudioTheme.luminousBlue, title: "Watermark", value: watermarkText.isEmpty ? "None" : "Set") {
+                        TextField("Text", text: $watermarkText)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .multilineTextAlignment(.trailing)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(width: 80)
                     }
                 }
                 .padding(10)

@@ -10,6 +10,8 @@ public struct FloatingActionMenu: View {
     var isBold: Bool
     var isItalic: Bool
     var isUnderline: Bool
+    var isKeepLinesTogether: Bool
+    var isKeepWithNext: Bool
     var textAlignment: TextAlignment
     var lineSpacing: CGFloat
 
@@ -28,6 +30,11 @@ public struct FloatingActionMenu: View {
     var onExplain: () -> Void
     var onCite: () -> Void
     var onCommandPalette: () -> Void
+    var onAddFootnote: () -> Void
+    var onAddSideNote: () -> Void
+    var onAddCrossReference: () -> Void
+    var onToggleKeepLinesTogether: () -> Void
+    var onToggleKeepWithNext: () -> Void
 
     public init(
         selectedText: String,
@@ -36,6 +43,8 @@ public struct FloatingActionMenu: View {
         isBold: Bool = false,
         isItalic: Bool = false,
         isUnderline: Bool = false,
+        isKeepLinesTogether: Bool = false,
+        isKeepWithNext: Bool = false,
         textAlignment: TextAlignment = .leading,
         lineSpacing: CGFloat = 1.15,
         onBold: @escaping () -> Void,
@@ -52,7 +61,12 @@ public struct FloatingActionMenu: View {
         onTranslate: @escaping () -> Void = {},
         onExplain: @escaping () -> Void = {},
         onCite: @escaping () -> Void = {},
-        onCommandPalette: @escaping () -> Void = {}
+        onCommandPalette: @escaping () -> Void = {},
+        onAddFootnote: @escaping () -> Void = {},
+        onAddSideNote: @escaping () -> Void = {},
+        onAddCrossReference: @escaping () -> Void = {},
+        onToggleKeepLinesTogether: @escaping () -> Void = {},
+        onToggleKeepWithNext: @escaping () -> Void = {}
     ) {
         self.selectedText = selectedText
         self.fontFamily = fontFamily
@@ -77,6 +91,13 @@ public struct FloatingActionMenu: View {
         self.onExplain = onExplain
         self.onCite = onCite
         self.onCommandPalette = onCommandPalette
+        self.onAddFootnote = onAddFootnote
+        self.onAddSideNote = onAddSideNote
+        self.onAddCrossReference = onAddCrossReference
+        self.isKeepLinesTogether = isKeepLinesTogether
+        self.isKeepWithNext = isKeepWithNext
+        self.onToggleKeepLinesTogether = onToggleKeepLinesTogether
+        self.onToggleKeepWithNext = onToggleKeepWithNext
     }
 
     private func shortFontName(_ name: String) -> String {
@@ -179,6 +200,19 @@ public struct FloatingActionMenu: View {
             Divider()
                 .frame(height: 14)
 
+            // Keep Rules
+            HStack(spacing: 2) {
+                HUDToggleButton(icon: "rectangle.arrowtriangle.2.inward", isActive: isKeepLinesTogether, shortcut: "Keep Lines Together") {
+                    onToggleKeepLinesTogether()
+                }
+                HUDToggleButton(icon: "arrow.down.to.line.compact", isActive: isKeepWithNext, shortcut: "Keep With Next") {
+                    onToggleKeepWithNext()
+                }
+            }
+
+            Divider()
+                .frame(height: 14)
+
             // 4. Alignment Menu
             Menu {
                 Button { onSetAlignment(.leading) } label: { Label("Align Left (⌘{)", systemImage: "text.alignleft") }
@@ -255,6 +289,15 @@ public struct FloatingActionMenu: View {
                 }
                 HUDActionButton(icon: "quote.bubble", color: .teal, help: "Insert Linked Citation") {
                     onCite()
+                }
+                HUDActionButton(icon: "text.insert", color: .orange, help: "Insert Footnote") {
+                    onAddFootnote()
+                }
+                HUDActionButton(icon: "note.text", color: .yellow, help: "Insert Side Note") {
+                    onAddSideNote()
+                }
+                HUDActionButton(icon: "link", color: .green, help: "Insert Cross Reference") {
+                    onAddCrossReference()
                 }
             }
 

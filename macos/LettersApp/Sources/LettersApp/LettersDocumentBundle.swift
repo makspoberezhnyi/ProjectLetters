@@ -113,6 +113,20 @@ public struct StudioVideoBlock: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
+// MARK: - Footnote Model
+public struct StudioFootnote: Identifiable, Codable, Sendable, Hashable {
+    public var id: UUID = UUID()
+    public var referenceMarker: String // e.g. "1", "2", "*", "†"
+    public var text: String
+    
+    public init(id: UUID = UUID(), referenceMarker: String, text: String) {
+        self.id = id
+        self.referenceMarker = referenceMarker
+        self.text = text
+    }
+}
+
+
 // MARK: - Native .letters / .ltt Document Bundle Package
 public struct LettersDocumentBundle: Codable, Sendable {
     public static let currentVersion = "1.0.0"
@@ -126,6 +140,9 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var tables: [StudioTableData]
     public var images: [StudioImageBlock]
     public var videos: [StudioVideoBlock]
+    public var floatingElements: [StudioFloatingElement]
+    public var footnotes: [StudioFootnote]
+    public var sideNotes: [StudioSideNote]
     public var sources: [String: Source]
     public var citationStyle: CitationStyle
     public var pageSizePreset: PageSizePreset
@@ -136,6 +153,11 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var lineSpacing: Double
     public var paragraphSpacing: Double
     public var textAlignmentString: String
+    public var columnCount: Int
+    public var showLineNumbers: Bool
+    public var watermarkText: String
+    public var kern: Double         // character tracking (pts)
+    public var hangingIndent: Double // hanging indent (pts)
     public var headerFooter: HeaderFooterConfig
     public var coverBanner: CoverBannerConfig
     public var createdAt: Date
@@ -148,6 +170,9 @@ public struct LettersDocumentBundle: Codable, Sendable {
         tables: [StudioTableData] = [],
         images: [StudioImageBlock] = [],
         videos: [StudioVideoBlock] = [],
+        floatingElements: [StudioFloatingElement] = [],
+        footnotes: [StudioFootnote] = [],
+        sideNotes: [StudioSideNote] = [],
         sources: [String: Source] = [:],
         citationStyle: CitationStyle = .apa7,
         pageSizePreset: PageSizePreset = .letter,
@@ -158,6 +183,11 @@ public struct LettersDocumentBundle: Codable, Sendable {
         lineSpacing: Double = 1.15,
         paragraphSpacing: Double = 12.0,
         textAlignmentString: String = "leading",
+        columnCount: Int = 1,
+        showLineNumbers: Bool = false,
+        watermarkText: String = "",
+        kern: Double = 0.0,
+        hangingIndent: Double = 0.0,
         headerFooter: HeaderFooterConfig = HeaderFooterConfig(),
         coverBanner: CoverBannerConfig = CoverBannerConfig()
     ) {
@@ -168,6 +198,9 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.tables = tables
         self.images = images
         self.videos = videos
+        self.floatingElements = floatingElements
+        self.footnotes = footnotes
+        self.sideNotes = sideNotes
         self.sources = sources
         self.citationStyle = citationStyle
         self.pageSizePreset = pageSizePreset
@@ -178,6 +211,11 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
         self.textAlignmentString = textAlignmentString
+        self.columnCount = columnCount
+        self.showLineNumbers = showLineNumbers
+        self.watermarkText = watermarkText
+        self.kern = kern
+        self.hangingIndent = hangingIndent
         self.headerFooter = headerFooter
         self.coverBanner = coverBanner
         self.createdAt = Date()
@@ -185,7 +223,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case version, title, rawText, richTextData, tables, images, videos, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, headerFooter, coverBanner, createdAt, modifiedAt
+        case version, title, rawText, richTextData, tables, images, videos, floatingElements, footnotes, sideNotes, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, columnCount, showLineNumbers, watermarkText, kern, hangingIndent, headerFooter, coverBanner, createdAt, modifiedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -197,6 +235,9 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.tables = try container.decodeIfPresent([StudioTableData].self, forKey: .tables) ?? []
         self.images = try container.decodeIfPresent([StudioImageBlock].self, forKey: .images) ?? []
         self.videos = try container.decodeIfPresent([StudioVideoBlock].self, forKey: .videos) ?? []
+        self.floatingElements = try container.decodeIfPresent([StudioFloatingElement].self, forKey: .floatingElements) ?? []
+        self.footnotes = try container.decodeIfPresent([StudioFootnote].self, forKey: .footnotes) ?? []
+        self.sideNotes = try container.decodeIfPresent([StudioSideNote].self, forKey: .sideNotes) ?? []
         self.sources = try container.decodeIfPresent([String: Source].self, forKey: .sources) ?? [:]
         self.citationStyle = try container.decodeIfPresent(CitationStyle.self, forKey: .citationStyle) ?? .apa7
         self.pageSizePreset = try container.decodeIfPresent(PageSizePreset.self, forKey: .pageSizePreset) ?? .letter
@@ -207,6 +248,11 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.lineSpacing = try container.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 1.15
         self.paragraphSpacing = try container.decodeIfPresent(Double.self, forKey: .paragraphSpacing) ?? 12.0
         self.textAlignmentString = try container.decodeIfPresent(String.self, forKey: .textAlignmentString) ?? "leading"
+        self.columnCount = try container.decodeIfPresent(Int.self, forKey: .columnCount) ?? 1
+        self.showLineNumbers = try container.decodeIfPresent(Bool.self, forKey: .showLineNumbers) ?? false
+        self.watermarkText = try container.decodeIfPresent(String.self, forKey: .watermarkText) ?? ""
+        self.kern = try container.decodeIfPresent(Double.self, forKey: .kern) ?? 0.0
+        self.hangingIndent = try container.decodeIfPresent(Double.self, forKey: .hangingIndent) ?? 0.0
         self.headerFooter = try container.decodeIfPresent(HeaderFooterConfig.self, forKey: .headerFooter) ?? HeaderFooterConfig()
         self.coverBanner = try container.decodeIfPresent(CoverBannerConfig.self, forKey: .coverBanner) ?? CoverBannerConfig()
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
@@ -224,5 +270,103 @@ public struct LettersDocumentBundle: Codable, Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(LettersDocumentBundle.self, from: data)
+    }
+}
+
+public struct StudioFloatingElement: Identifiable, Codable, Sendable, Hashable {
+    public var id: UUID
+    public var text: String
+    public var position: CGPoint
+    public var size: CGSize
+    public var pageIndex: Int
+    
+    public init(id: UUID = UUID(), text: String, position: CGPoint, size: CGSize, pageIndex: Int = 0) {
+        self.id = id
+        self.text = text
+        self.position = position
+        self.size = size
+        self.pageIndex = pageIndex
+    }
+}
+import Foundation
+import AppKit
+
+public extension NSAttributedString.Key {
+    static let keepLinesTogether = NSAttributedString.Key("LettersKeepLinesTogether")
+    static let keepWithNext = NSAttributedString.Key("LettersKeepWithNext")
+}
+import Foundation
+
+public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
+    public var id: UUID
+    public var referenceMarker: String
+    public var text: String
+    
+    public init(id: UUID = UUID(), referenceMarker: String, text: String) {
+        self.id = id
+        self.referenceMarker = referenceMarker
+        self.text = text
+    }
+}
+import AppKit
+
+@objc(CrossReferenceAttachment)
+public class CrossReferenceAttachment: NSTextAttachment {
+    public var targetId: String
+    public var targetType: String
+    
+    public init(targetId: String, targetType: String) {
+        self.targetId = targetId
+        self.targetType = targetType
+        super.init(data: nil, ofType: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        self.targetId = coder.decodeObject(forKey: "targetId") as? String ?? ""
+        self.targetType = coder.decodeObject(forKey: "targetType") as? String ?? ""
+        super.init(coder: coder)
+    }
+    
+    public override func encode(with coder: NSCoder) {
+        super.encode(with: coder)
+        coder.encode(targetId, forKey: "targetId")
+        coder.encode(targetType, forKey: "targetType")
+    }
+    
+    public override func viewProvider(for parentView: NSView?, location: NSTextLocation, textContainer: NSTextContainer?) -> NSTextAttachmentViewProvider? {
+        return CrossReferenceViewProvider(textAttachment: self, parentView: parentView, textLayoutManager: textContainer?.textLayoutManager, location: location)
+    }
+}
+
+public class CrossReferenceViewProvider: NSTextAttachmentViewProvider {
+    public override func loadView() {
+        let label = NSTextField(labelWithString: "Figure...")
+        label.textColor = .systemBlue
+        label.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        label.drawsBackground = true
+        label.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.1)
+        label.isBordered = false
+        label.isEditable = false
+        label.isSelectable = false
+        label.wantsLayer = true
+        label.layer?.cornerRadius = 3
+        self.view = label
+        
+        if let attachment = self.textAttachment as? CrossReferenceAttachment {
+            let targetId = attachment.targetId
+            let targetType = attachment.targetType
+            
+            Task { @MainActor in
+                if let active = LettersDocumentController.active {
+                    if targetType == "Figure" {
+                        if let idx = active.images.firstIndex(where: { $0.id.uuidString == targetId }) {
+                            label.stringValue = "Figure \(idx + 1)"
+                        } else {
+                            label.stringValue = "Figure ?"
+                        }
+                    }
+                }
+            }
+        }
     }
 }

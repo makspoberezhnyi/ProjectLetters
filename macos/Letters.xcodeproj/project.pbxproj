@@ -87,7 +87,7 @@
 		A10000132C12345600000013 /* LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/InlineAICanvasEditorView.swift; sourceTree = "<group>"; };
 		A10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/DocumentPaginator.swift; sourceTree = "<group>"; };
 		CC59F701E35B58EA91D6096B /* Letters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Letters.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D3005EE29D1C5292927E4982 /* LettersApp/Sources/LettersCoreC/include/letters_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LettersApp/Sources/LettersCoreC/include/letters_core.h; sourceTree = "<group>"; };
+		D3005EE29D1C5292927E4982 /* letters_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = letters_core.h; path = LettersApp/Sources/LettersCoreC/include/letters_core.h; sourceTree = "<group>"; };
 		D8C8FDA838535C3D95C8A362 /* LettersApp/Sources/LettersApp/StudioBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioBottomBar.swift; sourceTree = "<group>"; };
 		DAF7A12561E15F51951684B2 /* LettersApp/Sources/LettersApp/DocumentOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/DocumentOutlineView.swift; sourceTree = "<group>"; };
 		E407308380E956A6B0D4FEE3 /* LettersApp/Sources/LettersApp/SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/SourceManagerView.swift; sourceTree = "<group>"; };
@@ -117,7 +117,7 @@
 			children = (
 				29040342C6925CC794C66F0F /* Products */,
 				14E9C123A2455A0AA0B34DBD /* LettersApp/Sources/LettersCoreC/shim.c */,
-				D3005EE29D1C5292927E4982 /* LettersApp/Sources/LettersCoreC/include/letters_core.h */,
+				D3005EE29D1C5292927E4982 /* letters_core.h */,
 				25F7DE8109B858BC8460CD19 /* LettersApp/Sources/LettersCoreC/include/module.modulemap */,
 				80C3E0EFE9C952C49BD42999 /* LettersApp/Sources/LettersKit/DocumentModel.swift */,
 				2406FFBB4B0C5737A7F14E2E /* LettersApp/Sources/LettersKit/CoreBridge.swift */,

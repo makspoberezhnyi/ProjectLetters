@@ -11,6 +11,8 @@ public struct EditorSelectionAttributes: Equatable {
     public var isBold: Bool
     public var isItalic: Bool
     public var isUnderline: Bool
+    public var isKeepLinesTogether: Bool
+    public var isKeepWithNext: Bool
     public var alignment: TextAlignment
 
     public init(
@@ -19,6 +21,8 @@ public struct EditorSelectionAttributes: Equatable {
         isBold: Bool = false,
         isItalic: Bool = false,
         isUnderline: Bool = false,
+        isKeepLinesTogether: Bool = false,
+        isKeepWithNext: Bool = false,
         alignment: TextAlignment = .leading
     ) {
         self.fontFamily = fontFamily
@@ -26,6 +30,8 @@ public struct EditorSelectionAttributes: Equatable {
         self.isBold = isBold
         self.isItalic = isItalic
         self.isUnderline = isUnderline
+        self.isKeepLinesTogether = isKeepLinesTogether
+        self.isKeepWithNext = isKeepWithNext
         self.alignment = alignment
     }
 }
@@ -145,12 +151,35 @@ public class EditorActionController: ObservableObject {
         let italic = traits.contains(.italicFontMask)
         let fam = fontDisplayName(for: validFont)
 
+        var isKeepLinesTogether = false
+        var isKeepWithNext = false
+        
+        if range.length > 0 {
+            if let str = textView.textStorage {
+                if let attr = str.attribute(.keepLinesTogether, at: range.location, effectiveRange: nil) as? Bool {
+                    isKeepLinesTogether = attr
+                }
+                if let attr = str.attribute(.keepWithNext, at: range.location, effectiveRange: nil) as? Bool {
+                    isKeepWithNext = attr
+                }
+            }
+        } else {
+            if let attr = textView.typingAttributes[.keepLinesTogether] as? Bool {
+                isKeepLinesTogether = attr
+            }
+            if let attr = textView.typingAttributes[.keepWithNext] as? Bool {
+                isKeepWithNext = attr
+            }
+        }
+
         return EditorSelectionAttributes(
             fontFamily: fam,
             fontSize: validFont.pointSize > 0 ? validFont.pointSize : 15.0,
             isBold: bold,
             isItalic: italic,
             isUnderline: isUnderlined,
+            isKeepLinesTogether: isKeepLinesTogether,
+            isKeepWithNext: isKeepWithNext,
             alignment: align
         )
     }
@@ -260,6 +289,85 @@ public class EditorActionController: ObservableObject {
             let isUnderlined = ((attrs[.underlineStyle] as? Int) ?? 0) != 0
             attrs[.underlineStyle] = isUnderlined ? nil : NSUnderlineStyle.single.rawValue
             textView.typingAttributes = attrs
+        }
+    }
+
+    public func toggleKeepLinesTogether() {
+        guard let textView = textView else { return }
+        let range = textView.selectedRange()
+        guard let textStorage = textView.textStorage else { return }
+
+        // Expand range to cover full paragraphs
+        let paragraphRange = (textStorage.string as NSString).paragraphRange(for: range)
+
+        if paragraphRange.length > 0 {
+            var allKeep = true
+            textStorage.enumerateAttribute(.keepLinesTogether, in: paragraphRange, options: []) { value, _, stop in
+                let val = (value as? Bool) ?? false
+                if !val {
+                    allKeep = false
+                    stop.pointee = true
+                }
+            }
+
+            textStorage.beginEditing()
+            if allKeep {
+                textStorage.removeAttribute(.keepLinesTogether, range: paragraphRange)
+            } else {
+                textStorage.addAttribute(.keepLinesTogether, value: true, range: paragraphRange)
+            }
+            textStorage.endEditing()
+            textView.didChangeText()
+        } else {
+            var attrs = textView.typingAttributes
+            let isKeep = (attrs[.keepLinesTogether] as? Bool) ?? false
+            if isKeep { attrs.removeValue(forKey: .keepLinesTogether) }
+            else { attrs[.keepLinesTogether] = true }
+            textView.typingAttributes = attrs
+        }
+    }
+
+    public func toggleKeepWithNext() {
+        guard let textView = textView else { return }
+        let range = textView.selectedRange()
+        guard let textStorage = textView.textStorage else { return }
+
+        let paragraphRange = (textStorage.string as NSString).paragraphRange(for: range)
+
+        if paragraphRange.length > 0 {
+            var allKeep = true
+            textStorage.enumerateAttribute(.keepWithNext, in: paragraphRange, options: []) { value, _, stop in
+                let val = (value as? Bool) ?? false
+                if !val {
+                    allKeep = false
+                    stop.pointee = true
+                }
+            }
+
+            textStorage.beginEditing()
+            if allKeep {
+                textStorage.removeAttribute(.keepWithNext, range: paragraphRange)
+            } else {
+                textStorage.addAttribute(.keepWithNext, value: true, range: paragraphRange)
+            }
+            textStorage.endEditing()
+            textView.didChangeText()
+        } else {
+            var attrs = textView.typingAttributes
+            let isKeep = (attrs[.keepWithNext] as? Bool) ?? false
+            if isKeep { attrs.removeValue(forKey: .keepWithNext) }
+            else { attrs[.keepWithNext] = true }
+            textView.typingAttributes = attrs
+        }
+    }
+    
+    public func insertAttachment(_ attachment: NSTextAttachment) {
+        guard let textView = textView, let textStorage = textView.textStorage else { return }
+        let range = textView.selectedRange()
+        let attrStr = NSAttributedString(attachment: attachment)
+        
+        if range.location != NSNotFound {
+            textView.insertText(attrStr, replacementRange: range)
         }
     }
 
@@ -435,6 +543,7 @@ public func resolveFontNamed(family: String, size: CGFloat, bold: Bool, italic: 
 public class StudioTextView: NSTextView {
     public weak var actionController: EditorActionController?
     public var pageIndex: Int = 0
+    public var showLineNumbers: Bool = false
 
     public override var isFlipped: Bool { true }
 
@@ -553,7 +662,12 @@ public struct TextKit2EditorView: NSViewRepresentable {
     var paragraphSpacing: CGFloat
     var margins: PageMargins
     var pageIndex: Int
+    var showLineNumbers: Bool
+    var kern: CGFloat          // character tracking/kerning in points
+    var hangingIndent: CGFloat // hanging indent for bibliography-style paragraphs
+    var isContinuation: Bool   // True if this slice is the second half of a paragraph split across pages
     var onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)?
+    var exclusionPaths: [NSBezierPath] = []
 
     public init(
         text: Binding<String>,
@@ -573,7 +687,12 @@ public struct TextKit2EditorView: NSViewRepresentable {
         paragraphSpacing: CGFloat = 12.0,
         margins: PageMargins = PageMargins(),
         pageIndex: Int = 0,
-        onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)? = nil
+        showLineNumbers: Bool = false,
+        kern: CGFloat = 0.0,
+        hangingIndent: CGFloat = 0.0,
+        isContinuation: Bool = false,
+        onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)? = nil,
+        exclusionPaths: [NSBezierPath] = []
     ) {
         self._text = text
         self._richTextData = richTextData
@@ -582,6 +701,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self.attributedText = attributedText
         self.sliceRange = sliceRange
         self.controller = controller
+        self.exclusionPaths = exclusionPaths
         self.fontFamily = fontFamily
         self.fontSize = fontSize
         self.isBold = isBold
@@ -592,6 +712,10 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self.paragraphSpacing = paragraphSpacing
         self.margins = margins
         self.pageIndex = pageIndex
+        self.showLineNumbers = showLineNumbers
+        self.kern = kern
+        self.hangingIndent = hangingIndent
+        self.isContinuation = isContinuation
         self.onSelectionChanged = onSelectionChanged
     }
 
@@ -633,6 +757,12 @@ public struct TextKit2EditorView: NSViewRepresentable {
         }
         paragraphStyle.lineHeightMultiple = lineSpacing
         paragraphStyle.paragraphSpacing = paragraphSpacing
+        // Hanging indent: headIndent = hangingIndent pushes wrapped lines right,
+        // firstLineHeadIndent = 0 keeps first line flush left
+        if hangingIndent > 0 {
+            paragraphStyle.headIndent = hangingIndent
+            paragraphStyle.firstLineHeadIndent = isContinuation ? hangingIndent : 0
+        }
 
         let textColor = NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
         textView.font = font
@@ -640,16 +770,20 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.insertionPointColor = NSColor.systemBlue
         textView.defaultParagraphStyle = paragraphStyle
 
-        let typingAttrs: [NSAttributedString.Key: Any] = [
+        var typingAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: textColor,
             .paragraphStyle: paragraphStyle
         ]
+        if kern != 0 {
+            typingAttrs[.kern] = kern
+        }
         textView.typingAttributes = typingAttrs
 
-        textView.textContainerInset = NSSize(width: 0, height: 0)
+        textView.textContainerInset = NSSize(width: showLineNumbers ? 40 : 0, height: 0)
         textView.textContainer?.lineFragmentPadding = 4.0
         textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.exclusionPaths = exclusionPaths
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = false
         textView.autoresizingMask = [.width, .height]
@@ -665,10 +799,14 @@ public struct TextKit2EditorView: NSViewRepresentable {
                 isItalic: isItalic,
                 alignment: alignment,
                 lineSpacing: lineSpacing,
-                paragraphSpacing: paragraphSpacing
+                paragraphSpacing: paragraphSpacing,
+                kern: kern,
+                hangingIndent: hangingIndent,
+                isContinuation: isContinuation
             )
         }
         textView.pageIndex = pageIndex
+        textView.showLineNumbers = showLineNumbers
         textView.actionController = controller
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
@@ -687,7 +825,11 @@ public struct TextKit2EditorView: NSViewRepresentable {
     public func updateNSView(_ textView: StudioTextView, context: Context) {
         context.coordinator.parent = self
         textView.pageIndex = pageIndex
+        textView.showLineNumbers = showLineNumbers
         textView.actionController = controller
+        textView.textContainerInset = NSSize(width: showLineNumbers ? 40 : 0, height: 0)
+        textView.textContainer?.exclusionPaths = exclusionPaths
+        textView.needsDisplay = true // Force redraw to update line numbers
         controller?.register(pageIndex: pageIndex, textView: textView)
         if context.coordinator.textView == nil {
             context.coordinator.textView = textView
@@ -719,7 +861,10 @@ public struct TextKit2EditorView: NSViewRepresentable {
                         isItalic: isItalic,
                         alignment: alignment,
                         lineSpacing: lineSpacing,
-                        paragraphSpacing: paragraphSpacing
+                        paragraphSpacing: paragraphSpacing,
+                        kern: kern,
+                        hangingIndent: hangingIndent,
+                        isContinuation: isContinuation
                     )
                 }
             }
@@ -761,7 +906,10 @@ public struct TextKit2EditorView: NSViewRepresentable {
         isItalic: Bool = false,
         alignment: TextAlignment,
         lineSpacing: CGFloat,
-        paragraphSpacing: CGFloat
+        paragraphSpacing: CGFloat,
+        kern: CGFloat = 0.0,
+        hangingIndent: CGFloat = 0.0,
+        isContinuation: Bool = false
     ) {
         let string = textStorage.string
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
@@ -786,6 +934,17 @@ public struct TextKit2EditorView: NSViewRepresentable {
             }
             currentStyle.lineHeightMultiple = lineSpacing
             currentStyle.paragraphSpacing = paragraphSpacing
+            if hangingIndent > 0 {
+                currentStyle.headIndent = hangingIndent
+                
+                // If this chunk is the continuation of a split paragraph, it should NOT have 
+                // firstLineHeadIndent = 0. All lines of the continuation are indented.
+                if isContinuation && range.location == 0 {
+                    currentStyle.firstLineHeadIndent = hangingIndent
+                } else {
+                    currentStyle.firstLineHeadIndent = 0
+                }
+            }
             newAttrs[.paragraphStyle] = currentStyle
 
             // 2. Update Font Family, preserve size and traits
@@ -803,6 +962,13 @@ public struct TextKit2EditorView: NSViewRepresentable {
             
             if attrs[.foregroundColor] == nil {
                 newAttrs[.foregroundColor] = defaultTextColor
+            }
+
+            // 3. Apply kern (character tracking)
+            if kern != 0 {
+                newAttrs[.kern] = kern
+            } else {
+                newAttrs.removeValue(forKey: .kern)
             }
 
             textStorage.setAttributes(newAttrs, range: range)

@@ -14,12 +14,13 @@ public struct StudioFloatingSidebar: View {
     @Binding var videos: [StudioVideoBlock]
     @Binding var showAIDrawer: Bool
     @Binding var showCommandPalette: Bool
-
+    @Binding var showPageDesignInspector: Bool
     var onInsertSection: () -> Void
     var onInsertTable: () -> Void
     var onInsertImage: () -> Void
     var onAddSource: () -> Void
     var onInsertPageBreak: () -> Void
+    var onTogglePageDesign: () -> Void
     var onToast: ((String) -> Void)?
 
     @State private var hoveredTool: String? = nil
@@ -35,11 +36,13 @@ public struct StudioFloatingSidebar: View {
         videos: Binding<[StudioVideoBlock]>,
         showAIDrawer: Binding<Bool>,
         showCommandPalette: Binding<Bool>,
+        showPageDesignInspector: Binding<Bool>,
         onInsertSection: @escaping () -> Void,
         onInsertTable: @escaping () -> Void,
         onInsertImage: @escaping () -> Void,
         onAddSource: @escaping () -> Void,
         onInsertPageBreak: @escaping () -> Void,
+        onTogglePageDesign: @escaping () -> Void,
         onToast: ((String) -> Void)? = nil
     ) {
         self._isPresented = isPresented
@@ -52,11 +55,13 @@ public struct StudioFloatingSidebar: View {
         self._videos = videos
         self._showAIDrawer = showAIDrawer
         self._showCommandPalette = showCommandPalette
+        self._showPageDesignInspector = showPageDesignInspector
         self.onInsertSection = onInsertSection
         self.onInsertTable = onInsertTable
         self.onInsertImage = onInsertImage
         self.onAddSource = onAddSource
         self.onInsertPageBreak = onInsertPageBreak
+        self.onTogglePageDesign = onTogglePageDesign
         self.onToast = onToast
     }
 
@@ -68,7 +73,7 @@ public struct StudioFloatingSidebar: View {
                     .fill(LinearGradient(colors: [Color.accentColor, Color.purple], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 32, height: 32)
                 
-                Image(systemName: "feather")
+                Image(systemName: "pencil")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
             }
@@ -90,6 +95,7 @@ public struct StudioFloatingSidebar: View {
                         .frame(width: 24)
                         .padding(.vertical, 4)
                         
+                    instrumentButton(icon: "slider.horizontal.3", name: "Page Design", shortcut: "d", shortcutModifiers: [.command, .option]) { onTogglePageDesign() }
                     instrumentButton(icon: "book.closed", name: "Sources", shortcut: "c") { onAddSource() }
                     instrumentButton(icon: "magnifyingglass", name: "Find", shortcut: "f", shortcutModifiers: [.command]) { showCommandPalette = true }
                     instrumentButton(icon: "sparkles", name: "AI Copilot", shortcut: "a") { showAIDrawer.toggle() }

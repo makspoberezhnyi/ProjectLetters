@@ -9,3 +9,8 @@
 * **Symptom:** When running macOS apps via Xcode, Xcode sometimes forcefully halts the process. On the next launch, the system triggers the "Crash Recovery / Reopen Windows" prompt, which often renders invisibly behind Xcode, leading to a "frozen" or "missing window" app state.
 * **Fix/Constraint:** ALWAYS set `applicationSupportsSecureRestorableState(_:) -> false` in the `NSApplicationDelegate` to bypass this buggy Xcode behavior. 
 * **Focus Override:** Always use `NSApp.activate(ignoringOtherApps: true)` and `window.orderFrontRegardless()` on launch in development, as Xcode aggressively steals focus.
+
+## 3. Strict Code Discipline & Workspace Hygiene
+* **Zero-Garbage Policy:** NEVER leave temporary scripts (`.py`, `.swift`), patch files, screenshots, logs (`app.log`), or test scaffolding in the project workspace after debugging. If subagents create these files, they MUST be deleted before completing the task.
+* **Compilation Verification:** If modifying Swift code, ALWAYS run `xcodebuild` or `swift build` (or at least check the compiler output) to catch syntax errors *before* asking the user to test the app.
+* **Idiomatic Cleanliness:** Write clean, minimal Swift code without unnecessary `print` spam, deeply nested logic, or redundant `DispatchQueue` hacks. Trust standard AppKit/SwiftUI patterns over complex manual overrides unless absolutely necessary.
