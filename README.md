@@ -8,7 +8,7 @@ Originally scoped for academic copywriting, Letters is built for business report
 
 - **Native SwiftUI & Rust Core**: A blazing-fast, TextKit 2-based macOS interface powered by a headless Rust engine. Future-proofed for Windows and Web via WebAssembly.
 - **Flawless `.docx` Compatibility**: The Rust core directly parses and writes native Word files.
-- **Bring Your Own Key (BYOK) AI**: Connect to Anthropic, OpenAI, or Google using your own API keys. Features a persistent AI sidebar companion for summarization, structural suggestions, and contextual explanations.
+- **Connect your AI Agents: Anthropic, OpenAI, or Google using your own API keys. Features a persistent AI sidebar companion for summarization, structural suggestions, and contextual explanations.
 - **Linked Sources & Citations**: Sources aren't just text—they are data pointers. Update a source once, and every citation and bibliography entry updates automatically. Switch between APA, MLA, Chicago, or Bluebook with a single click.
 - **Style Profiles & Rule Checking**: Enforce academic, legal, or brand guidelines by checking the document against configurable style rules and banned phrases.
 - **Modern UX**: A clean Command Palette (`Cmd+K`), a floating context menu for instant formatting and AI actions, and Markdown-to-DOCX fluid typing.
