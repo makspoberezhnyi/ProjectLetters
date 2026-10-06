@@ -2,7 +2,7 @@
 
 **Letters** is a modern, high-performance document editor designed to replace legacy word processors. It combines a lightweight, native SwiftUI frontend (for macOS) with a headless, highly portable Rust core that handles `.docx` parsing, editing, and rendering with zero format loss.
 
-Originally scoped for academic copywriting, Letters is built for business reporting, legal drafting, journalism, and content marketing—providing deep structural tools, intelligent source linking, and dynamic style rules.
+Originally scoped for academic copywriting, Letters is built for business reporting, legal drafting, journalism, and content marketing: providing deep structural tools, intelligent source linking, and dynamic style rules.
 
 ## Key Features
 
