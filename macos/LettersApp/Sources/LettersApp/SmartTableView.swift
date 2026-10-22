@@ -457,10 +457,13 @@ public struct SmartTableView: View {
     }
     var onDelete: (() -> Void)? = nil
     var onChange: (() -> Void)? = nil
+    var onMoveUp: (() -> Void)? = nil
+    var onMoveDown: (() -> Void)? = nil
     var onToast: ((String) -> Void)? = nil
 
     @State private var showingFormulaHelper: Bool = false
     @FocusState private var activeEditingCell: String?
+    @State private var isTableHovered: Bool = false
     
     public struct TableSelectionRect: Equatable {
         public var minRow: Int
@@ -476,13 +479,15 @@ public struct SmartTableView: View {
     @State private var selectedRect: TableSelectionRect? = nil
     @State private var fillTargetRect: TableSelectionRect? = nil
 
-    @State private var actualTableWidth: CGFloat = 600
+    @State private var actualTableWidth: CGFloat = 440
     @State private var dragBaseTableWidth: CGFloat? = nil
     @State private var dragBaseTableHeight: CGFloat? = nil
-    @State private var actualTableHeight: CGFloat = 200
+    @State private var dragBaseColWidths: [CGFloat]? = nil
+    @State private var liveResizingWidth: CGFloat? = nil
+    @State private var liveResizingHeight: CGFloat? = nil
+    @State private var liveColWidths: [CGFloat]? = nil
+    @State private var actualTableHeight: CGFloat = 140
 
-
-    
     public var fontFamily: String
 
     public init(
@@ -491,6 +496,8 @@ public struct SmartTableView: View {
         fontFamily: String = "Default Serif (Georgia)",
         onDelete: (() -> Void)? = nil,
         onChange: (() -> Void)? = nil,
+        onMoveUp: (() -> Void)? = nil,
+        onMoveDown: (() -> Void)? = nil,
         onToast: ((String) -> Void)? = nil
     ) {
         self.store = store
@@ -498,17 +505,21 @@ public struct SmartTableView: View {
         self.fontFamily = fontFamily
         self.onDelete = onDelete
         self.onChange = onChange
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
         self.onToast = onToast
     }
 
 
     public var body: some View {
         VStack(spacing: 0) {
+            tableHeaderStrip
+
             // Header Row (A, B, C...)
             HStack(spacing: 0) {
                 // Top-Left Corner (Delete Table)
                 Text("")
-                    .frame(width: 44, height: 24)
+                    .frame(width: 22, height: 20)
                     .background(Color.primary.opacity(0.04))
                     .overlay(
                         Rectangle()
@@ -517,69 +528,53 @@ public struct SmartTableView: View {
                         alignment: .trailing
                     )
                     .contextMenu {
-                        if let onDelete = onDelete {
-                            Button("Delete Table", role: .destructive) { onDelete() }
-                        }
+                        tableContextMenu(rowIdx: nil, colIdx: nil)
                     }
 
                 ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
                     let colLetter = TableFormulaEvaluator.columnLetter(for: colIdx)
-                    HStack(spacing: 2) {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
                         Text(colLetter)
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.secondary)
-                        
-                        TextField("(note)", text: Binding(
-                            get: { tableData.columnNotes?[colIdx] ?? "" },
-                            set: { val in 
-                                store.mutateTable(id: tableId) { if $0.columnNotes == nil { $0.columnNotes = [:] } }
-                                store.mutateTable(id: tableId) { $0.columnNotes?[colIdx] = val }
-                            }
-                        ))
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary.opacity(0.8))
-                        .frame(width: 40)
+                        Spacer(minLength: 0)
                     }
                     .frame(maxWidth: getColumnWidth(colIdx) == nil ? .infinity : nil)
-
-                        .frame(width: getColumnWidth(colIdx))
-                        .frame(height: 24)
-                        .background(Color.primary.opacity(0.04))
-                        .overlay(
-                            ZStack(alignment: .trailing) {
-                                if colIdx < tableData.headers.count - 1 {
-                                    Rectangle()
-                                        .frame(width: 1)
-                                        .foregroundColor(Color.primary.opacity(0.1))
-                                }
-                                
-                                // Column Resizer Handle
+                    .frame(width: getColumnWidth(colIdx))
+                    .frame(height: 20)
+                    .background(Color.primary.opacity(0.04))
+                    .overlay(
+                        ZStack(alignment: .trailing) {
+                            if colIdx < tableData.headers.count - 1 {
                                 Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: 6)
-                                    .offset(x: 3)
-                                    .onHover { isHovered in
-                                        if isHovered { NSCursor.crosshair.push() } else { NSCursor.pop() }
-                                    }
-                                    .gesture(
-                                        DragGesture()
-                                            .onChanged { val in
-                                                handleColumnDrag(colIdx: colIdx, translation: val.translation.width)
-                                            }
-                                            .onEnded { _ in
-                                                endColumnDrag()
-                                            }
-                                    )
-                            },
-                            alignment: .trailing
-                        )
-                        .contextMenu {
-                            Button("Add Column Before") { insertColumn(at: colIdx) }
-                            Button("Add Column After") { insertColumn(at: colIdx + 1) }
-                            Button("Delete Column") { deleteColumn(at: colIdx) }
-                        }
-
+                                    .frame(width: 1)
+                                    .foregroundColor(Color.primary.opacity(0.1))
+                            }
+                            
+                            // Column Resizer Handle
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(width: 6)
+                                .offset(x: 3)
+                                .onHover { isHovered in
+                                    if isHovered { NSCursor.crosshair.push() } else { NSCursor.pop() }
+                                }
+                                .gesture(
+                                    DragGesture(minimumDistance: 1)
+                                        .onChanged { val in
+                                            handleColumnDrag(colIdx: colIdx, translation: val.translation.width)
+                                        }
+                                        .onEnded { _ in
+                                            endColumnDrag()
+                                        }
+                                )
+                        },
+                        alignment: .trailing
+                    )
+                    .contextMenu {
+                        tableContextMenu(rowIdx: nil, colIdx: colIdx)
+                    }
                 }
             }
             .overlay(
@@ -594,26 +589,10 @@ public struct SmartTableView: View {
             ForEach(0..<gridCount, id: \.self) { rowIdx in
                 HStack(spacing: 0) {
                     // Left Row Gutter (1, 2, 3...)
-                    VStack(spacing: 0) {
-                        Text("\(rowIdx + 1)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.secondary)
-                        
-                        TextField("(note)", text: Binding(
-                            get: { tableData.rowNotes?[rowIdx] ?? "" },
-                            set: { val in 
-                                store.mutateTable(id: tableId) { if $0.rowNotes == nil { $0.rowNotes = [:] } }
-                                store.mutateTable(id: tableId) { $0.rowNotes?[rowIdx] = val }
-                            }
-                        ))
-                        .textFieldStyle(.plain)
-                        .multilineTextAlignment(.center)
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary.opacity(0.8))
-                        .frame(width: 40)
-                    }
-                    .frame(width: 44)
-                        .frame(maxHeight: .infinity)
+                    Text("\(rowIdx + 1)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 22, height: 22)
                         .background(Color.primary.opacity(0.04))
                         .overlay(
                             Rectangle()
@@ -622,15 +601,14 @@ public struct SmartTableView: View {
                             alignment: .trailing
                         )
                         .contextMenu {
-                            Button("Add Row Above") { insertRow(at: rowIdx) }
-                            Button("Add Row Below") { insertRow(at: rowIdx + 1) }
-                            Button("Delete Row") { deleteRow(at: rowIdx) }
+                            tableContextMenu(rowIdx: rowIdx, colIdx: nil)
                         }
 
                     ForEach(0..<tableData.headers.count, id: \.self) { colIdx in
                         self.dataCellView(rowIdx: rowIdx, colIdx: colIdx)
                     }
                 }
+                .frame(height: 22)
                 .overlay(
                     Rectangle()
                         .frame(height: 1)
@@ -657,44 +635,168 @@ public struct SmartTableView: View {
             }
         )
 
-        .frame(width: tableData.tableWidth, height: tableData.tableHeight)
+        .frame(width: liveResizingWidth ?? tableData.tableWidth ?? min(440, actualTableWidth), height: liveResizingHeight ?? tableData.tableHeight)
 
         .overlay(
             // Bottom Right Drag Handle for Table Resizing
             Rectangle()
-                .fill(Color.primary.opacity(0.2))
+                .fill(Color.accentColor.opacity(0.7))
                 .frame(width: 8, height: 8)
+                .overlay(Rectangle().stroke(Color.white, lineWidth: 1))
                 .offset(x: 4, y: 4)
                 .onHover { isHovered in
                     if isHovered { NSCursor.crosshair.push() } else { NSCursor.pop() }
                 }
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 1)
                         .onChanged { val in
                             if dragBaseTableWidth == nil {
                                 dragBaseTableWidth = tableData.tableWidth ?? actualTableWidth
                                 dragBaseTableHeight = tableData.tableHeight ?? actualTableHeight
                             }
-                            let safeBaseW = dragBaseTableWidth ?? tableData.tableWidth ?? actualTableWidth
-                            let safeBaseH = dragBaseTableHeight ?? tableData.tableHeight ?? actualTableHeight
-                            let newW = max(200, safeBaseW + val.translation.width)
-                            let newH = max(100, safeBaseH + val.translation.height)
-                            store.mutateTable(id: tableId) { 
-                                $0.tableWidth = newW
-                                $0.tableHeight = newH 
-                            }
+                            let safeBaseW = dragBaseTableWidth ?? 468
+                            let safeBaseH = dragBaseTableHeight ?? 160
+                            let newW = max(180, min(800, safeBaseW + val.translation.width))
+                            let newH = max(70, min(1200, safeBaseH + val.translation.height))
+                            liveResizingWidth = newW
+                            liveResizingHeight = newH
                         }
                         .onEnded { _ in
+                            if let finalW = liveResizingWidth, let finalH = liveResizingHeight {
+                                store.mutateTable(id: tableId) { 
+                                    $0.tableWidth = finalW
+                                    $0.tableHeight = finalH 
+                                }
+                            }
                             dragBaseTableWidth = nil
                             dragBaseTableHeight = nil
+                            liveResizingWidth = nil
+                            liveResizingHeight = nil
                             store.commitSnapshot(actionName: "Resize Table", isMilestone: true)
+                            onChange?()
                         }
-
-                )
-            , alignment: .bottomTrailing
+                ),
+            alignment: .bottomTrailing
         )
+        .contextMenu {
+            tableContextMenu()
+        }
+        .onHover { isTableHovered = $0 }
         .padding(.vertical, 8)
 
+    }
+
+    private var tableHeaderStrip: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "tablecells.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.accentColor)
+
+            TextField("Table Title (e.g. Table 1: Financial Summary)", text: Binding(
+                get: { tableData.title },
+                set: { val in store.mutateTable(id: tableId) { $0.title = val } }
+            ))
+            .textFieldStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.primary)
+
+            Spacer()
+
+            Button(action: addRow) {
+                Label("Row", systemImage: "plus")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .help("Add Row at Bottom")
+
+            Button(action: addColumn) {
+                Label("Column", systemImage: "plus")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .help("Add Column at Right")
+
+            Menu {
+                tableContextMenu()
+            } label: {
+                Label("Tools", systemImage: "ellipsis.circle")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .menuStyle(.borderlessButton)
+            .controlSize(.mini)
+
+            if let onDelete = onDelete {
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+                .help("Delete Table")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.primary.opacity(0.03))
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color.primary.opacity(0.08)),
+            alignment: .bottom
+        )
+    }
+
+    private func insertFormulaAtActiveOrLastCell(_ formula: String) {
+        if let active = activeEditingCell {
+            let parts = active.split(separator: ",")
+            if parts.count == 2, let r = Int(parts[0]), let c = Int(parts[1]) {
+                setRawValue(rowIdx: r, colIdx: c, val: formula)
+                return
+            }
+        }
+        if let sel = selectedRect {
+            setRawValue(rowIdx: sel.minRow, colIdx: sel.minCol, val: formula)
+            return
+        }
+        let lastRow = tableData.rows.count
+        setRawValue(rowIdx: lastRow, colIdx: 0, val: formula)
+    }
+
+    private func advanceFocusFromCell(rowIdx: Int, colIdx: Int) {
+        let totalCols = max(1, tableData.headers.count)
+        let totalGridRows = tableData.rows.count + 1
+        if colIdx + 1 < totalCols {
+            let nextCol = colIdx + 1
+            selectedRect = TableSelectionRect(minRow: rowIdx, maxRow: rowIdx, minCol: nextCol, maxCol: nextCol)
+            activeEditingCell = "\(rowIdx),\(nextCol)"
+        } else if rowIdx + 1 < totalGridRows {
+            let nextRow = rowIdx + 1
+            selectedRect = TableSelectionRect(minRow: nextRow, maxRow: nextRow, minCol: 0, maxCol: 0)
+            activeEditingCell = "\(nextRow),0"
+        } else {
+            addRow()
+            let newRow = totalGridRows
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                selectedRect = TableSelectionRect(minRow: newRow, maxRow: newRow, minCol: 0, maxCol: 0)
+                activeEditingCell = "\(newRow),0"
+            }
+        }
+    }
+
+    private func retreatFocusFromCell(rowIdx: Int, colIdx: Int) {
+        let totalCols = max(1, tableData.headers.count)
+        if colIdx > 0 {
+            let prevCol = colIdx - 1
+            selectedRect = TableSelectionRect(minRow: rowIdx, maxRow: rowIdx, minCol: prevCol, maxCol: prevCol)
+            activeEditingCell = "\(rowIdx),\(prevCol)"
+        } else if rowIdx > 0 {
+            let prevRow = rowIdx - 1
+            let lastCol = totalCols - 1
+            selectedRect = TableSelectionRect(minRow: prevRow, maxRow: prevRow, minCol: lastCol, maxCol: lastCol)
+            activeEditingCell = "\(prevRow),\(lastCol)"
+        }
     }
 
     private func getRawValue(rowIdx: Int, colIdx: Int) -> String {
@@ -782,25 +884,37 @@ public struct SmartTableView: View {
         let displayValue = tableData.evaluatedCell(row: rowIdx, col: colIdx)
 
         ZStack(alignment: .leading) {
-            // Always in hierarchy for reliable FocusState
+            if !isEditing {
+                let cellText = hasFormula ? (displayValue.isEmpty ? "" : displayValue) : rawValue
+                NativeTableCellField(
+                    text: cellText,
+                    placeholder: "—",
+                    font: getTableNSFont(size: 9.5),
+                    textColor: hasFormula ? .systemBlue : .labelColor
+                )
+                .allowsHitTesting(false)
+            }
+
+            // Always in hierarchy for reliable FocusState and keyboard Tab navigation
             TextField("—", text: Binding(
                 get: { rawValue },
                 set: { newVal in setRawValue(rowIdx: rowIdx, colIdx: colIdx, val: newVal) }
             ))
             .textFieldStyle(.plain)
             .focused($activeEditingCell, equals: cellKey)
-            .font(getTableFont(size: 11))
-            .foregroundColor(hasFormula ? .blue : Color(red: 0.12, green: 0.12, blue: 0.14))
-            .opacity(isEditing || !hasFormula ? 1 : 0)
+            .font(getTableFont(size: 9.5))
+            .foregroundColor(hasFormula ? .blue : Color.primary)
+            .opacity(isEditing ? 1 : 0)
             .onSubmit {
-                activeEditingCell = nil
+                advanceFocusFromCell(rowIdx: rowIdx, colIdx: colIdx)
             }
-            
-            if !isEditing && hasFormula {
-                Text(displayValue.isEmpty ? "" : displayValue)
-                    .font(getTableFont(size: 12))
-                    .foregroundColor(.accentColor)
-                    .allowsHitTesting(false)
+            .onKeyPress(keys: [.tab], phases: .down) { press in
+                if press.modifiers.contains(.shift) {
+                    retreatFocusFromCell(rowIdx: rowIdx, colIdx: colIdx)
+                } else {
+                    advanceFocusFromCell(rowIdx: rowIdx, colIdx: colIdx)
+                }
+                return .handled
             }
             
             if !isEditing {
@@ -812,8 +926,8 @@ public struct SmartTableView: View {
                     }
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2.5)
         .background((isSelected || isFillTarget) ? Color.accentColor.opacity(0.15) : Color.clear)
         .overlay(
             ZStack {
@@ -869,6 +983,9 @@ public struct SmartTableView: View {
             },
             alignment: .trailing
         )
+        .contextMenu {
+            tableContextMenu(rowIdx: rowIdx, colIdx: colIdx)
+        }
     }
 
         private func executeFillTarget() {
@@ -902,44 +1019,60 @@ public struct SmartTableView: View {
 
     private func getTableFont(size: CGFloat) -> Font {
         switch fontFamily {
-        case "SF Pro (Modern Sans)": return .system(size: size)
-        case "New York (Editorial)": return .custom("NewYork-Regular", size: size)
-        case "SF Mono (Code)": return .system(size: size, design: .monospaced)
-        case "Default Serif (Georgia)": return .custom("Georgia", size: size)
-        default: return .system(size: size)
+        case "SF Pro (Modern Sans)": return .system(size: size, weight: .medium)
+        case "New York (Editorial)": return .custom("NewYork-Medium", size: size)
+        case "SF Mono (Code)": return .system(size: size, weight: .medium, design: .monospaced)
+        case "Default Serif (Georgia)": return .custom("Georgia-Bold", size: size)
+        default: return .system(size: size, weight: .medium)
         }
     }
 
-        @State private var dragBaseColWidths: [CGFloat]? = nil
-
+    private func getTableNSFont(size: CGFloat) -> NSFont {
+        switch fontFamily {
+        case "SF Pro (Modern Sans)": return NSFont.systemFont(ofSize: size, weight: .medium)
+        case "New York (Editorial)":
+            if let custom = NSFont(name: "NewYork-Medium", size: size) ?? NSFont(name: "NewYork-Regular", size: size) { return custom }
+            return NSFont.systemFont(ofSize: size, weight: .medium)
+        case "SF Mono (Code)": return NSFont.monospacedSystemFont(ofSize: size, weight: .medium)
+        case "Default Serif (Georgia)":
+            if let custom = NSFont(name: "Georgia-Bold", size: size) { return custom }
+            if let custom = NSFont(name: "Georgia", size: size) { return custom }
+            return NSFont.systemFont(ofSize: size, weight: .medium)
+        default: return NSFont.systemFont(ofSize: size, weight: .medium)
+        }
+    }
     private func getColumnWidth(_ colIdx: Int) -> CGFloat? {
+        if let live = liveColWidths, live.indices.contains(colIdx) {
+            return live[colIdx]
+        }
         guard let cw = tableData.columnWidths, cw.indices.contains(colIdx) else { return nil }
         return cw[colIdx]
     }
 
     private func handleColumnDrag(colIdx: Int, translation: CGFloat) {
-        if tableData.columnWidths == nil {
-            // If dragging for the first time, we need to freeze all current geometric widths.
-            // A simple approximation if we don't have true geometric widths is distributing evenly:
-            let defaultW = (actualTableWidth - 32) / CGFloat(tableData.headers.count) // 32 is row gutter
-            store.mutateTable(id: tableId) { $0.columnWidths = Array(repeating: defaultW, count: tableData.headers.count)
-            // also fix the overall table width so it doesn't jump
-            $0.tableWidth = actualTableWidth }
-        }
-        
         if dragBaseColWidths == nil {
-            dragBaseColWidths = tableData.columnWidths
+            let defaultW = (actualTableWidth - 22) / CGFloat(max(1, tableData.headers.count))
+            dragBaseColWidths = tableData.columnWidths ?? Array(repeating: defaultW, count: tableData.headers.count)
         }
         
-        if var cw = tableData.columnWidths, let base = dragBaseColWidths, base.indices.contains(colIdx) {
-            cw[colIdx] = max(40, base[colIdx] + translation)
-            store.mutateTable(id: tableId) { $0.columnWidths = cw; $0.tableWidth = cw.reduce(0, +) + 32 }
+        if let base = dragBaseColWidths, base.indices.contains(colIdx) {
+            var cw = liveColWidths ?? base
+            cw[colIdx] = max(36, base[colIdx] + translation)
+            liveColWidths = cw
         }
     }
 
     private func endColumnDrag() {
+        if let cw = liveColWidths {
+            store.mutateTable(id: tableId) { 
+                $0.columnWidths = cw
+                $0.tableWidth = cw.reduce(0, +) + 22
+            }
+        }
         dragBaseColWidths = nil
+        liveColWidths = nil
         store.commitSnapshot(actionName: "Resize Column", isMilestone: true)
+        onChange?()
     }
 
     // MARK: - Actions
@@ -1064,6 +1197,160 @@ public struct SmartTableView: View {
             }
         }
     }
+
+    // MARK: - Native Table Context Menu
+    @ViewBuilder
+    private func tableContextMenu(rowIdx: Int? = nil, colIdx: Int? = nil) -> some View {
+        let activeR = rowIdx ?? (selectedRect?.minRow ?? 0)
+        let activeC = colIdx ?? (selectedRect?.minCol ?? 0)
+        let colLetter = TableFormulaEvaluator.columnLetter(for: activeC)
+
+        Section("Row & Column") {
+            Button {
+                insertRow(at: activeR)
+            } label: {
+                Label("Insert Row Above", systemImage: "table.badge.more")
+            }
+
+            Button {
+                insertRow(at: activeR + 1)
+            } label: {
+                Label("Insert Row Below", systemImage: "table.badge.more")
+            }
+
+            if tableData.rows.count > 0 && activeR > 0 {
+                Button(role: .destructive) {
+                    deleteRow(at: activeR)
+                } label: {
+                    Label("Delete Row \(activeR + 1)", systemImage: "trash")
+                }
+            }
+
+            Divider()
+
+            Button {
+                insertColumn(at: activeC)
+            } label: {
+                Label("Insert Column Left", systemImage: "rectangle.split.2x1")
+            }
+
+            Button {
+                insertColumn(at: activeC + 1)
+            } label: {
+                Label("Insert Column Right", systemImage: "rectangle.split.2x1")
+            }
+
+            if tableData.headers.count > 1 {
+                Button(role: .destructive) {
+                    deleteColumn(at: activeC)
+                } label: {
+                    Label("Delete Column \(colLetter)", systemImage: "trash")
+                }
+            }
+        }
+
+        Section("Formulas") {
+            let formulaRowEnd = max(1, activeR)
+            Button("=SUM(\(colLetter)1:\(colLetter)\(formulaRowEnd))") {
+                setRawValue(rowIdx: activeR, colIdx: activeC, val: "=SUM(\(colLetter)1:\(colLetter)\(formulaRowEnd))")
+                onChange?()
+            }
+            Button("=AVERAGE(\(colLetter)1:\(colLetter)\(formulaRowEnd))") {
+                setRawValue(rowIdx: activeR, colIdx: activeC, val: "=AVERAGE(\(colLetter)1:\(colLetter)\(formulaRowEnd))")
+                onChange?()
+            }
+            Button("=COUNT(\(colLetter)1:\(colLetter)\(formulaRowEnd))") {
+                setRawValue(rowIdx: activeR, colIdx: activeC, val: "=COUNT(\(colLetter)1:\(colLetter)\(formulaRowEnd))")
+                onChange?()
+            }
+            Button("=MAX(\(colLetter)1:\(colLetter)\(formulaRowEnd))") {
+                setRawValue(rowIdx: activeR, colIdx: activeC, val: "=MAX(\(colLetter)1:\(colLetter)\(formulaRowEnd))")
+                onChange?()
+            }
+            Button("=MIN(\(colLetter)1:\(colLetter)\(formulaRowEnd))") {
+                setRawValue(rowIdx: activeR, colIdx: activeC, val: "=MIN(\(colLetter)1:\(colLetter)\(formulaRowEnd))")
+                onChange?()
+            }
+        }
+
+        Section("Data & Clipboard") {
+            Button {
+                copyTableForExcel()
+            } label: {
+                Label("Copy Table (TSV for Excel / Sheets)", systemImage: "doc.on.doc")
+            }
+
+            Button {
+                pasteFromExcel()
+            } label: {
+                Label("Paste from Excel / Sheets", systemImage: "doc.on.clipboard")
+            }
+
+            Button {
+                exportTableAsCSV()
+            } label: {
+                Label("Export as CSV...", systemImage: "arrow.down.doc")
+            }
+
+            Button {
+                setRawValue(rowIdx: activeR, colIdx: activeC, val: "")
+                onChange?()
+            } label: {
+                Label("Clear Cell", systemImage: "xmark.circle")
+            }
+        }
+
+        Section("Table Layout") {
+            Button("Auto-Fit Columns Evenly") {
+                store.mutateTable(id: tableId) {
+                    $0.columnWidths = nil
+                }
+                liveColWidths = nil
+                dragBaseColWidths = nil
+                onChange?()
+                onToast?("✓ Auto-fitted table columns evenly")
+            }
+
+            Button("Reset Table Size") {
+                store.mutateTable(id: tableId) {
+                    $0.tableWidth = nil
+                    $0.tableHeight = nil
+                    $0.columnWidths = nil
+                }
+                liveResizingWidth = nil
+                liveResizingHeight = nil
+                liveColWidths = nil
+                dragBaseTableWidth = nil
+                dragBaseTableHeight = nil
+                dragBaseColWidths = nil
+                onChange?()
+                onToast?("✓ Reset table to default size")
+            }
+
+            if let onMoveUp = onMoveUp {
+                Divider()
+                Button {
+                    onMoveUp()
+                } label: {
+                    Label("Move Above Paragraph", systemImage: "arrow.up")
+                }
+            }
+            if let onMoveDown = onMoveDown {
+                Button {
+                    onMoveDown()
+                } label: {
+                    Label("Move Below Paragraph", systemImage: "arrow.down")
+                }
+            }
+        }
+
+        if let onDelete = onDelete {
+            Divider()
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete Table", systemImage: "trash.fill")
+            }
+        }
+    }
 }
 
 // MARK: - Formula Helper Tip Row
@@ -1080,6 +1367,72 @@ private struct FormulaTipRow: View {
             Text(desc)
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Native AppKit Table Cell Field for Razor-Sharp TextKit Rendering
+public struct NativeTableCellField: NSViewRepresentable {
+    public var text: String
+    public var placeholder: String
+    public var font: NSFont
+    public var textColor: NSColor
+
+    public init(text: String, placeholder: String = "—", font: NSFont, textColor: NSColor = .labelColor) {
+        self.text = text
+        self.placeholder = placeholder
+        self.font = font
+        self.textColor = textColor
+    }
+
+    public func makeNSView(context: Context) -> NSTextField {
+        let tf = NSTextField(labelWithString: text)
+        tf.isBezeled = false
+        tf.isBordered = false
+        tf.drawsBackground = false
+        tf.backgroundColor = .clear
+        tf.focusRingType = .none
+        tf.alignment = .left
+        tf.font = font
+        tf.textColor = textColor
+        tf.isEditable = false
+        tf.isSelectable = false
+        tf.maximumNumberOfLines = 1
+        tf.cell?.wraps = false
+        tf.cell?.isScrollable = true
+        tf.cell?.usesSingleLineMode = true
+        tf.lineBreakMode = .byTruncatingTail
+        tf.wantsLayer = true
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        tf.layer?.contentsScale = scale
+        tf.layer?.rasterizationScale = scale
+        tf.layer?.shouldRasterize = false
+        updateField(tf)
+        return tf
+    }
+
+    public func updateNSView(_ nsView: NSTextField, context: Context) {
+        let scale = nsView.window?.backingScaleFactor ?? (NSScreen.main?.backingScaleFactor ?? 2.0)
+        nsView.layer?.contentsScale = scale
+        nsView.layer?.rasterizationScale = scale
+        nsView.layer?.shouldRasterize = false
+        updateField(nsView)
+    }
+
+    private func updateField(_ tf: NSTextField) {
+        tf.font = font
+        tf.textColor = textColor
+        if text.isEmpty {
+            tf.placeholderAttributedString = NSAttributedString(
+                string: placeholder,
+                attributes: [
+                    .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.4),
+                    .font: font
+                ]
+            )
+            tf.stringValue = ""
+        } else if tf.stringValue != text {
+            tf.stringValue = text
         }
     }
 }

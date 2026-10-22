@@ -270,10 +270,10 @@ public enum PageSizePreset: String, Codable, CaseIterable, Sendable {
 
     public var dimensions: (width: CGFloat, height: CGFloat) {
         switch self {
-        case .letter: return (816, 1056)
-        case .a4: return (794, 1123)
+        case .letter: return (612, 792)
+        case .a4: return (595, 842)
         case .executive: return (522, 756)
-        case .legal: return (816, 1344)
+        case .legal: return (612, 1008)
         }
     }
 

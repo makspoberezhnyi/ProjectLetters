@@ -43,8 +43,10 @@ public final class EditorPerformanceCache: @unchecked Sendable {
     }
 
     private func computeFont(family: String, size: CGFloat, bold: Bool, italic: Bool) -> NSFont {
-        if family.contains("SF Pro") || family.contains("Modern Sans") || family.contains("System") {
-            let weight: NSFont.Weight = bold ? .bold : .regular
+        let lower = family.lowercased()
+        let weight: NSFont.Weight = bold ? .bold : .regular
+
+        if lower.contains("sf pro") || lower.contains("modern sans") || lower == "system" {
             let systemFont = NSFont.systemFont(ofSize: size, weight: weight)
             if italic {
                 let descriptor = systemFont.fontDescriptor.withSymbolicTraits(.italic)
@@ -53,16 +55,41 @@ public final class EditorPerformanceCache: @unchecked Sendable {
             return systemFont
         }
 
+        if lower.contains("new york") || lower.contains("editorial") {
+            let base = NSFont.systemFont(ofSize: size, weight: weight)
+            if let nyDesc = base.fontDescriptor.withDesign(.serif) {
+                let finalDesc = italic ? nyDesc.withSymbolicTraits(nyDesc.symbolicTraits.union(.italic)) : nyDesc
+                if let nyFont = NSFont(descriptor: finalDesc, size: size) {
+                    return nyFont
+                }
+            }
+        }
+
+        if lower.contains("sf mono") {
+            let monoFont = NSFont.monospacedSystemFont(ofSize: size, weight: weight)
+            if italic {
+                let descriptor = monoFont.fontDescriptor.withSymbolicTraits(monoFont.fontDescriptor.symbolicTraits.union(.italic))
+                return NSFont(descriptor: descriptor, size: size) ?? monoFont
+            }
+            return monoFont
+        }
+
         var baseName = "Georgia"
-        if family.contains("Times") {
+        if lower.contains("times") {
             baseName = bold ? (italic ? "TimesNewRomanPS-BoldItalicMT" : "TimesNewRomanPS-BoldMT") : (italic ? "TimesNewRomanPS-ItalicMT" : "TimesNewRomanPSMT")
-        } else if family.contains("Helvetica") {
+        } else if lower.contains("helvetica") {
             baseName = bold ? (italic ? "HelveticaNeue-BoldItalic" : "HelveticaNeue-Bold") : (italic ? "HelveticaNeue-Italic" : "HelveticaNeue")
-        } else if family.contains("Menlo") {
+        } else if lower.contains("avenir") {
+            baseName = bold ? (italic ? "AvenirNext-BoldItalic" : "AvenirNext-Bold") : (italic ? "AvenirNext-Italic" : "AvenirNext-Regular")
+        } else if lower.contains("baskerville") {
+            baseName = bold ? (italic ? "Baskerville-BoldItalic" : "Baskerville-Bold") : (italic ? "Baskerville-Italic" : "Baskerville")
+        } else if lower.contains("palatino") {
+            baseName = bold ? (italic ? "Palatino-BoldItalic" : "Palatino-Bold") : (italic ? "Palatino-Italic" : "Palatino-Roman")
+        } else if lower.contains("menlo") {
             baseName = bold ? (italic ? "Menlo-BoldItalic" : "Menlo-Bold") : (italic ? "Menlo-Italic" : "Menlo-Regular")
-        } else if family.contains("Courier") {
-            baseName = bold ? (italic ? "Courier-BoldOblique" : "Courier-Bold") : (italic ? "Courier-Oblique" : "Courier")
-        } else if family.contains("Charter") {
+        } else if lower.contains("courier") {
+            baseName = bold ? (italic ? "CourierNewPS-BoldItalicMT" : "CourierNewPS-BoldMT") : (italic ? "CourierNewPS-ItalicMT" : "CourierNewPSMT")
+        } else if lower.contains("charter") {
             baseName = bold ? (italic ? "Charter-BoldItalic" : "Charter-Bold") : (italic ? "Charter-Italic" : "Charter-Roman")
         } else {
             baseName = bold ? (italic ? "Georgia-BoldItalic" : "Georgia-Bold") : (italic ? "Georgia-Italic" : "Georgia")
@@ -72,7 +99,7 @@ public final class EditorPerformanceCache: @unchecked Sendable {
             return custom
         }
 
-        let fallback = NSFont(name: "Georgia", size: size) ?? NSFont.systemFont(ofSize: size)
+        let fallback = NSFont(name: family, size: size) ?? NSFont(name: "Georgia", size: size) ?? NSFont.systemFont(ofSize: size)
         var traits: NSFontTraitMask = []
         if bold { traits.insert(.boldFontMask) }
         if italic { traits.insert(.italicFontMask) }

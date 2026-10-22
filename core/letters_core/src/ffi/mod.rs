@@ -174,6 +174,25 @@ pub unsafe extern "C" fn letters_export_docx_from_json(
     }
 }
 
+/// Import a DOCX binary buffer and return its Document structure serialized as JSON
+#[no_mangle]
+pub unsafe extern "C" fn letters_import_docx(
+    bytes_ptr: *const u8,
+    bytes_len: usize,
+) -> *mut c_char {
+    if bytes_ptr.is_null() || bytes_len == 0 {
+        return std::ptr::null_mut();
+    }
+    let slice = std::slice::from_raw_parts(bytes_ptr, bytes_len);
+    match DocxEngine::import_docx(slice) {
+        Ok(doc) => match serde_json::to_string(&doc) {
+            Ok(json) => rust_to_c_str(json),
+            Err(_) => std::ptr::null_mut(),
+        },
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn letters_free_bytes(ptr: *mut u8, len: usize) {
     if !ptr.is_null() {

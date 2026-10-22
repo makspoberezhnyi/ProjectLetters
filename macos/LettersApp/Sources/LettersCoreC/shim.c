@@ -43,3 +43,9 @@ __attribute__((weak)) uint8_t *letters_export_docx_from_json(const char *doc_jso
     if (out_len) *out_len = 0;
     return NULL;
 }
+
+__attribute__((weak)) char *letters_import_docx(const uint8_t *bytes_ptr, size_t bytes_len) {
+    (void)bytes_ptr;
+    (void)bytes_len;
+    return NULL;
+}

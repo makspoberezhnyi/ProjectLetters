@@ -134,13 +134,21 @@ public struct StudioPageDesignView: View {
                             .foregroundColor(.primary)
                     }
 
+                    // 3. Hero 3D Theme Preview Card (Cover Banner Picker)
+                    if coverBannerConfig.isEnabled {
+                        heroThemePreviewCard
+                    }
+
                     // 4. Section: Page Level Settings
                     pageSectionGroup
+
+                    // 5. Section: Block & Canvas Guides
+                    blockSectionGroup
                 }
                 .padding(16)
             }
         }
-        .frame(width: 320)
+        .frame(width: 320, height: 560)
         .background(.ultraThinMaterial)
         .background(StudioTheme.panelBackground.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -349,20 +357,19 @@ public struct StudioPageDesignView: View {
             if isPageSectionExpanded {
                 VStack(spacing: 8) {
                     // 1. Linked Sources & Citation Style
-                    designRowItem(icon: "link", color: StudioTheme.luminousPurple, title: "Citation Standard", value: activeCitationStyle.rawValue) {
+                    designRowItem(icon: "link", color: StudioTheme.luminousPurple, title: "Citation Standard", value: activeCitationStyle.displayName) {
                         Menu {
                             ForEach(CitationStyle.allCases, id: \.self) { style in
-                                Button(style.rawValue) {
+                                Button(style.displayName) {
                                     activeCitationStyle = style
-                                    onToast?("✓ Citation Style: \(style.rawValue)")
+                                    onToast?("✓ Citation Style: \(style.displayName)")
                                 }
                             }
                         } label: {
-                            Text(activeCitationStyle.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondary)
+                            menuLabel(activeCitationStyle.displayName)
                         }
                         .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
 
                     // 2. Header / Cover Banner Mode
@@ -381,16 +388,10 @@ public struct StudioPageDesignView: View {
                             Button("New York (Editorial)") { fontFamily = "New York (Editorial)" }
                             Button("SF Mono (Code)") { fontFamily = "SF Mono (Code)" }
                         } label: {
-                            HStack(spacing: 4) {
-                                Text(fontFamily)
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.primary)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.secondary)
-                            }
+                            menuLabel(fontFamily, isBold: true)
                         }
                         .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
 
                     // 4. Page Size & Layout Preset
@@ -400,11 +401,26 @@ public struct StudioPageDesignView: View {
                                 Button(size.rawValue) { pageSize = size }
                             }
                         } label: {
-                            Text(pageSize.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondary)
+                            menuLabel(pageSize.rawValue)
                         }
                         .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+
+                    // 4.2 Margins Preset
+                    designRowItem(icon: "arrow.up.left.and.arrow.down.right", color: StudioTheme.luminousEmerald, title: "Margins", value: marginPreset.rawValue) {
+                        Menu {
+                            ForEach(MarginPreset.allCases, id: \.self) { preset in
+                                Button(preset.rawValue) {
+                                    marginPreset = preset
+                                    margins = preset.margins
+                                }
+                            }
+                        } label: {
+                            menuLabel(marginPreset.rawValue)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
 
                     // 4.5 Columns
@@ -414,28 +430,53 @@ public struct StudioPageDesignView: View {
                             Button("2 Columns") { columnCount = 2 }
                             Button("3 Columns") { columnCount = 3 }
                         } label: {
-                            Text("\(columnCount) Columns")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondary)
+                            menuLabel(columnCount == 1 ? "1 Column" : "\(columnCount) Columns")
                         }
                         .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
 
-                    // 4.6 Line Numbers
+                    // 4.6 Kerning & Hanging Indent
+                    designRowItem(icon: "character.cursor.ibeam", color: StudioTheme.luminousPurple, title: "Kerning", value: String(format: "%.1f pt", kern)) {
+                        Menu {
+                            Button("Tight (-0.5 pt)") { kern = -0.5 }
+                            Button("Normal (0.0 pt)") { kern = 0.0 }
+                            Button("Relaxed (+0.5 pt)") { kern = 0.5 }
+                            Button("Wide (+1.2 pt)") { kern = 1.2 }
+                        } label: {
+                            menuLabel(String(format: "%.1f pt", kern))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+
+                    designRowItem(icon: "increase.indent", color: StudioTheme.luminousPurple, title: "Hanging Indent", value: "\(Int(hangingIndent)) pt") {
+                        Menu {
+                            Button("None (0 pt)") { hangingIndent = 0 }
+                            Button("Compact (18 pt)") { hangingIndent = 18 }
+                            Button("Academic APA/MLA (36 pt)") { hangingIndent = 36 }
+                        } label: {
+                            menuLabel("\(Int(hangingIndent)) pt")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+
+                    // 4.7 Line Numbers
                     designRowItem(icon: "list.number", color: StudioTheme.luminousCyan, title: "Line Numbers", value: showLineNumbers ? "On" : "Off") {
                         Toggle("", isOn: $showLineNumbers)
                             .toggleStyle(SwitchToggleStyle(tint: StudioTheme.luminousCyan))
                             .labelsHidden()
                     }
 
-                    // 4.7 Watermark
+                    // 4.8 Watermark
                     designRowItem(icon: "drop.halffull", color: StudioTheme.luminousBlue, title: "Watermark", value: watermarkText.isEmpty ? "None" : "Set") {
-                        TextField("Text", text: $watermarkText)
+                        TextField("None", text: $watermarkText)
                             .textFieldStyle(PlainTextFieldStyle())
                             .multilineTextAlignment(.trailing)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
-                            .frame(width: 80)
+                            .frame(width: 90, alignment: .trailing)
                     }
                 }
                 .padding(10)
@@ -610,6 +651,18 @@ public struct StudioPageDesignView: View {
         }
     }
 
+    private func menuLabel(_ text: String, isBold: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            Text(text)
+                .font(.system(size: 11, weight: isBold ? .bold : .semibold))
+                .foregroundColor(isBold ? .primary : .secondary)
+                .lineLimit(1)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundColor(.secondary)
+        }
+    }
+
     private func designRowItem<Content: View>(
         icon: String,
         color: Color,
@@ -632,9 +685,10 @@ public struct StudioPageDesignView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.primary)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             trailingContent()
+                .frame(alignment: .trailing)
         }
         .padding(.vertical, 3)
     }

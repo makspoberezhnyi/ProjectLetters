@@ -132,6 +132,24 @@ DOCUMENT WRITING RULES:
 Never output raw chain-of-thought or internal brainstorming notes.
 """
 
+    public nonisolated static func launchClaudeLoginInTerminal() {
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "claude login || claude"
+        end tell
+        """
+        if let appleScript = NSAppleScript(source: script) {
+            var errorDict: NSDictionary?
+            appleScript.executeAndReturnError(&errorDict)
+            if errorDict == nil { return }
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", "Terminal"]
+        try? process.run()
+    }
+
     // MARK: - Streaming Entrypoint
     public func streamCompletion(
         prompt: String,
@@ -148,7 +166,29 @@ Never output raw chain-of-thought or internal brainstorming notes.
             try await streamGemini(key: key, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
 
         case .claudeCLI:
-            try await streamClaudeCLI(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+            do {
+                try await streamClaudeCLI(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+            } catch {
+                // Automatic fallback if a cloud API key or local Ollama is available
+                if let geminiKey = getKey(provider: .google), !geminiKey.isEmpty {
+                    try await streamGemini(key: geminiKey, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+                    return
+                }
+                if let anthropicKey = getKey(provider: .anthropic), !anthropicKey.isEmpty {
+                    try await streamAnthropic(key: anthropicKey, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+                    return
+                }
+                if let openAIKey = getKey(provider: .openAI), !openAIKey.isEmpty {
+                    try await streamOpenAI(key: openAIKey, prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+                    return
+                }
+                let ollamaModels = await fetchLocalOllamaModels()
+                if !ollamaModels.isEmpty {
+                    try await streamOllama(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
+                    return
+                }
+                throw error
+            }
 
         case .ollama:
             try await streamOllama(prompt: prompt, context: contextText, system: systemPrompt, onToken: onToken)
@@ -275,16 +315,44 @@ Never output raw chain-of-thought or internal brainstorming notes.
         try process.run()
 
         let handle = pipe.fileHandleForReading
+        var collectedLines: [String] = []
+        var detectedAuthError: String? = nil
+
         for try await line in handle.bytes.lines {
+            let lower = line.lowercased()
+            if lower.contains("failed to authenticate") || lower.contains("oauth session expired") || lower.contains("authentication_error") || lower.contains("please run `claude login`") || lower.contains("not logged in") {
+                detectedAuthError = line
+                continue
+            }
+            collectedLines.append(line)
             onToken(line + "\n")
         }
         process.waitUntilExit()
 
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        let errMsg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let lowerErr = errMsg.lowercased()
+
+        if let authErr = detectedAuthError {
+            throw NSError(
+                domain: "ClaudeCLIAuth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "\(authErr) — Click 'Re-login Claude' to refresh your session in Terminal, or add a free Gemini API key in Settings."]
+            )
+        }
+
+        if lowerErr.contains("failed to authenticate") || lowerErr.contains("oauth session expired") || lowerErr.contains("authentication_error") {
+            throw NSError(
+                domain: "ClaudeCLIAuth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "\(errMsg) — Click 'Re-login Claude' to refresh your session in Terminal, or add a free Gemini API key in Settings."]
+            )
+        }
+
         if process.terminationStatus != 0 {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errMsg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let msg = errMsg, !msg.isEmpty {
-                throw NSError(domain: "ClaudeCLI", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: msg])
+            let finalErr = !errMsg.isEmpty ? errMsg : collectedLines.joined(separator: "\n")
+            if !finalErr.isEmpty {
+                throw NSError(domain: "ClaudeCLI", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: finalErr])
             }
         }
     }

@@ -14,6 +14,7 @@ char *letters_lint_text(const char *profile_name, const char *text);
 char *letters_render_citation(const char *source_json, const char *ref_json, const char *style_name);
 uint8_t *letters_export_docx_from_markdown(const char *title, const char *text, size_t *out_len);
 uint8_t *letters_export_docx_from_json(const char *doc_json, size_t *out_len);
+char *letters_import_docx(const uint8_t *bytes_ptr, size_t bytes_len);
 
 #ifdef __cplusplus
 }

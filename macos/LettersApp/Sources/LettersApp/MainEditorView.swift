@@ -16,8 +16,6 @@ public struct MainEditorView: View {
     @StateObject private var editorController = EditorActionController()
     @StateObject private var documentController = LettersDocumentController()
     
-    @State private var activeTool: StudioTool = .select
-    @State private var activePersona: StudioPersona = .write
     @State private var selectedPage: Int = 1
     @State private var selectedText: String = ""
     @State private var selectionRange: NSRange = NSRange(location: 0, length: 0)
@@ -25,7 +23,7 @@ public struct MainEditorView: View {
     @State private var showCommandPalette: Bool = false
     @State private var lintIssues: [StyleLintMatch] = []
     @State private var toastMessage: String? = nil
-    @State private var zoomScale: Double = 1.15
+    @State private var zoomScale: Double = 1.0
     @State private var showingAddSourceSheet: Bool = false
     @State private var showingCrossReferenceSheet: Bool = false
     @State private var showingAddVideoSheet: Bool = false
@@ -33,6 +31,15 @@ public struct MainEditorView: View {
     @State private var showFindReplace: Bool = false
     @State private var showInlineAI: Bool = false
     @State private var showingSettingsSheet: Bool = false
+    @State private var hoveredCommentId: UUID? = nil
+    @State private var showingPasteSpecialSheet: Bool = false
+    @State private var selectedPasteMode: PasteSpecialMode = .matchStyle
+    @State private var textColorState: Color = Color(red: 0.10, green: 0.10, blue: 0.12)
+    @State private var highlightColorState: Color = .yellow
+    @State private var showTextColorPopover: Bool = false
+    @State private var showHighlightColorPopover: Bool = false
+    @State private var recentTextColors: [Color] = []
+    @State private var recentHighlightColors: [Color] = []
 
     // New Source form states
     @State private var newSourceTitle: String = ""
@@ -43,6 +50,7 @@ public struct MainEditorView: View {
     // Page Setup & Margins State
     @State private var showMarginGuides: Bool = true
     @State private var showCropMarks: Bool = true
+    @State private var showRuler: Bool = true
 
     // Header & Footer Configuration State
     @State private var isEditingHeaderFooter: Bool = false
@@ -66,6 +74,7 @@ public struct MainEditorView: View {
         @State private var showIslandSidebar: Bool = true
     @State private var showDocumentHistory: Bool = false
     @State private var showPageDesignInspector: Bool = false
+    @State private var showRevisionsPopover: Bool = false
 
     public init() {}
 
@@ -91,7 +100,10 @@ public struct MainEditorView: View {
 
     // Dynamic Document Page Slicing (Continuous flow across physical sheets + explicit pagebreaks)
     private var documentPageSlices: [DocumentPageSlice] {
-        DocumentPaginator.paginate(
+        let bannerReduction: CGFloat = documentController.coverBanner.isEnabled
+            ? max(0, (16 + CGFloat(documentController.coverBanner.height) + 24) - documentController.margins.top)
+            : 0
+        return DocumentPaginator.paginate(
             rawText: documentController.rawText,
             richTextData: documentController.richTextData,
             sheetHeight: currentSheetHeight,
@@ -107,7 +119,11 @@ public struct MainEditorView: View {
             columnCount: documentController.columnCount,
             columnGap: 24.0,
             footnotes: documentController.footnotes,
-            sideNotes: documentController.sideNotes
+            sideNotes: documentController.sideNotes,
+            tables: documentController.tables,
+            images: documentController.images,
+            videos: documentController.videos,
+            firstPageBannerHeight: bannerReduction
         )
     }
 
@@ -145,13 +161,6 @@ public struct MainEditorView: View {
     }
 
     private func setColumnText(columnIndex: Int, newText: String) {
-        if let activeSize = editorController.currentSelectionAttributes()?.fontSize,
-           activeSize > 0,
-           abs(activeSize - documentController.fontSize) > 0.5,
-           !documentController.rawText.contains("# ") {
-            documentController.fontSize = activeSize
-        }
-
         let oldPageCount = documentPageSlices.count
         let slices = documentPageSlices
         guard columnIndex < slices.count else {
@@ -177,14 +186,29 @@ public struct MainEditorView: View {
         }
     }
 
+    private func shortFontDisplayName(_ rawName: String) -> String {
+        if rawName.contains("Georgia") { return "Georgia" }
+        if rawName.contains("New York") { return "New York" }
+        if rawName.contains("Times") { return "Times New Roman" }
+        if rawName.contains("Menlo") { return "Menlo" }
+        if rawName.contains("SF Pro") || rawName.contains("Sans") { return "SF Pro" }
+        if let parenIndex = rawName.firstIndex(of: "(") {
+            let prefix = rawName[..<parenIndex].trimmingCharacters(in: .whitespaces)
+            if !prefix.isEmpty && prefix != "Default Serif" {
+                return prefix
+            }
+        }
+        return rawName
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
             Group {
                 Button("") { documentController.undo() }.keyboardShortcut("z", modifiers: .command).hidden()
                 Button("") { documentController.redo() }.keyboardShortcut("Z", modifiers: [.command, .shift]).hidden()
             }
-            // 1. Sleek Minimalist Glass Top Navigation Bar
-            HStack(spacing: 16) {
+            // 1. Sleek Minimalist Glass Top Navigation Bar (Responsive across window widths)
+            HStack(spacing: 10) {
                 // Left Island Sidebar Toggle Button
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
@@ -194,80 +218,266 @@ public struct MainEditorView: View {
                     Image(systemName: "sidebar.left")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(showIslandSidebar ? .accentColor : .primary.opacity(0.75))
-                        .frame(width: 32, height: 32)
+                        .frame(width: 30, height: 30)
                         .background(showIslandSidebar ? Color.accentColor.opacity(0.15) : Color.clear)
-                        .cornerRadius(8)
+                        .cornerRadius(7)
                         .symbolEffect(.bounce, value: showIslandSidebar)
                 }
                 .buttonStyle(.plain)
+                .fixedSize()
                 .help("Toggle Instruments Toolbar (⌥⌘1)")
 
-                // Document Title
-                HStack(spacing: 8) {
+                // Document Title & Live Autosave Status Badge
+                HStack(spacing: 6) {
                     Image(systemName: "doc.text.fill")
                         .foregroundColor(.accentColor)
-                        .font(.system(size: 16))
+                        .font(.system(size: 15))
 
                     TextField("Document Title", text: $documentController.title)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(minWidth: 140, maxWidth: 220)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .frame(minWidth: 70, idealWidth: 135, maxWidth: 185)
+
+                    if documentController.isDirty {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 6, height: 6)
+                            .help("Edited — Autosaving in background")
+                    } else if documentController.lastAutosaveDate != nil || documentController.currentFileURL != nil {
+                        Image(systemName: "checkmark.icloud.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.green.opacity(0.85))
+                            .help("All changes saved")
+                    }
                 }
+                .layoutPriority(-1)
                 
-                Divider().frame(height: 20)
+                Divider().frame(height: 18)
 
                 // Word-Style Font Formatting Controls
-                HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    // Paragraph Style Preset Picker (Title, Heading 1-3, Body, Blockquote, Caption)
+                    Menu {
+                        ForEach(DocumentParagraphStyle.allCases) { preset in
+                            Button {
+                                applyParagraphStyleAction(preset)
+                            } label: {
+                                if (selectionAttributes?.paragraphStylePreset ?? .body) == preset {
+                                    Label("\(preset.rawValue) (\(Int(preset.fontSize)) pt)", systemImage: "checkmark")
+                                } else {
+                                    Text("\(preset.rawValue) (\(Int(preset.fontSize)) pt)")
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text((selectionAttributes?.paragraphStylePreset ?? .body).rawValue)
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                                .frame(minWidth: 54, maxWidth: 82, alignment: .leading)
+                            Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                        }
+                        .padding(.horizontal, 8)
+                        .frame(height: 30)
+                        .background(Color.accentColor.opacity(0.10))
+                        .cornerRadius(7)
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help("Paragraph Style (Title, Heading 1–3, Body, Blockquote, Caption)")
+
                     // Font Family
                     Menu {
                         ForEach(["System", "Georgia", "Helvetica Neue", "Times New Roman", "Menlo", "Courier New", "Avenir Next", "Baskerville", "Palatino", "Charter"], id: \.self) { fam in
                             Button(fam) { setFontFamilyAction(fam) }
                         }
                     } label: {
-                        HStack {
-                            Text(selectionAttributes?.fontFamily ?? documentController.fontFamily)
-                                .font(.system(size: 13, weight: .medium))
-                                .frame(width: 100, alignment: .leading)
-                            Image(systemName: "chevron.down").font(.system(size: 10))
+                        HStack(spacing: 4) {
+                            Text(shortFontDisplayName(selectionAttributes?.fontFamily ?? documentController.fontFamily))
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(minWidth: 64, maxWidth: 105, alignment: .leading)
+                            Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
                         }
-                        .padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(Color.primary.opacity(0.06)).cornerRadius(6)
+                        .padding(.horizontal, 8)
+                        .frame(height: 30)
+                        .background(Color.primary.opacity(0.06))
+                        .cornerRadius(7)
                     }
                     .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
                     
                     // Font Size
                     HStack(spacing: 2) {
                         Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? documentController.fontSize) - 1) }) {
                             Image(systemName: "minus")
-                        }.frame(width: 24, height: 26).background(Color.primary.opacity(0.06)).cornerRadius(4)
+                                .font(.system(size: 10, weight: .bold))
+                                .frame(width: 22, height: 30)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(5)
+                        }
                         
                         Text("\(Int(selectionAttributes?.fontSize ?? documentController.fontSize))")
-                            .font(.system(size: 13, weight: .medium))
-                            .frame(width: 28, alignment: .center)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                            .frame(width: 24, alignment: .center)
                             
                         Button(action: { setFontSizeAction((selectionAttributes?.fontSize ?? documentController.fontSize) + 1) }) {
                             Image(systemName: "plus")
-                        }.frame(width: 24, height: 26).background(Color.primary.opacity(0.06)).cornerRadius(4)
-                    }.buttonStyle(.plain)
+                                .font(.system(size: 10, weight: .bold))
+                                .frame(width: 22, height: 30)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(5)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize()
                     
                     Divider().frame(height: 16)
                     
                     // Bold, Italic, Underline
-                    Button(action: { toggleBoldAction() }) {
-                        Image(systemName: "b.square")
-                            .font(.system(size: 15, weight: (selectionAttributes?.isBold ?? isBold) ? .bold : .regular))
-                            .foregroundColor((selectionAttributes?.isBold ?? isBold) ? .accentColor : .primary)
-                    }.buttonStyle(.plain)
-                    Button(action: { toggleItalicAction() }) {
-                        Image(systemName: "i.square")
-                            .font(.system(size: 15, weight: (selectionAttributes?.isItalic ?? isItalic) ? .bold : .regular))
-                            .foregroundColor((selectionAttributes?.isItalic ?? isItalic) ? .accentColor : .primary)
-                    }.buttonStyle(.plain)
-                    Button(action: { toggleUnderlineAction() }) {
-                        Image(systemName: "u.square")
-                            .font(.system(size: 15, weight: (selectionAttributes?.isUnderline ?? isUnderline) ? .bold : .regular))
-                            .foregroundColor((selectionAttributes?.isUnderline ?? isUnderline) ? .accentColor : .primary)
-                    }.buttonStyle(.plain)
+                    HStack(spacing: 4) {
+                        Button(action: { toggleBoldAction() }) {
+                            Image(systemName: "bold")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor((selectionAttributes?.isBold ?? isBold) ? .accentColor : .primary)
+                                .frame(width: 30, height: 30)
+                                .background((selectionAttributes?.isBold ?? isBold) ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Bold (⌘B)")
+
+                        Button(action: { toggleItalicAction() }) {
+                            Image(systemName: "italic")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor((selectionAttributes?.isItalic ?? isItalic) ? .accentColor : .primary)
+                                .frame(width: 30, height: 30)
+                                .background((selectionAttributes?.isItalic ?? isItalic) ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Italic (⌘I)")
+
+                        Button(action: { toggleUnderlineAction() }) {
+                            Image(systemName: "underline")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor((selectionAttributes?.isUnderline ?? isUnderline) ? .accentColor : .primary)
+                                .frame(width: 30, height: 30)
+                                .background((selectionAttributes?.isUnderline ?? isUnderline) ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Underline (⌘U)")
+
+                        // Text Color Palette (Word Style Theme Grid + Native ColorPicker)
+                        Button(action: { showTextColorPopover.toggle() }) {
+                            VStack(spacing: 2) {
+                                Image(systemName: "paintpalette")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.primary)
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(textColorState)
+                                    .frame(width: 14, height: 3)
+                                    .overlay(RoundedRectangle(cornerRadius: 1).stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
+                            }
+                            .frame(width: 30, height: 30)
+                            .background(Color.primary.opacity(0.06))
+                            .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Text Color & Palette (Word-Style)")
+                        .popover(isPresented: $showTextColorPopover, arrowEdge: .bottom) {
+                            WordStyleColorPaletteView(
+                                title: "Text Color",
+                                selectedColor: $textColorState,
+                                isHighlight: false,
+                                allowNoColor: true,
+                                clearTitle: "Default Color",
+                                onSelectColor: { newColor in
+                                    textColorState = newColor
+                                    setTextColorAction(NSColor(newColor))
+                                },
+                                onClearColor: {
+                                    let defaultColor = Color(red: 0.10, green: 0.10, blue: 0.12)
+                                    textColorState = defaultColor
+                                    setTextColorAction(NSColor(defaultColor))
+                                    showTextColorPopover = false
+                                },
+                                onDismiss: {
+                                    showTextColorPopover = false
+                                }
+                            )
+                        }
+
+                        // Text Highlight (Word Style Theme Grid + Native ColorPicker)
+                        Button(action: { showHighlightColorPopover.toggle() }) {
+                            VStack(spacing: 2) {
+                                Image(systemName: "highlighter")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.primary)
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(highlightColorState)
+                                    .frame(width: 14, height: 3)
+                                    .overlay(RoundedRectangle(cornerRadius: 1).stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
+                            }
+                            .frame(width: 30, height: 30)
+                            .background(Color.primary.opacity(0.06))
+                            .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Text Highlight & Palette (Word-Style)")
+                        .popover(isPresented: $showHighlightColorPopover, arrowEdge: .bottom) {
+                            WordStyleColorPaletteView(
+                                title: "Highlight Color",
+                                selectedColor: $highlightColorState,
+                                isHighlight: true,
+                                allowNoColor: true,
+                                clearTitle: "No Highlight",
+                                onSelectColor: { newColor in
+                                    highlightColorState = newColor
+                                    setTextHighlightAction(NSColor(newColor).withAlphaComponent(0.42))
+                                },
+                                onClearColor: {
+                                    setTextHighlightAction(nil)
+                                    showHighlightColorPopover = false
+                                },
+                                onDismiss: {
+                                    showHighlightColorPopover = false
+                                }
+                            )
+                        }
+
+                        // Clear Formatting
+                        Button(action: { clearFormattingAction() }) {
+                            Image(systemName: "eraser")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.primary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear Formatting (Reset text to default black)")
+
+                        // Clean Contrast / Adapt Text
+                        Button(action: {
+                            editorController.cleanContrastForCurrentSelection()
+                            showToast("✓ Cleaned text contrast (dark mode sanitized)")
+                        }) {
+                            Image(systemName: "sun.max")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.primary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clean Contrast (Convert white/invisible text to dark charcoal)")
+                    }
+                    .fixedSize()
                     
                     Divider().frame(height: 16)
                     
@@ -280,17 +490,100 @@ public struct MainEditorView: View {
                         let align = selectionAttributes?.alignment ?? documentController.textAlignment
                         let alignIcon = align == .leading ? "text.alignleft" : (align == .center ? "text.aligncenter" : "text.alignright")
                         Image(systemName: alignIcon)
-                            .font(.system(size: 15))
-                            .padding(6)
-                            .background(Color.primary.opacity(0.06)).cornerRadius(6)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 30, height: 30)
+                            .background(Color.primary.opacity(0.06))
+                            .cornerRadius(7)
                     }
                     .buttonStyle(.plain)
-                }
+                    .fixedSize()
+                    .help("Text Alignment")
 
-                Spacer()
+                    // Smart Bulleted & Numbered Lists
+                    HStack(spacing: 3) {
+                        Button(action: { insertBulletListAction() }) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.primary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Toggle Bulleted List (⇧⌘8)")
+
+                        Button(action: { insertNumberedListAction() }) {
+                            Image(systemName: "list.number")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.primary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.primary.opacity(0.06))
+                                .cornerRadius(7)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Toggle Numbered List (⇧⌘7)")
+                    }
+                    .fixedSize()
+
+                    // Line & Paragraph Spacing
+                    Menu {
+                        ForEach([
+                            (1.0, "1.0 (Single)"),
+                            (1.15, "1.15 (Standard)"),
+                            (1.25, "1.25 (Relaxed)"),
+                            (1.5, "1.5 (1.5x)"),
+                            (2.0, "2.0 (Double)")
+                        ], id: \.0) { val, label in
+                            Button {
+                                setLineSpacingAction(CGFloat(val))
+                            } label: {
+                                if abs(documentController.lineSpacing - CGFloat(val)) < 0.02 {
+                                    Label(label, systemImage: "checkmark")
+                                } else {
+                                    Text(label)
+                                }
+                            }
+                        }
+                        Divider()
+                        ForEach([
+                            (12.0, "Add Space After Paragraph (12 pt)"),
+                            (6.0, "Compact Space After Paragraph (6 pt)"),
+                            (0.0, "Remove Space After Paragraph (0 pt)")
+                        ], id: \.0) { val, label in
+                            Button {
+                                setParagraphSpacingAction(CGFloat(val))
+                            } label: {
+                                if abs(documentController.paragraphSpacing - CGFloat(val)) < 0.5 {
+                                    Label(label, systemImage: "checkmark")
+                                } else {
+                                    Text(label)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.and.down.text.horizontal")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("\(String(format: "%.2g", documentController.lineSpacing)) · \(Int(documentController.paragraphSpacing))pt")
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 8)
+                        .frame(height: 30)
+                        .background(Color.primary.opacity(0.06))
+                        .cornerRadius(7)
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help("Line Spacing (\(String(format: "%.2g", documentController.lineSpacing))) & Paragraph Spacing (\(Int(documentController.paragraphSpacing)) pt)")
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 4)
 
                 // Quick Action Center (AI, Timeline, Command)
-                HStack(spacing: 12) {
+                HStack(spacing: 6) {
                     // Timeline
                     Button(action: {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -300,18 +593,18 @@ public struct MainEditorView: View {
                         Image(systemName: showDocumentHistory ? "chart.bar.doc.horizontal.fill" : "chart.bar.doc.horizontal")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(showDocumentHistory ? StudioTheme.luminousCyan : .primary)
-                            .padding(8)
+                            .frame(width: 30, height: 30)
                             .background(showDocumentHistory ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
-                            .cornerRadius(8)
+                            .cornerRadius(7)
                             .symbolEffect(.bounce, value: showDocumentHistory)
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                     .help("Toggle Reading Flow Timeline (⌥⌘T)")
                     
                     // Insert Pull Quote
                     Button(action: {
                         let newId = UUID()
-                        // Find the current page to insert the pull quote on (default to 0 for simplicity, or we can use editorController.activePageIndex if we exposed it, let's just use 0)
                         let newElement = StudioFloatingElement(
                             id: newId,
                             text: "“Design is not just what it looks like and feels like. Design is how it works.”",
@@ -323,16 +616,82 @@ public struct MainEditorView: View {
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "quote.bubble.fill")
+                                .font(.system(size: 12, weight: .medium))
                             Text("Quote")
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
                         }
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 8)
+                        .frame(height: 30)
                         .background(Color.primary.opacity(0.06))
-                        .cornerRadius(8)
+                        .cornerRadius(7)
                     }
                     .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
                     
+                    // Page Design & 3D Theme Inspector Button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showPageDesignInspector.toggle()
+                            if showPageDesignInspector {
+                                showAIDrawer = false
+                                showDocumentHistory = false
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Design")
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 9)
+                        .frame(height: 30)
+                        .background(showPageDesignInspector ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
+                        .foregroundColor(showPageDesignInspector ? .accentColor : .primary)
+                        .cornerRadius(7)
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help("Toggle Page Design & 3D Theme Inspector (⌥⌘D)")
+
+                    // Review Mode / Track Changes Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            documentController.isTrackChangesEnabled.toggle()
+                        }
+                        showToast(documentController.isTrackChangesEnabled ? "✓ Track Changes: ON" : "✓ Track Changes: OFF")
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "pencil.and.outline")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Review")
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                            if !documentController.revisions.isEmpty {
+                                Text("\(documentController.revisions.count)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.orange))
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .frame(height: 30)
+                        .background(documentController.isTrackChangesEnabled ? Color.orange.opacity(0.18) : Color.primary.opacity(0.06))
+                        .foregroundColor(documentController.isTrackChangesEnabled ? .orange : .primary)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7)
+                                .stroke(documentController.isTrackChangesEnabled ? Color.orange.opacity(0.4) : Color.clear, lineWidth: 1)
+                        )
+                        .cornerRadius(7)
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .help("Toggle Track Changes & Review Mode (⌥⌘K)")
+
                     Divider().frame(height: 16)
                     
                     // AI Copilot Toggle
@@ -341,19 +700,21 @@ public struct MainEditorView: View {
                             showAIDrawer.toggle()
                         }
                     }) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 4) {
                             Image(systemName: "sparkles")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                             Text("Copilot")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 9)
+                        .frame(height: 30)
                         .background(showAIDrawer ? StudioTheme.luminousPurple.opacity(0.2) : Color.primary.opacity(0.06))
                         .foregroundColor(showAIDrawer ? StudioTheme.luminousPurple : .primary)
-                        .cornerRadius(8)
+                        .cornerRadius(7)
                     }
                     .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
                     
                     // Command Center Button
                     Button(action: { showCommandPalette.toggle() }) {
@@ -364,10 +725,11 @@ public struct MainEditorView: View {
                             .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                 }
+                .layoutPriority(1)
             }
-
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(StudioTheme.panelBackground)
             .overlay(
@@ -377,11 +739,18 @@ public struct MainEditorView: View {
                 alignment: .bottom
             )
 
+            // Review Toolbar Strip (Track Changes Active or Pending Revisions)
+            if documentController.isTrackChangesEnabled || !documentController.revisions.isEmpty {
+                reviewToolbarStrip
+            }
+
             // 2. Wide Main Workspace Canvas with Floating Islands & Timeline
             HStack(spacing: 0) {
                 // Center Canvas & Multi-Page Viewport
                 GeometryReader { geometry in
                     ZStack(alignment: .topLeading) {
+                        let rawMinW = max(geometry.size.width, currentSheetWidth * zoomScale + 120)
+                        let alignedMinW = (Int(floor(rawMinW)) % 2 == 0) ? floor(rawMinW) : floor(rawMinW) + 1
                         ScrollView([.vertical, .horizontal]) {
                             VStack(spacing: 36) {
 
@@ -392,38 +761,63 @@ public struct MainEditorView: View {
                             }
                             .padding(.top, 28)
                             .padding(.bottom, 120)
-                            .frame(minWidth: max(geometry.size.width, currentSheetWidth * zoomScale + 120), alignment: .center)
+                            .frame(minWidth: alignedMinW, alignment: .center)
                         }
                         .background(StudioTheme.canvasBackground)
 
                         // Floating Left Island Sidebar Overlay
-                        if showIslandSidebar {
-                            VStack {
-                                StudioFloatingSidebar(
-                                    isPresented: $showIslandSidebar,
-                                    rawText: $documentController.rawText,
-                                    documentPages: documentPages,
-                                    selectedPage: $selectedPage,
-                                    sources: $documentController.document.sources,
-                                    tables: $documentController.tables,
-                                    images: $documentController.images,
-                                    videos: $documentController.videos,
-                                    showAIDrawer: $showAIDrawer,
-                                    showCommandPalette: $showCommandPalette,
-                                    showPageDesignInspector: $showPageDesignInspector,
-                                    onInsertSection: { handleToolAction(.text) },
-                                    onInsertTable: { handleToolAction(.table) },
-                                    onInsertImage: { handleToolAction(.image) },
-                                    onAddSource: { showingAddSourceSheet = true },
-                                    onInsertPageBreak: { insertPageBreakAction() },
-                                    onTogglePageDesign: { showPageDesignInspector.toggle() },
-                                    onToast: { msg in showToast(msg) }
-                                )
-                                Spacer()
+                        if showIslandSidebar || showOutlineDrawer {
+                            HStack(alignment: .top, spacing: 12) {
+                                if showIslandSidebar {
+                                    StudioFloatingSidebar(
+                                        isPresented: $showIslandSidebar,
+                                        rawText: $documentController.rawText,
+                                        documentPages: documentPages,
+                                        selectedPage: $selectedPage,
+                                        sources: $documentController.document.sources,
+                                        tables: $documentController.tables,
+                                        images: $documentController.images,
+                                        videos: $documentController.videos,
+                                        showAIDrawer: $showAIDrawer,
+                                        showCommandPalette: $showCommandPalette,
+                                        showPageDesignInspector: $showPageDesignInspector,
+                                        onInsertSection: { handleToolAction(.text) },
+                                        onInsertTable: { handleToolAction(.table) },
+                                        onInsertImage: { handleToolAction(.image) },
+                                        onAddSource: { showingAddSourceSheet = true },
+                                        onInsertPageBreak: { insertPageBreakAction() },
+                                        onTogglePageDesign: { showPageDesignInspector.toggle() },
+                                        onToggleOutline: {
+                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                                showOutlineDrawer.toggle()
+                                            }
+                                        },
+                                        onToast: { msg in showToast(msg) }
+                                    )
+                                }
+
+                                if showOutlineDrawer {
+                                    DocumentOutlineView(
+                                        isPresented: $showOutlineDrawer,
+                                        rawText: documentController.rawText,
+                                        pageSlices: documentPageSlices,
+                                        columnCount: documentController.columnCount,
+                                        sources: $documentController.document.sources,
+                                        activeCitationStyle: $documentController.citationStyle,
+                                        onSelectHeading: { colIdx, offset in
+                                            editorController.focusPage(colIdx, at: offset)
+                                        },
+                                        onSelectPage: { colIdx in
+                                            editorController.focusPage(colIdx, at: 0)
+                                        }
+                                    )
+                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                                }
                             }
                             .padding(.leading, 16)
                             .padding(.top, 16)
                             .padding(.bottom, 16)
+                            .zIndex(10)
                         }
 
                         // Floating Right Document Timeline Overlay
@@ -457,102 +851,6 @@ public struct MainEditorView: View {
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             .zIndex(20)
                         }
-
-                        // 4. Inline AI Canvas Editor (shows when text selected, no format buttons since they are in top bar)
-                        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isEditingHeaderFooter {
-                            VStack {
-                                Spacer()
-                                if showInlineAI {
-                                    InlineAICanvasEditorView(
-                                        selectedText: selectedText,
-                                        fullDocumentContext: documentController.rawText,
-                                        onAccept: { newText in
-                                            replaceSelection(with: newText)
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                showInlineAI = false
-                                            }
-                                        },
-                                        onInsertBelow: { newText in
-                                            insertBelowSelection(newText: newText)
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                showInlineAI = false
-                                            }
-                                        },
-                                        onDismiss: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                showInlineAI = false
-                                            }
-                                        }
-                                    )
-                                    .padding(.bottom, 74)
-                                    .transition(.asymmetric(
-                                        insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 12)),
-                                        removal: .opacity.combined(with: .scale(scale: 0.96))
-                                    ))
-                                }
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                            .zIndex(20)
-                        }
-
-                        // 5. Floating Find & Replace Bar Overlay
-                        if showFindReplace {
-                            VStack {
-                                Spacer()
-                                FindReplaceBar(
-                                    isPresented: $showFindReplace,
-                                    rawText: $documentController.rawText,
-                                    onToast: { msg in showToast(msg) }
-                                )
-                                .padding(.bottom, 80)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .zIndex(18)
-                        }
-
-                        // Bottom Edge Hover Detection Strip (triggers bottom bar reveal)
-                        VStack {
-                            Spacer()
-                            Rectangle()
-                                .fill(Color.clear)
-                                .frame(height: 64)
-                                .contentShape(Rectangle())
-                                .onHover { hovered in
-                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                        isBottomBarHovered = hovered
-                                    }
-                                }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .zIndex(12)
-
-                        // Floating Studio Bottom Bar (Stats, Citations, Scale, AI) - Auto-hides when pointer is not at the bottom
-                        VStack {
-                            Spacer()
-                            StudioFloatingBottomBar(
-                                wordCount: wordCount,
-                                characterCount: characterCount,
-                                readingTimeMinutes: readingTimeMinutes,
-                                citationStyle: $documentController.citationStyle,
-                                zoomScale: $zoomScale,
-                                showAIDrawer: $showAIDrawer,
-                                onToast: { msg in showToast(msg) }
-                            )
-                            .padding(.bottom, 20)
-                            .opacity(isBottomBarHovered ? 1.0 : 0.0)
-                            .offset(y: isBottomBarHovered ? 0 : 25)
-                            .scaleEffect(isBottomBarHovered ? 1.0 : 0.96)
-                            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isBottomBarHovered)
-                            .onHover { hovered in
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                    isBottomBarHovered = hovered
-                                }
-                            }
-                            .allowsHitTesting(isBottomBarHovered)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .zIndex(14)
 
                         // Floating Right AI Copilot Companion Island
                         if showAIDrawer {
@@ -618,34 +916,93 @@ public struct MainEditorView: View {
                             .zIndex(15)
                         }
 
-                        
-                        // Floating Toast Notification
-                        if let msg = toastMessage {
-                            VStack {
-                                Spacer()
+                        // 4. Unified Bottom Floating Stack (Toast, Selection Menu / Inline AI, Find & Replace — never overlaps!)
+                        VStack(spacing: 10) {
+                            Spacer()
+
+                            if let msg = toastMessage {
                                 HStack(spacing: 8) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.green)
                                     Text(msg)
                                         .font(.subheadline.bold())
                                 }
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
                                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                                         .stroke(Color.green.opacity(0.3), lineWidth: 1)
                                 )
-                                .shadow(color: Color.black.opacity(0.2), radius: 14, x: 0, y: 6)
-                                .padding(.bottom, 72)
+                                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 5)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .zIndex(25)
+
+                            if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isEditingHeaderFooter && !showFindReplace {
+                                if showInlineAI {
+                                    InlineAICanvasEditorView(
+                                        selectedText: selectedText,
+                                        fullDocumentContext: documentController.rawText,
+                                        onAccept: { newText in
+                                            replaceSelection(with: newText)
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                showInlineAI = false
+                                            }
+                                        },
+                                        onInsertBelow: { newText in
+                                            insertBelowSelection(newText: newText)
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                showInlineAI = false
+                                            }
+                                        },
+                                        onDismiss: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                showInlineAI = false
+                                            }
+                                        }
+                                    )
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 12)),
+                                        removal: .opacity.combined(with: .scale(scale: 0.96))
+                                    ))
+                                } else {
+                                    floatingSelectionActionMenu
+                                        .transition(.asymmetric(
+                                            insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 10)),
+                                            removal: .opacity.combined(with: .scale(scale: 0.96))
+                                        ))
+                                }
+                            }
+
+                            if showFindReplace {
+                                FindReplaceBar(
+                                    isPresented: $showFindReplace,
+                                    rawText: $documentController.rawText,
+                                    onToast: { msg in showToast(msg) }
+                                )
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
                         }
+                        .padding(.bottom, 16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .zIndex(25)
                     }
                 }
             }
+
+            // 3. Docked App Footer (Stats, Style Linter, Citation Standard, Zoom, AI Copilot)
+            StudioFloatingBottomBar(
+                wordCount: wordCount,
+                characterCount: characterCount,
+                readingTimeMinutes: readingTimeMinutes,
+                citationStyle: $documentController.citationStyle,
+                zoomScale: $zoomScale,
+                showAIDrawer: $showAIDrawer,
+                styleProfile: $documentController.styleProfile,
+                lintIssues: lintIssues,
+                onApplyLintFix: { issue in applyLintFix(issue) },
+                onToast: { msg in showToast(msg) }
+            )
         }
         .sheet(isPresented: $showingAddSourceSheet) {
             VStack(spacing: 16) {
@@ -792,6 +1149,9 @@ public struct MainEditorView: View {
                 onToast: { msg in showToast(msg) }
             )
         }
+        .sheet(isPresented: $showingPasteSpecialSheet) {
+            pasteSpecialSheetView
+        }
         .sheet(isPresented: $showPageDesignInspector) {
             StudioPageDesignView(
                 isPresented: $showPageDesignInspector,
@@ -817,10 +1177,12 @@ public struct MainEditorView: View {
         .modifier(EditorFileNotificationsModifier(
             onNew: newDocumentAction,
             onOpen: openDocument,
+            onRestoreAutosave: restoreAutosaveAction,
             onImportWordOrPDF: importWordOrPDF,
             onSave: saveDocumentAsLetters,
             onExportDocx: saveDocumentAsDocx,
             onExportPDF: exportDocumentAsPDF,
+            onExportMarkdown: saveDocumentAsMarkdown,
             onPrint: printDocument,
             onSettings: { showingSettingsSheet = true }
         ))
@@ -835,6 +1197,10 @@ public struct MainEditorView: View {
             onImage: insertImageAction,
             onVideo: { showingAddVideoSheet = true },
             onCitation: { showingAddSourceSheet = true },
+            onFootnote: insertFootnote,
+            onSideNote: insertSideNote,
+            onTOC: insertTOCAction,
+            onBibliography: insertBibliographyAction,
             onPageBreak: insertPageBreakAction
         ))
         .modifier(EditorViewNotificationsModifier(
@@ -861,6 +1227,12 @@ public struct MainEditorView: View {
                 }
                 showToast("✓ Zoom: 100%")
             },
+            onToggleRuler: {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    showRuler.toggle()
+                }
+                showToast(showRuler ? "✓ Horizontal Ruler visible" : "✓ Horizontal Ruler hidden")
+            },
             onOutline: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     showOutlineDrawer.toggle()
@@ -871,8 +1243,39 @@ public struct MainEditorView: View {
                     showAIDrawer.toggle()
                 }
             },
+            onPageDesign: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showPageDesignInspector.toggle()
+                    if showPageDesignInspector {
+                        showAIDrawer = false
+                        showDocumentHistory = false
+                    }
+                }
+            },
+            onDocumentHistory: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showDocumentHistory.toggle()
+                    if showDocumentHistory {
+                        showAIDrawer = false
+                        showPageDesignInspector = false
+                    }
+                }
+            },
             onCommandPalette: {
                 showCommandPalette.toggle()
+            },
+            onToggleTrackChanges: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    documentController.isTrackChangesEnabled.toggle()
+                }
+                showToast(documentController.isTrackChangesEnabled ? "✓ Track Changes: ON" : "✓ Track Changes: OFF")
+            },
+            onPasteAndMatchStyle: {
+                editorController.pasteSpecial(mode: .matchStyle)
+                showToast("✓ Pasted and Matched Style")
+            },
+            onPasteSpecial: {
+                showingPasteSpecialSheet = true
             }
         ))
         .background(
@@ -957,11 +1360,6 @@ public struct MainEditorView: View {
                 }) { EmptyView() }
                     .keyboardShortcut("0", modifiers: [.command])
                 
-                // Global Command+A routing
-                Button(action: {
-                    NSApp.sendAction(#selector(NSResponder.selectAll(_:)), to: nil, from: nil)
-                }) { EmptyView() }
-                    .keyboardShortcut("a", modifiers: [.command])
             }
 
             .opacity(0)
@@ -978,6 +1376,29 @@ public struct MainEditorView: View {
             editorController.onImportFile = { url in
                 self.importFileNatively(url: url)
             }
+            editorController.onInsertImageBlock = { block in
+                self.documentController.images.append(block)
+                let marker = "\n\n[[image:\(block.id.uuidString)]]\n\n"
+                if self.selectionRange.location <= (self.documentController.rawText as NSString).length {
+                    let ns = self.documentController.rawText as NSString
+                    self.documentController.rawText = ns.replacingCharacters(in: self.selectionRange, with: marker)
+                } else {
+                    self.documentController.rawText += marker
+                }
+                self.documentController.commitSnapshot(actionName: "Insert Image", isMilestone: true)
+                self.showToast("✓ Inserted Image Figure")
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("lettersOpenFileURL"))) { note in
+            if let url = note.object as? URL {
+                openDocumentFromURL(url)
+            }
+        }
+        .onReceive(documentController.$rawText.debounce(for: .milliseconds(350), scheduler: RunLoop.main)) { _ in
+            runLinter()
+        }
+        .onChange(of: documentController.styleProfile) {
+            runLinter()
         }
     }
 
@@ -1009,17 +1430,17 @@ public struct MainEditorView: View {
             textContentStorage.addTextLayoutManager(layoutManager)
             
             let textContainer = NSTextContainer(size: NSSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
-            textContainer.lineFragmentPadding = 0 // Match Editor settings
+            textContainer.lineFragmentPadding = 4.0 // Match TextKit2EditorView settings
             layoutManager.textContainer = textContainer
             
             layoutManager.ensureLayout(for: layoutManager.documentRange)
-            return max(22, ceil(layoutManager.usageBoundsForTextContainer.height))
+            return max(24, ceil(layoutManager.usageBoundsForTextContainer.height) + 6)
         } else {
             let rect = attrStr.boundingRect(
                 with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading]
             )
-            return max(22, ceil(rect.height))
+            return max(24, ceil(rect.height) + 6)
         }
     }
 
@@ -1048,13 +1469,21 @@ public struct MainEditorView: View {
     // MARK: - Actions
     private func newDocumentAction() {
         documentController.title = "Untitled Document"
-        documentController.rawText = "Start writing your documentController.document here..."
+        documentController.rawText = ""
+        documentController.richTextData = nil
         documentController.tables = []
         documentController.images = []
         documentController.videos = []
+        documentController.floatingElements = []
+        documentController.footnotes = []
+        documentController.sideNotes = []
         documentController.document.sources = [:]
         selectionAttributes = nil
         showToast("✓ Created New Document")
+    }
+
+    private enum StudioTool {
+        case select, text, table, image, citation, style, copilot, pan
     }
 
     private func handleToolAction(_ tool: StudioTool) {
@@ -1150,19 +1579,33 @@ public struct MainEditorView: View {
         showToast("✓ Strikethrough toggled")
     }
 
-    private func insertSectionHeadingAction(level: Int = 1, customTitle: String? = nil) {
-        let title = customTitle ?? (level == 1 ? "Title" : level == 2 ? "Section Heading" : "Subsection")
-        let hashes = String(repeating: "#", count: max(1, min(6, level)))
-        let item = "\(hashes) \(title)"
-        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
-            let ns = documentController.rawText as NSString
-            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
-        } else if documentController.rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            documentController.rawText = item
-        } else {
-            documentController.rawText = documentController.rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + item
+    private func applyParagraphStyleAction(_ preset: DocumentParagraphStyle) {
+        let fam = selectionAttributes?.fontFamily ?? documentController.fontFamily
+        editorController.applyParagraphStyle(
+            preset,
+            fontFamily: fam,
+            lineSpacing: documentController.lineSpacing,
+            paragraphSpacing: documentController.paragraphSpacing
+        )
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.selectionAttributes = attrs
         }
-        showToast("✓ Inserted Heading \(level)")
+        showToast("✓ Applied Style: \(preset.rawValue)")
+    }
+
+    private func insertSectionHeadingAction(level: Int = 1, customTitle: String? = nil) {
+        if let customTitle = customTitle {
+            let hashes = String(repeating: "#", count: max(1, min(6, level)))
+            let item = "\(hashes) \(customTitle)"
+            if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+                let ns = documentController.rawText as NSString
+                documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
+            } else {
+                documentController.rawText = documentController.rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + item
+            }
+        }
+        let preset: DocumentParagraphStyle = (level == 1) ? .heading1 : (level == 2 ? .heading2 : .heading3)
+        applyParagraphStyleAction(preset)
     }
 
     private func insertChecklistAction() {
@@ -1253,29 +1696,17 @@ public struct MainEditorView: View {
     private func setParagraphSpacingAction(_ spacing: CGFloat) {
         documentController.paragraphSpacing = spacing
         editorController.applyLineSpacing(documentController.lineSpacing, paragraphSpacing: spacing)
-        showToast("✓ Paragraph Spacing: \(spacing > 0 ? "Added" : "Removed")")
+        showToast("✓ Paragraph Spacing: \(Int(spacing)) pt")
     }
 
     private func insertBulletListAction() {
-        let item = "\n• "
-        if selectionRange.location <= (documentController.rawText as NSString).length {
-            let ns = documentController.rawText as NSString
-            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
-        } else {
-            documentController.rawText += item
-        }
-        showToast("✓ Inserted Bullet Item")
+        editorController.toggleBulletList()
+        showToast("✓ Toggled Bulleted List")
     }
 
     private func insertNumberedListAction() {
-        let item = "\n1. "
-        if selectionRange.location <= (documentController.rawText as NSString).length {
-            let ns = documentController.rawText as NSString
-            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: item)
-        } else {
-            documentController.rawText += item
-        }
-        showToast("✓ Inserted Numbered List")
+        editorController.toggleNumberedList()
+        showToast("✓ Toggled Numbered List")
     }
 
     private func toggleBoldAction() {
@@ -1287,6 +1718,21 @@ public struct MainEditorView: View {
             isBold.toggle()
             showToast(isBold ? "✓ Bold enabled" : "Bold disabled")
         }
+    }
+
+    private func setTextColorAction(_ color: NSColor) {
+        editorController.setTextColor(color)
+        showToast("✓ Text color applied")
+    }
+
+    private func setTextHighlightAction(_ color: NSColor?) {
+        editorController.setTextHighlight(color)
+        showToast(color == nil ? "✓ Highlight removed" : "✓ Text highlighted")
+    }
+
+    private func clearFormattingAction() {
+        editorController.clearFormatting()
+        showToast("✓ Formatting cleared (Reset to Black)")
     }
 
     private func toggleKeepLinesTogetherAction() {
@@ -1328,14 +1774,18 @@ public struct MainEditorView: View {
     }
 
     private func setAlignmentAction(_ align: TextAlignment) {
-        documentController.textAlignment = align
+        if selectionRange.length == 0 && (documentController.rawText as NSString).length == 0 {
+            documentController.textAlignment = align
+        }
         editorController.applyAlignment(align, lineSpacing: documentController.lineSpacing, paragraphSpacing: documentController.paragraphSpacing)
+        if let attrs = editorController.currentSelectionAttributes() {
+            self.selectionAttributes = attrs
+        }
         let name = align == .leading ? "Left" : align == .center ? "Center" : "Right"
         showToast("✓ Alignment: \(name)")
     }
 
     private func setFontFamilyAction(_ font: String) {
-        documentController.fontFamily = font
         let sizeToApply = selectionAttributes?.fontSize ?? documentController.fontSize
         editorController.applyFontFamily(font, size: sizeToApply)
         if let attrs = editorController.currentSelectionAttributes() {
@@ -1345,7 +1795,6 @@ public struct MainEditorView: View {
     }
 
     private func setFontSizeAction(_ size: CGFloat) {
-        documentController.fontSize = size
         editorController.applyFontSize(size)
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1396,19 +1845,32 @@ public struct MainEditorView: View {
         let snNumber = documentController.sideNotes.count + 1
         let snId = UUID()
         let marker = "note:\(snNumber)"
-        
-        documentController.sideNotes.append(StudioSideNote(id: snId, referenceMarker: marker, text: "New Side Note"))
-        
-        let refStr = "[\(marker)]"
-        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
-            let ns = documentController.rawText as NSString
-            let replaced = ns.replacingCharacters(in: selectionRange, with: refStr)
-            documentController.rawText = replaced
-        } else {
-            documentController.rawText += refStr
+
+        // Non-destructive: extract anchor text snippet and range from selection
+        var anchorSnippet: String? = nil
+        let ns = documentController.rawText as NSString
+        let hasSelection = selectionRange.length > 0 && selectionRange.location + selectionRange.length <= ns.length
+        if hasSelection {
+            anchorSnippet = ns.substring(with: selectionRange)
         }
-        
-        documentController.commitSnapshot(actionName: "Insert Side Note", isMilestone: false)
+
+        documentController.sideNotes.append(
+            StudioSideNote(
+                id: snId,
+                referenceMarker: marker,
+                text: "Comment...",
+                anchorText: anchorSnippet,
+                rangeLocation: hasSelection ? selectionRange.location : nil,
+                rangeLength: hasSelection ? selectionRange.length : nil,
+                author: NSFullUserName().isEmpty ? "Reviewer" : NSFullUserName(),
+                createdAt: Date(),
+                isResolved: false
+            )
+        )
+
+        // Document text stays 100% clean and pristine (no ugly [note:N] injected!)
+        documentController.commitSnapshot(actionName: "Insert Margin Comment", isMilestone: false)
+        showToast("💬 Added comment on selection")
     }
 
     private func executeDirectCLICommand(_ query: String) -> Bool {
@@ -1543,13 +2005,13 @@ public struct MainEditorView: View {
     private var paletteCommands: [CommandItem] {
         [
             // === File & Document Operations ===
-            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters documentController.document archive", icon: "tray.and.arrow.down.fill", category: .file, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
+            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document archive", icon: "tray.and.arrow.down.fill", category: .file, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
                 saveDocumentAsLetters()
             },
             CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md file from disk", icon: "folder", category: .file, shortcut: "⌘O", keywords: ["open", "import", "browse", "load"]) {
                 openDocument()
             },
-            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word documentController.document", icon: "doc.fill", category: .file, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
+            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word document", icon: "doc.fill", category: .file, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
                 saveDocumentAsDocx()
             },
             CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF ready for printing", icon: "arrow.down.doc", category: .file, shortcut: "⌘⌥E", keywords: ["pdf", "vector", "export", "print"]) {
@@ -1590,7 +2052,7 @@ public struct MainEditorView: View {
             CommandItem(title: "Line Spacing: 1.0 (Single)", subtitle: "Compact single line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "single", "leading"]) {
                 setLineSpacingAction(1.0)
             },
-            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern documentController.document spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "standard", "leading"]) {
+            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern document spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "standard", "leading"]) {
                 setLineSpacingAction(1.15)
             },
             CommandItem(title: "Line Spacing: 1.5 (1.5x)", subtitle: "Academic 1.5x line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "academic", "leading"]) {
@@ -1628,7 +2090,7 @@ public struct MainEditorView: View {
             },
 
             // === Insert Structural Elements ===
-            CommandItem(title: "Insert Heading 1 (Title)", subtitle: "Top level documentController.document section title (#)", icon: "text.quote", category: .insert, shortcut: "⌘⌥1", keywords: ["h1", "title", "heading"]) {
+            CommandItem(title: "Insert Heading 1 (Title)", subtitle: "Top level document section title (#)", icon: "text.quote", category: .insert, shortcut: "⌘⌥1", keywords: ["h1", "title", "heading"]) {
                 insertSectionHeadingAction(level: 1)
             },
             CommandItem(title: "Insert Heading 2 (Section)", subtitle: "Major section heading (##)", icon: "text.quote", category: .insert, shortcut: "⌘⌥2", keywords: ["h2", "section", "heading"]) {
@@ -1670,18 +2132,18 @@ public struct MainEditorView: View {
             CommandItem(title: "Insert Table of Contents", subtitle: "Dynamic [[toc]] page reference listing", icon: "list.bullet.indent", category: .insert, keywords: ["toc", "table of contents", "outline"]) {
                 insertTOCAction()
             },
-            CommandItem(title: "Insert Page Break", subtitle: "Force documentController.document onto new page sheet", icon: "pagebreak", category: .insert, shortcut: "⌘↵", keywords: ["page", "break", "sheet"]) {
+            CommandItem(title: "Insert Page Break", subtitle: "Force document onto new page sheet", icon: "pagebreak", category: .insert, shortcut: "⌘↵", keywords: ["page", "break", "sheet"]) {
                 insertPageBreakAction()
             },
             CommandItem(title: "Insert Horizontal Divider", subtitle: "Visual separator rule (---)", icon: "divide", category: .insert, keywords: ["divider", "line", "rule", "separator"]) {
                 insertDividerAction()
             },
-            CommandItem(title: "Insert Current Date & Time", subtitle: "Stamp current timestamp into documentController.document", icon: "clock", category: .insert, keywords: ["date", "time", "stamp", "now"]) {
+            CommandItem(title: "Insert Current Date & Time", subtitle: "Stamp current timestamp into document", icon: "clock", category: .insert, keywords: ["date", "time", "stamp", "now"]) {
                 insertDateTimeAction()
             },
 
             // === Page Setup & Layout ===
-            CommandItem(title: "Page Format: A4 (210 × 297 mm)", subtitle: "International standard documentController.document size", icon: "doc", category: .layout, keywords: ["a4", "format", "size", "iso"]) {
+            CommandItem(title: "Page Format: A4 (210 × 297 mm)", subtitle: "International standard document size", icon: "doc", category: .layout, keywords: ["a4", "format", "size", "iso"]) {
                 documentController.pageSize = .a4
                 showToast("✓ Page Format: A4")
             },
@@ -1689,7 +2151,7 @@ public struct MainEditorView: View {
                 documentController.pageSize = .letter
                 showToast("✓ Page Format: US Letter")
             },
-            CommandItem(title: "Page Format: US Legal (8.5 × 14 in)", subtitle: "Extended legal documentController.document format", icon: "doc", category: .layout, keywords: ["legal", "format", "size"]) {
+            CommandItem(title: "Page Format: US Legal (8.5 × 14 in)", subtitle: "Extended legal document format", icon: "doc", category: .layout, keywords: ["legal", "format", "size"]) {
                 documentController.pageSize = .legal
                 showToast("✓ Page Format: US Legal")
             },
@@ -1697,7 +2159,7 @@ public struct MainEditorView: View {
                 documentController.pageSize = .executive
                 showToast("✓ Page Format: Executive")
             },
-            CommandItem(title: "Margins: Standard (1 inch / 72 pt)", subtitle: "Balanced standard print documentController.margins", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "standard", "1 inch"]) {
+            CommandItem(title: "Margins: Standard (1 inch / 72 pt)", subtitle: "Balanced standard print margins", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "standard", "1 inch"]) {
                 documentController.marginPreset = .normal
                 showToast("✓ Margins: Standard (72 pt)")
             },
@@ -1705,7 +2167,7 @@ public struct MainEditorView: View {
                 documentController.marginPreset = .narrow
                 showToast("✓ Margins: Narrow (36 pt)")
             },
-            CommandItem(title: "Margins: Wide (1.5 inch / 108 pt)", subtitle: "Spacious documentController.margins for annotations and notes", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "wide", "spacious"]) {
+            CommandItem(title: "Margins: Wide (1.5 inch / 108 pt)", subtitle: "Spacious margins for annotations and notes", icon: "doc.viewfinder", category: .layout, keywords: ["margin", "wide", "spacious"]) {
                 documentController.marginPreset = .wide
                 showToast("✓ Margins: Wide (108 pt)")
             },
@@ -1735,7 +2197,7 @@ public struct MainEditorView: View {
                     isEditingHeaderFooter = true
                 }
             },
-            CommandItem(title: "Toggle Different First Page", subtitle: "Suppress running headers and footers on documentController.document title cover", icon: "doc.text", category: .layout, keywords: ["first page", "cover", "title page", "suppress", "header", "footer"]) {
+            CommandItem(title: "Toggle Different First Page", subtitle: "Suppress running headers and footers on document title cover", icon: "doc.text", category: .layout, keywords: ["first page", "cover", "title page", "suppress", "header", "footer"]) {
                 documentController.headerFooter.differentFirstPage.toggle()
                 showToast(documentController.headerFooter.differentFirstPage ? "✓ Different First Page Enabled" : "Different First Page Disabled")
             },
@@ -1763,7 +2225,7 @@ public struct MainEditorView: View {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showAIDrawer = true }
                 showToast("✨ AI Copilot explaining selection")
             },
-            CommandItem(title: "AI Generate Table of Contents", subtitle: "Analyze documentController.document and build hierarchical TOC", icon: "sparkles.rectangle.stack", category: .ai, keywords: ["ai", "toc", "structure", "outline"]) {
+            CommandItem(title: "AI Generate Table of Contents", subtitle: "Analyze document and build hierarchical TOC", icon: "sparkles.rectangle.stack", category: .ai, keywords: ["ai", "toc", "structure", "outline"]) {
                 insertTOCAction()
             },
 
@@ -1859,34 +2321,35 @@ public struct MainEditorView: View {
     }
 
     private func runLinter() {
-        lintIssues = CoreBridge.shared.lint(text: documentController.rawText, profile: "academic")
+        guard documentController.styleProfile != "none" else {
+            lintIssues = []
+            return
+        }
+        lintIssues = CoreBridge.shared.lint(text: documentController.rawText, profile: documentController.styleProfile)
     }
 
     // MARK: - Native .letters / .ltt Lossless Package Save & Open
     public func saveDocumentAsLetters() {
-        let bundle = LettersDocumentBundle(
-            title: documentController.title,
-            rawText: documentController.rawText,
-            richTextData: documentController.richTextData,
-            tables: documentController.tables,
-            images: documentController.images,
-            videos: documentController.videos,
-            sources: documentController.document.sources,
-            citationStyle: documentController.citationStyle,
-            pageSizePreset: documentController.pageSize,
-            marginPreset: documentController.marginPreset,
-            margins: documentController.margins,
-            fontFamily: documentController.fontFamily,
-            fontSize: Double(documentController.fontSize),
-            lineSpacing: Double(documentController.lineSpacing),
-            paragraphSpacing: Double(documentController.paragraphSpacing),
-            headerFooter: documentController.headerFooter,
-            coverBanner: documentController.coverBanner
-        )
+        let bundle = documentController.createBundle()
 
         guard let data = try? bundle.encodeToData() else {
             showToast("⚠️ Could not encode .letters bundle")
             return
+        }
+
+        // If already associated with a .letters or .ltt file on disk, save in-place immediately
+        if let existingURL = documentController.currentFileURL {
+            let ext = existingURL.pathExtension.lowercased()
+            if ext == "letters" || ext == "ltt" {
+                do {
+                    try data.write(to: existingURL, options: .atomic)
+                    documentController.markSaved(url: existingURL)
+                    showToast("✓ Saved \(existingURL.lastPathComponent)")
+                    return
+                } catch {
+                    showToast("⚠️ Failed to save: \(error.localizedDescription)")
+                }
+            }
         }
 
         let panel = NSSavePanel()
@@ -1899,12 +2362,74 @@ public struct MainEditorView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try data.write(to: url)
+                try data.write(to: url, options: .atomic)
+                documentController.markSaved(url: url)
                 showToast("✓ Saved .letters package: \(url.lastPathComponent)")
             } catch {
                 showToast("⚠️ Failed to write file: \(error.localizedDescription)")
             }
         }
+    }
+
+    public func restoreAutosaveAction() {
+        let shadowURL = LettersDocumentController.autosaveShadowURL
+        guard FileManager.default.fileExists(atPath: shadowURL.path) else {
+            showToast("⚠️ No autosave recovery snapshot found yet")
+            return
+        }
+        do {
+            let data = try Data(contentsOf: shadowURL)
+            let bundle = try LettersDocumentBundle.decode(from: data)
+            documentController.loadBundle(bundle)
+            showToast("✓ Restored last autosave snapshot")
+        } catch {
+            showToast("⚠️ Failed to restore autosave: \(error.localizedDescription)")
+        }
+    }
+
+    private func extractImagesFromAttributedString(_ inputAttr: NSAttributedString) -> (NSAttributedString, [StudioImageBlock]) {
+        let mutable = NSMutableAttributedString(attributedString: inputAttr)
+        var extractedImages: [StudioImageBlock] = []
+        var attachmentRanges: [(NSRange, StudioImageBlock)] = []
+
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        if fullRange.length > 0 {
+            mutable.enumerateAttribute(.attachment, in: fullRange, options: []) { value, range, _ in
+                guard let attachment = value as? NSTextAttachment else { return }
+                var nsImg: NSImage? = attachment.image
+                if nsImg == nil, let fileData = attachment.fileWrapper?.regularFileContents {
+                    nsImg = NSImage(data: fileData)
+                }
+                if nsImg == nil, let contents = attachment.contents {
+                    nsImg = NSImage(data: contents)
+                }
+                guard let validImg = nsImg,
+                      let tiff = validImg.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let pngData = rep.representation(using: .png, properties: [:]) else {
+                    return
+                }
+                let base64 = pngData.base64EncodedString()
+                let block = StudioImageBlock(
+                    base64Data: base64,
+                    originalByteSize: pngData.count,
+                    compressedByteSize: pngData.count,
+                    caption: "Imported Figure \(extractedImages.count + 1)",
+                    scaleWidthPercent: 85.0,
+                    alignment: .center
+                )
+                extractedImages.append(block)
+                attachmentRanges.append((range, block))
+            }
+        }
+
+        // Replace attachment characters in reverse order with [[image:UUID]] markers
+        for (range, block) in attachmentRanges.reversed() {
+            let marker = "\n[[image:\(block.id.uuidString)]]\n"
+            mutable.replaceCharacters(in: range, with: marker)
+        }
+
+        return (mutable, extractedImages)
     }
 
     public func openDocument() {
@@ -1921,46 +2446,42 @@ public struct MainEditorView: View {
         }
 
         if panel.runModal() == .OK, let url = panel.url {
-            do {
-                let ext = url.pathExtension.lowercased()
-                if ext == "letters" || ext == "ltt" {
-                    let data = try Data(contentsOf: url)
-                    let bundle = try LettersDocumentBundle.decode(from: data)
-                    documentController.title = bundle.title
-                    documentController.rawText = bundle.rawText
-                    documentController.richTextData = bundle.richTextData
-                    documentController.tables = bundle.tables
-                    documentController.images = bundle.images
-                    documentController.videos = bundle.videos
-                    documentController.document.sources = bundle.sources
-                    documentController.citationStyle = bundle.citationStyle
-                    documentController.pageSize = bundle.pageSizePreset
-                    documentController.marginPreset = bundle.marginPreset
-                    documentController.margins = bundle.margins
-                    documentController.fontFamily = bundle.fontFamily
-                    documentController.fontSize = CGFloat(bundle.fontSize)
-                    documentController.lineSpacing = CGFloat(bundle.lineSpacing)
-                    documentController.paragraphSpacing = CGFloat(bundle.paragraphSpacing)
-                    documentController.headerFooter = bundle.headerFooter
-                    documentController.coverBanner = bundle.coverBanner
-                    showToast("✓ Opened .letters document: \(url.lastPathComponent)")
-                } else if ext == "md" || ext == "txt" {
-                    let content = try String(contentsOf: url, encoding: .utf8)
-                    documentController.title = url.deletingPathExtension().lastPathComponent
-                    documentController.rawText = content
-                    showToast("✓ Opened file: \(url.lastPathComponent)")
-                } else if ext == "docx" {
-                    let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
-                    documentController.title = url.deletingPathExtension().lastPathComponent
-                    documentController.rawText = attrStr.string
-                    if let data = try? NSKeyedArchiver.archivedData(withRootObject: attrStr, requiringSecureCoding: false) {
-                        documentController.richTextData = data
-                    }
-                    showToast("✓ Opened Word file natively: \(url.lastPathComponent)")
+            openDocumentFromURL(url)
+        }
+    }
+
+    public func openDocumentFromURL(_ url: URL) {
+        do {
+            let ext = url.pathExtension.lowercased()
+            if ext == "letters" || ext == "ltt" {
+                let data = try Data(contentsOf: url)
+                let bundle = try LettersDocumentBundle.decode(from: data)
+                documentController.loadBundle(bundle)
+                documentController.markSaved(url: url)
+                showToast("✓ Opened .letters document: \(url.lastPathComponent)")
+            } else if ext == "md" || ext == "txt" {
+                let content = try String(contentsOf: url, encoding: .utf8)
+                documentController.title = url.deletingPathExtension().lastPathComponent
+                documentController.rawText = content
+                documentController.richTextData = nil
+                documentController.markSaved(url: url)
+                showToast("✓ Opened file: \(url.lastPathComponent)")
+            } else if ext == "docx" {
+                let rawAttr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
+                let (attrStr, extractedImages) = extractImagesFromAttributedString(rawAttr)
+                documentController.title = url.deletingPathExtension().lastPathComponent
+                if !extractedImages.isEmpty {
+                    documentController.images.append(contentsOf: extractedImages)
                 }
-            } catch {
-                showToast("⚠️ Could not open document: \(error.localizedDescription)")
+                documentController.rawText = attrStr.string
+                if let data = try? NSKeyedArchiver.archivedData(withRootObject: attrStr, requiringSecureCoding: false) {
+                    documentController.richTextData = data
+                }
+                documentController.markSaved(url: url)
+                showToast("✓ Opened Word file natively: \(url.lastPathComponent)")
             }
+        } catch {
+            showToast("⚠️ Could not open document: \(error.localizedDescription)")
         }
     }
 
@@ -1983,7 +2504,11 @@ public struct MainEditorView: View {
         let ext = url.pathExtension.lowercased()
         do {
             if ext == "docx" {
-                    let attrStr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
+                    let rawAttr = try NSAttributedString(url: url, options: [.documentType: NSAttributedString.DocumentType.officeOpenXML], documentAttributes: nil)
+                    let (attrStr, extractedImages) = extractImagesFromAttributedString(rawAttr)
+                    if !extractedImages.isEmpty {
+                        documentController.images.append(contentsOf: extractedImages)
+                    }
                     
                     let text = attrStr.string
                     var finalAttrStr = attrStr
@@ -2040,19 +2565,536 @@ public struct MainEditorView: View {
         }
 
     // MARK: - Word, PDF & Print
-    public func saveDocumentAsDocx() {
-        var fullExport = documentController.rawText
-        if !documentController.tables.isEmpty {
-            fullExport += "\n\n" + documentController.tables.map { $0.toMarkdown() }.joined(separator: "\n\n")
-        }
-        if !documentController.images.isEmpty {
-            fullExport += "\n\n" + documentController.images.map { $0.toMarkdown() }.joined(separator: "\n\n")
-        }
-        if !documentController.videos.isEmpty {
-            fullExport += "\n\n" + documentController.videos.map { $0.toMarkdown() }.joined(separator: "\n\n")
+    private func buildExpandedMarkdownExport() -> String {
+        var text = documentController.rawText
+        var referencedTables = Set<UUID>()
+        var referencedImages = Set<UUID>()
+        var referencedVideos = Set<UUID>()
+
+        for (idx, table) in documentController.tables.enumerated() {
+            let marker = "[[table:\(table.id.uuidString)]]"
+            let md = "\n\n" + table.toMarkdown() + "\n\n"
+            if text.contains(marker) {
+                text = text.replacingOccurrences(of: marker, with: md)
+                referencedTables.insert(table.id)
+            } else if idx == 0 && text.contains("[[table:budget]]") {
+                text = text.replacingOccurrences(of: "[[table:budget]]", with: md)
+                referencedTables.insert(table.id)
+            }
         }
 
-        guard let docxData = CoreBridge.shared.exportDocx(title: documentController.title, text: fullExport) else {
+        for image in documentController.images {
+            let marker = "[[image:\(image.id.uuidString)]]"
+            if text.contains(marker) {
+                text = text.replacingOccurrences(of: marker, with: "\n\n" + image.toMarkdown() + "\n\n")
+                referencedImages.insert(image.id)
+            }
+        }
+
+        for video in documentController.videos {
+            let marker = "[[video:\(video.id.uuidString)]]"
+            if text.contains(marker) {
+                text = text.replacingOccurrences(of: marker, with: "\n\n" + video.toMarkdown() + "\n\n")
+                referencedVideos.insert(video.id)
+            }
+        }
+
+        if text.contains("[[toc]]") {
+            var tocLines: [String] = ["## Table of Contents"]
+            let regex = EditorPerformanceCache.shared.tocHeadingRegex
+            for (sliceIdx, slice) in documentPageSlices.enumerated() {
+                let pageNum = (sliceIdx / max(1, documentController.columnCount)) + 1
+                for line in slice.text.components(separatedBy: .newlines) {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("# ") {
+                        tocLines.append("- **\(trimmed.dropFirst(2))** (p. \(pageNum))")
+                    } else if trimmed.hasPrefix("## ") {
+                        tocLines.append("  - \(trimmed.dropFirst(3)) (p. \(pageNum))")
+                    } else if trimmed.hasPrefix("### ") {
+                        tocLines.append("    - \(trimmed.dropFirst(4)) (p. \(pageNum))")
+                    } else {
+                        let ns = trimmed as NSString
+                        if let m = regex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: ns.length)), m.range.location != NSNotFound {
+                            tocLines.append("- \(trimmed) (p. \(pageNum))")
+                        }
+                    }
+                }
+            }
+            text = text.replacingOccurrences(of: "[[toc]]", with: "\n\n" + tocLines.joined(separator: "\n") + "\n\n")
+        }
+
+        if text.contains("[[bibliography]]") {
+            let sortedSources = documentController.document.sources.values.sorted {
+                ($0.authors.first ?? $0.title).localizedCaseInsensitiveCompare($1.authors.first ?? $1.title) == .orderedAscending
+            }
+            var bibLines: [String] = ["## References"]
+            for source in sortedSources {
+                let authors = (source.authors.isEmpty ? [source.title] : source.authors).joined(separator: ", ")
+                let yearStr = source.year.map { String($0) } ?? "n.d."
+                bibLines.append("- \(authors) (\(yearStr)). *\(source.title)*. [\(source.sourceType.rawValue.capitalized)].")
+            }
+            text = text.replacingOccurrences(of: "[[bibliography]]", with: "\n\n" + bibLines.joined(separator: "\n") + "\n\n")
+        }
+
+        text = text.replacingOccurrences(of: "---pagebreak---", with: "\n\n---\n\n")
+
+        let unrefTables = documentController.tables.filter { !referencedTables.contains($0.id) }
+        if !unrefTables.isEmpty {
+            text += "\n\n" + unrefTables.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        let unrefImages = documentController.images.filter { !referencedImages.contains($0.id) }
+        if !unrefImages.isEmpty {
+            text += "\n\n" + unrefImages.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        let unrefVideos = documentController.videos.filter { !referencedVideos.contains($0.id) }
+        if !unrefVideos.isEmpty {
+            text += "\n\n" + unrefVideos.map { $0.toMarkdown() }.joined(separator: "\n\n")
+        }
+        if !documentController.footnotes.isEmpty {
+            var fnLines: [String] = ["### Footnotes"]
+            for fn in documentController.footnotes {
+                fnLines.append("[\(fn.referenceMarker)] \(fn.text)")
+            }
+            text += "\n\n" + fnLines.joined(separator: "\n")
+        }
+
+        return text
+    }
+
+    @ViewBuilder
+    private func printableSheetExportView(pageIndex: Int) -> some View {
+        let cols = max(1, documentController.columnCount)
+        let gap: CGFloat = 24.0
+        let totalPrintableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        let availableWidthForColumns = totalPrintableWidth - (CGFloat(cols - 1) * gap)
+        let columnWidth = max(50, availableWidthForColumns / CGFloat(cols))
+        let hasCoverBanner = (pageIndex == 0 && documentController.coverBanner.isEnabled)
+        let bannerOffset: CGFloat = hasCoverBanner ? CGFloat(documentController.coverBanner.height) + 18 : 0
+        let printableHeight = max(100, currentSheetHeight - documentController.margins.top - documentController.margins.bottom - bannerOffset)
+
+        ZStack(alignment: .topLeading) {
+            Color.white
+                .frame(width: currentSheetWidth, height: currentSheetHeight)
+
+            StudioHeaderView(
+                config: .constant(documentController.headerFooter),
+                pageIndex: pageIndex,
+                totalPages: totalPages,
+                documentTitle: documentController.title,
+                margins: documentController.margins,
+                sheetWidth: currentSheetWidth,
+                fontFamily: documentController.fontFamily,
+                isEditing: .constant(false),
+                activeTarget: .constant(.header)
+            )
+
+            if !documentController.watermarkText.isEmpty {
+                Text(documentController.watermarkText.uppercased())
+                    .font(.system(size: 140, weight: .black, design: .default))
+                    .foregroundColor(Color.gray.opacity(0.12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.2)
+                    .rotationEffect(.degrees(-45))
+                    .frame(width: currentSheetWidth, height: currentSheetHeight)
+            }
+
+            VStack(alignment: .leading, spacing: 18) {
+                if hasCoverBanner {
+                    StudioCoverBannerView(
+                        config: .constant(documentController.coverBanner),
+                        documentTitle: .constant(documentController.title),
+                        sheetWidth: totalPrintableWidth
+                    )
+                }
+
+                HStack(alignment: .top, spacing: gap) {
+                    ForEach(0..<cols, id: \.self) { c in
+                        let colIdx = pageIndex * cols + c
+                        let colStr = colIdx < documentPageSlices.count ? documentPageSlices[colIdx].text : ""
+                        let segments = parseCanvasSegments(for: colStr, pageIndex: colIdx)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(segments) { segment in
+                                switch segment {
+                                case .text(id: _, textIndex: let textIdx, initialContent: let initialChunk):
+                                    let chunk = getTextChunk(columnIndex: colIdx, textIndex: textIdx)
+                                    let displayStr = chunk.isEmpty ? initialChunk : chunk
+                                    if !displayStr.isEmpty {
+                                        if let nsAttr = getTextChunkAttributedText(columnIndex: colIdx, textIndex: textIdx),
+                                           nsAttr.length > 0,
+                                           let swiftAttr = try? AttributedString(nsAttr, including: \.appKit) {
+                                            Text(swiftAttr)
+                                                .lineSpacing(max(0, (documentController.lineSpacing - 1.0) * documentController.fontSize))
+                                                .multilineTextAlignment(documentController.textAlignment)
+                                                .frame(width: columnWidth, alignment: documentController.textAlignment == .center ? .center : (documentController.textAlignment == .trailing ? .trailing : .leading))
+                                        } else {
+                                            Text(displayStr)
+                                                .font(Font(resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)))
+                                                .foregroundColor(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                                .lineSpacing(max(0, (documentController.lineSpacing - 1.0) * documentController.fontSize))
+                                                .multilineTextAlignment(documentController.textAlignment)
+                                                .frame(width: columnWidth, alignment: documentController.textAlignment == .center ? .center : (documentController.textAlignment == .trailing ? .trailing : .leading))
+                                        }
+                                    }
+                                case .table(id: _, tableId: let tableId):
+                                    if documentController.tables.contains(where: { $0.id == tableId }) {
+                                        SmartTableView(
+                                            store: documentController,
+                                            tableId: tableId,
+                                            fontFamily: documentController.fontFamily,
+                                            onDelete: {},
+                                            onChange: {}
+                                        )
+                                    }
+                                case .image(id: _, imageId: let imageId):
+                                    if let idx = documentController.images.firstIndex(where: { $0.id == imageId }) {
+                                        StudioImageView(imageBlock: .constant(documentController.images[idx]))
+                                    }
+                                case .video(id: _, videoId: let videoId):
+                                    if let idx = documentController.videos.firstIndex(where: { $0.id == videoId }) {
+                                        StudioVideoView(videoBlock: .constant(documentController.videos[idx]))
+                                    }
+                                case .bibliography:
+                                    DynamicBibliographyView(
+                                        sources: documentController.document.sources,
+                                        activeStyle: .constant(documentController.citationStyle),
+                                        onDelete: {}
+                                    )
+                                case .tableOfContents:
+                                    DynamicTOCView(
+                                        rawText: documentController.rawText,
+                                        richTextData: documentController.richTextData,
+                                        pageSlices: documentPageSlices,
+                                        columnCount: documentController.columnCount,
+                                        onDelete: {}
+                                    )
+                                }
+                            }
+                        }
+                        .frame(width: columnWidth, height: printableHeight, alignment: .topLeading)
+                        .overlay(alignment: .bottomLeading) {
+                            if colIdx < documentPageSlices.count {
+                                let fnIds = documentPageSlices[colIdx].footnoteIds
+                                if !fnIds.isEmpty {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Divider().frame(width: 100)
+                                        ForEach(fnIds, id: \.self) { fnId in
+                                            if let fn = documentController.footnotes.first(where: { $0.id == fnId }) {
+                                                HStack(alignment: .top, spacing: 4) {
+                                                    Text(fn.referenceMarker).font(.system(size: 10, weight: .bold))
+                                                    Text(fn.text).font(.system(size: 11))
+                                                }
+                                                .foregroundColor(.black.opacity(0.8))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            if colIdx < documentPageSlices.count {
+                                let snList = documentPageSlices[colIdx].sideNotes
+                                if !snList.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(snList, id: \.id) { snItem in
+                                            if let sn = documentController.sideNotes.first(where: { $0.id == snItem.id }) {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(sn.referenceMarker)
+                                                        .font(.system(size: 9, weight: .bold))
+                                                        .foregroundColor(.accentColor)
+                                                    Text(sn.text)
+                                                        .font(.system(size: 10))
+                                                        .foregroundColor(.black.opacity(0.75))
+                                                }
+                                                .padding(6)
+                                                .frame(width: max(48, documentController.margins.right - 12), alignment: .leading)
+                                                .background(Color.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                                            }
+                                        }
+                                    }
+                                    .offset(x: max(52, documentController.margins.right - 8))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .offset(x: documentController.margins.left, y: documentController.margins.top)
+
+            ForEach(documentController.floatingElements.filter { $0.pageIndex == pageIndex }) { element in
+                StudioFloatingElementView(element: element, onDelete: {})
+                    .frame(width: element.size.width, height: element.size.height)
+                    .position(
+                        x: element.position.x + element.size.width / 2 + documentController.margins.left,
+                        y: element.position.y + element.size.height / 2 + documentController.margins.top
+                    )
+            }
+
+            StudioFooterView(
+                config: .constant(documentController.headerFooter),
+                pageIndex: pageIndex,
+                totalPages: totalPages,
+                documentTitle: documentController.title,
+                margins: documentController.margins,
+                sheetWidth: currentSheetWidth,
+                sheetHeight: currentSheetHeight,
+                fontFamily: documentController.fontFamily,
+                isEditing: .constant(false),
+                activeTarget: .constant(.footer)
+            )
+        }
+        .environment(\.colorScheme, .light)
+        .frame(width: currentSheetWidth, height: currentSheetHeight)
+    }
+
+    private func renderMultiPagePDFData() -> Data? {
+        let pageWidth = currentSheetWidth
+        let pageHeight = currentSheetHeight
+        let pdfData = NSMutableData()
+        var mediaBox = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData),
+              let pdfContext = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            return nil
+        }
+
+        let count = max(1, totalPages)
+        for pageIdx in 0..<count {
+            let pageView = printableSheetExportView(pageIndex: pageIdx)
+            let renderer = ImageRenderer(content: pageView)
+            renderer.proposedSize = ProposedViewSize(width: pageWidth, height: pageHeight)
+            renderer.render { _, renderInContext in
+                pdfContext.beginPDFPage([kCGPDFContextMediaBox as String: NSValue(rect: mediaBox)] as CFDictionary)
+                renderInContext(pdfContext)
+                pdfContext.endPDFPage()
+            }
+        }
+
+        pdfContext.closePDF()
+        let rawData = pdfData as Data
+
+        // Attach PDFOutline bookmarks for all document headings (Milestone 5.2)
+        if let pdfDoc = PDFDocument(data: rawData), pdfDoc.pageCount > 0 {
+            let outlineRoot = PDFOutline()
+            let cols = max(1, documentController.columnCount)
+            let regex = EditorPerformanceCache.shared.tocHeadingRegex
+
+            for (colIdx, slice) in documentPageSlices.enumerated() {
+                let pageIdx = min(pdfDoc.pageCount - 1, colIdx / cols)
+                guard let pdfPage = pdfDoc.page(at: pageIdx) else { continue }
+                let nsSlice = slice.text as NSString
+                var lineOffset = 0
+                for line in slice.text.components(separatedBy: "\n") {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    var headingTitle: String? = nil
+                    if trimmed.hasPrefix("# ") {
+                        headingTitle = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                    } else if trimmed.hasPrefix("## ") {
+                        headingTitle = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    } else if trimmed.hasPrefix("### ") {
+                        headingTitle = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+                    } else {
+                        let nsTrimmed = trimmed as NSString
+                        if let m = regex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: nsTrimmed.length)),
+                           m.range.location != NSNotFound {
+                            headingTitle = trimmed
+                        } else if !trimmed.isEmpty,
+                                  !trimmed.hasPrefix("[["),
+                                  trimmed.count <= 120,
+                                  let attrSlice = slice.attributedText,
+                                  lineOffset < attrSlice.length,
+                                  let font = attrSlice.attribute(.font, at: lineOffset, effectiveRange: nil) as? NSFont {
+                            let traits = NSFontManager.shared.traits(of: font)
+                            let preset = DocumentParagraphStyle.infer(fontSize: font.pointSize, isBold: traits.contains(.boldFontMask), isItalic: traits.contains(.italicFontMask))
+                            if preset == .title || preset == .heading1 || preset == .heading2 || preset == .heading3 {
+                                headingTitle = trimmed
+                            }
+                        }
+                    }
+
+                    if let validTitle = headingTitle, !validTitle.isEmpty {
+                        let item = PDFOutline()
+                        item.label = validTitle
+                        item.destination = PDFDestination(page: pdfPage, at: NSPoint(x: 0, y: pageHeight))
+                        outlineRoot.insertChild(item, at: outlineRoot.numberOfChildren)
+                    }
+                    lineOffset = min(nsSlice.length, lineOffset + (line as NSString).length + 1)
+                }
+            }
+
+            if outlineRoot.numberOfChildren > 0 {
+                pdfDoc.outlineRoot = outlineRoot
+                if let outlinedData = pdfDoc.dataRepresentation() {
+                    return outlinedData
+                }
+            }
+        }
+
+        return rawData
+    }
+
+    private func buildRichAttributedStringForDocxExport() -> NSAttributedString {
+        let baseFont = resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)
+        let baseParaStyle = NSMutableParagraphStyle()
+        switch documentController.textAlignment {
+        case .leading: baseParaStyle.alignment = .left
+        case .center: baseParaStyle.alignment = .center
+        case .trailing: baseParaStyle.alignment = .right
+        }
+        baseParaStyle.lineHeightMultiple = documentController.lineSpacing
+        baseParaStyle.paragraphSpacing = documentController.paragraphSpacing
+        let defaultAttrs: [NSAttributedString.Key: Any] = [
+            .font: baseFont,
+            .paragraphStyle: baseParaStyle,
+            .foregroundColor: NSColor.black
+        ]
+
+        let attrStr: NSMutableAttributedString
+        if let data = documentController.richTextData,
+           let unarchived = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: data),
+           unarchived.string == documentController.rawText {
+            attrStr = NSMutableAttributedString(attributedString: unarchived)
+            let fullRange = NSRange(location: 0, length: attrStr.length)
+            if fullRange.length > 0 {
+                attrStr.enumerateAttribute(.paragraphStyle, in: fullRange, options: []) { value, subRange, _ in
+                    let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+                    style.lineHeightMultiple = documentController.lineSpacing
+                    style.paragraphSpacing = documentController.paragraphSpacing
+                    attrStr.addAttribute(.paragraphStyle, value: style, range: subRange)
+                }
+            }
+        } else {
+            attrStr = NSMutableAttributedString(string: documentController.rawText, attributes: defaultAttrs)
+        }
+
+        func replaceMarker(_ marker: String, with replacement: String) {
+            while true {
+                let range = (attrStr.string as NSString).range(of: marker)
+                if range.location == NSNotFound { break }
+                let existingAttrs = range.location < attrStr.length
+                    ? attrStr.attributes(at: range.location, effectiveRange: nil)
+                    : defaultAttrs
+                let repAttr = NSAttributedString(string: replacement, attributes: existingAttrs)
+                attrStr.replaceCharacters(in: range, with: repAttr)
+            }
+        }
+
+        func replaceMarkerWithAttributed(_ marker: String, with replacement: NSAttributedString) {
+            while true {
+                let range = (attrStr.string as NSString).range(of: marker)
+                if range.location == NSNotFound { break }
+                attrStr.replaceCharacters(in: range, with: replacement)
+            }
+        }
+
+        for (idx, table) in documentController.tables.enumerated() {
+            let marker = "[[table:\(table.id.uuidString)]]"
+            let tableAttr = buildNativeTextTableAttributedString(from: table, baseFont: baseFont)
+            replaceMarkerWithAttributed(marker, with: tableAttr)
+            if idx == 0 {
+                replaceMarkerWithAttributed("[[table:budget]]", with: tableAttr)
+            }
+        }
+        for image in documentController.images {
+            let marker = "[[image:\(image.id.uuidString)]]"
+            if let data = Data(base64Encoded: image.base64Data),
+               let nsImg = NSImage(data: data) {
+                let attachment = NSTextAttachment()
+                attachment.image = nsImg
+                let imgAttr = NSMutableAttributedString(string: "\n")
+                imgAttr.append(NSAttributedString(attachment: attachment))
+                if !image.caption.isEmpty {
+                    let capStyle = NSMutableParagraphStyle()
+                    capStyle.alignment = .center
+                    let capFont = resolveFontNamed(family: documentController.fontFamily, size: 11, bold: false, italic: true)
+                    imgAttr.append(NSAttributedString(string: "\n\(image.caption)\n", attributes: [
+                        .font: capFont,
+                        .paragraphStyle: capStyle,
+                        .foregroundColor: NSColor.darkGray
+                    ]))
+                } else {
+                    imgAttr.append(NSAttributedString(string: "\n"))
+                }
+                replaceMarkerWithAttributed(marker, with: imgAttr)
+            } else {
+                replaceMarker(marker, with: "\n\n" + image.toMarkdown() + "\n\n")
+            }
+        }
+        for video in documentController.videos {
+            replaceMarker("[[video:\(video.id.uuidString)]]", with: "\n\n" + video.toMarkdown() + "\n\n")
+        }
+        replaceMarker("---pagebreak---", with: "\n\u{000C}\n")
+
+        return attrStr
+    }
+
+    private func buildNativeTextTableAttributedString(from tableData: StudioTableData, baseFont: NSFont) -> NSAttributedString {
+        let numCols = max(1, tableData.headers.count)
+        let textTable = NSTextTable()
+        textTable.numberOfColumns = numCols
+        textTable.collapsesBorders = true
+        textTable.hidesEmptyCells = false
+
+        let result = NSMutableAttributedString(string: "\n", attributes: [.font: baseFont])
+        let headerFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+
+        func appendCell(text: String, row: Int, col: Int, isHeader: Bool) {
+            let block = NSTextTableBlock(table: textTable, startingRow: row, rowSpan: 1, startingColumn: col, columnSpan: 1)
+            block.setWidth(1.0, type: .absoluteValueType, for: .border)
+            block.setBorderColor(NSColor.gray.withAlphaComponent(0.5))
+            block.setWidth(4.0, type: .absoluteValueType, for: .padding)
+            if isHeader {
+                block.backgroundColor = NSColor(white: 0.94, alpha: 1.0)
+            }
+            let paraStyle = NSMutableParagraphStyle()
+            paraStyle.textBlocks = [block]
+            let cellStr = (text.isEmpty ? " " : text) + "\n"
+            let cellAttr = NSAttributedString(string: cellStr, attributes: [
+                .font: isHeader ? headerFont : baseFont,
+                .paragraphStyle: paraStyle,
+                .foregroundColor: NSColor.black
+            ])
+            result.append(cellAttr)
+        }
+
+        for col in 0..<numCols {
+            let hText = col < tableData.headers.count ? tableData.headers[col] : ""
+            appendCell(text: hText, row: 0, col: col, isHeader: true)
+        }
+
+        for (rIdx, row) in tableData.rows.enumerated() {
+            for col in 0..<numCols {
+                let evaluated = tableData.evaluatedCell(row: rIdx + 1, col: col)
+                let fallback = col < row.count ? row[col] : ""
+                let cellText = evaluated.isEmpty ? fallback : evaluated
+                appendCell(text: cellText, row: rIdx + 1, col: col, isHeader: false)
+            }
+        }
+
+        result.append(NSAttributedString(string: "\n", attributes: [.font: baseFont]))
+        return result
+    }
+
+    public func saveDocumentAsDocx() {
+        let richAttr = buildRichAttributedStringForDocxExport()
+        let fullRange = NSRange(location: 0, length: richAttr.length)
+
+        var exportedData: Data? = nil
+        if fullRange.length > 0 {
+            exportedData = try? richAttr.data(
+                from: fullRange,
+                documentAttributes: [
+                    .documentType: NSAttributedString.DocumentType.officeOpenXML,
+                    .title: documentController.title
+                ]
+            )
+        }
+        if exportedData == nil {
+            let fullExport = buildExpandedMarkdownExport()
+            exportedData = CoreBridge.shared.exportDocx(title: documentController.title, text: fullExport)
+        }
+
+        guard let docxData = exportedData else {
             showToast("⚠️ Could not generate DOCX")
             return
         }
@@ -2083,23 +3125,14 @@ public struct MainEditorView: View {
         }
 
         if panel.runModal() == .OK, let url = panel.url {
-            let paperSize = NSSize(width: documentController.pageSize.dimensions.width, height: documentController.pageSize.dimensions.height)
-            let printInfo = NSPrintInfo.shared
-            printInfo.paperSize = paperSize
-            printInfo.topMargin = documentController.margins.top
-            printInfo.bottomMargin = documentController.margins.bottom
-            printInfo.leftMargin = documentController.margins.left
-            printInfo.rightMargin = documentController.margins.right
-            printInfo.orientation = .portrait
-
-            let textView = NSTextView(frame: NSRect(origin: .zero, size: paperSize))
-            textView.string = documentController.rawText
-            textView.font = resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)
-            let pdfData = textView.dataWithPDF(inside: NSRect(origin: .zero, size: paperSize))
+            guard let pdfData = renderMultiPagePDFData() else {
+                showToast("⚠️ Could not render PDF")
+                return
+            }
 
             do {
                 try pdfData.write(to: url)
-                showToast("✓ Exported Vector PDF: \(url.lastPathComponent)")
+                showToast("✓ Exported Vector PDF (\(totalPages) pages): \(url.lastPathComponent)")
             } catch {
                 showToast("⚠️ Failed to write PDF: \(error.localizedDescription)")
             }
@@ -2107,13 +3140,22 @@ public struct MainEditorView: View {
     }
 
     public func printDocument() {
-        let paperSize = NSSize(width: documentController.pageSize.dimensions.width, height: documentController.pageSize.dimensions.height)
+        let paperSize = NSSize(width: currentSheetWidth, height: currentSheetHeight)
         let printInfo = NSPrintInfo.shared
         printInfo.paperSize = paperSize
-        printInfo.topMargin = documentController.margins.top
-        printInfo.bottomMargin = documentController.margins.bottom
-        printInfo.leftMargin = documentController.margins.left
-        printInfo.rightMargin = documentController.margins.right
+        printInfo.topMargin = 0
+        printInfo.bottomMargin = 0
+        printInfo.leftMargin = 0
+        printInfo.rightMargin = 0
+        printInfo.orientation = .portrait
+
+        if let pdfData = renderMultiPagePDFData(),
+           let pdfDoc = PDFDocument(data: pdfData),
+           let op = pdfDoc.printOperation(for: printInfo, scalingMode: .pageScaleNone, autoRotate: false) {
+            op.showsPrintPanel = true
+            op.run()
+            return
+        }
 
         let textView = NSTextView(frame: NSRect(origin: .zero, size: paperSize))
         textView.string = documentController.rawText
@@ -2125,16 +3167,7 @@ public struct MainEditorView: View {
     }
 
     public func saveDocumentAsMarkdown() {
-        var fullExport = documentController.rawText
-        if !documentController.tables.isEmpty {
-            fullExport += "\n\n" + documentController.tables.map { $0.toMarkdown() }.joined(separator: "\n\n")
-        }
-        if !documentController.images.isEmpty {
-            fullExport += "\n\n" + documentController.images.map { $0.toMarkdown() }.joined(separator: "\n\n")
-        }
-        if !documentController.videos.isEmpty {
-            fullExport += "\n\n" + documentController.videos.map { $0.toMarkdown() }.joined(separator: "\n\n")
-        }
+        let fullExport = buildExpandedMarkdownExport()
 
         let panel = NSSavePanel()
         panel.title = "Save Markdown"
@@ -2169,43 +3202,109 @@ public struct MainEditorView: View {
     // MARK: - Document Page Sheet & Inline Segments
     @ViewBuilder
     private func documentPageSheet(pageIndex: Int) -> some View {
-        VStack(spacing: 8) {
-            // Page Number Badge
+        let hasCoverBanner = (pageIndex == 0 && documentController.coverBanner.isEnabled)
+        VStack(spacing: 6) {
+            // Page Number Badge & Ruler Toggle
             HStack {
                 Text("PAGE \(pageIndex + 1) OF \(totalPages)")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(documentController.pageSize.rawValue) • \(documentController.marginPreset.rawValue)")
-                    .font(.system(size: 9, weight: .medium))
+                HStack(spacing: 6) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showRuler.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "ruler")
+                                .font(.system(size: 9))
+                            Text(showRuler ? "Ruler ON" : "Ruler")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(showRuler ? .accentColor : .secondary)
+                    .help("Toggle Horizontal Ruler (⌘R)")
+
+                    Text("•")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.5))
+
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showPageDesignInspector.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Text("\(documentController.pageSize.rawValue) • \(documentController.marginPreset.rawValue)")
+                                .font(.system(size: 9, weight: .medium))
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 8))
+                                .opacity(0.7)
+                        }
+                    }
+                    .buttonStyle(.plain)
                     .foregroundColor(.secondary)
+                    .help("Configure Page Design, Margins, and Themes (⌥⌘D)")
+                }
             }
             .frame(width: currentSheetWidth * zoomScale)
 
-            // Pure White Physical Paper Sheet
-            ZStack(alignment: .topLeading) {
-                // 1. Crisp White Sheet Background with realistic drop shadow
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.white)
-                    .frame(width: currentSheetWidth, height: currentSheetHeight)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(Color.black.opacity(0.14), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
-                    .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
-                    .onTapGesture {
-                        let cols = max(1, documentController.columnCount)
-                        let lastColIdx = min(documentPageSlices.count - 1, pageIndex * cols + cols - 1)
-                        if lastColIdx >= 0 {
-                            let length = (getColumnText(columnIndex: lastColIdx) as NSString).length
-                            editorController.focusPage(lastColIdx, at: length)
-                        } else {
-                            editorController.focusPage(0, at: 0)
-                        }
+            // Interactive Horizontal Ruler (Pages / Word style)
+            if showRuler && pageIndex == 0 {
+                StudioHorizontalRulerView(
+                    sheetWidth: currentSheetWidth,
+                    zoomScale: CGFloat(zoomScale),
+                    margins: $documentController.margins,
+                    hangingIndent: $documentController.hangingIndent,
+                    onMarginChanged: {
+                        documentController.marginPreset = .custom
                     }
+                )
+                .frame(width: currentSheetWidth * zoomScale, height: 26)
+            }
 
-                // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
+            // Pure White Physical Paper Sheet
+            paperSheet(pageIndex: pageIndex, hasCoverBanner: hasCoverBanner)
+        }
+    }
+
+    @ViewBuilder
+    private func paperSheet(pageIndex: Int, hasCoverBanner: Bool) -> some View {
+        let sheetContent = ZStack(alignment: .topLeading) {
+            // 1. Crisp White Sheet Background (Clean vector, shadow isolated to background)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.white)
+                .frame(width: currentSheetWidth, height: currentSheetHeight)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(Color.black.opacity(0.14), lineWidth: 1)
+                )
+                .onTapGesture {
+                    let cols = max(1, documentController.columnCount)
+                    let lastColIdx = min(documentPageSlices.count - 1, pageIndex * cols + cols - 1)
+                    if lastColIdx >= 0 {
+                        let length = (getColumnText(columnIndex: lastColIdx) as NSString).length
+                        editorController.focusPage(lastColIdx, at: length)
+                    } else {
+                        editorController.focusPage(0, at: 0)
+                    }
+                }
+
+            // 1.5 Hero Cover Banner Card (Page 0 only, crowning upper sheet)
+            if hasCoverBanner {
+                StudioCoverBannerView(
+                    config: $documentController.coverBanner,
+                    documentTitle: $documentController.title,
+                    sheetWidth: currentSheetWidth - 32
+                )
+                .offset(x: 16, y: 16)
+            }
+
+            // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
+            // Suppressed on Page 0 if cover banner is active
+            if !hasCoverBanner {
                 StudioHeaderView(
                     config: $documentController.headerFooter,
                     pageIndex: pageIndex,
@@ -2213,75 +3312,96 @@ public struct MainEditorView: View {
                     documentTitle: documentController.title,
                     margins: documentController.margins,
                     sheetWidth: currentSheetWidth,
-                    isEditing: $isEditingHeaderFooter,
-                    activeTarget: $activeHeaderFooterTarget
-                )
-
-                // 3. Margin Guides Overlay
-                if showMarginGuides {
-                    PaperMarginGuidesView(
-                        width: currentSheetWidth,
-                        height: currentSheetHeight,
-                        margins: documentController.margins
-                    )
-                }
-
-                // 4. Publisher Corner Crop Marks
-                if showCropMarks {
-                    PublisherCropMarksView(
-                        width: currentSheetWidth,
-                        height: currentSheetHeight
-                    )
-                }
-
-                // 4.5 Watermark (Beneath Text Layer)
-                if !documentController.watermarkText.isEmpty {
-                    Text(documentController.watermarkText.uppercased())
-                        .font(.system(size: 140, weight: .black, design: .default))
-                        .foregroundColor(Color.gray.opacity(0.12))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.2)
-                        .rotationEffect(.degrees(-45))
-                        .frame(width: currentSheetWidth, height: currentSheetHeight)
-                        .allowsHitTesting(false)
-                }
-
-                // 5. Document Content (Dynamic In-Flow TextKit 2 Segments + Tables + Media)
-                documentCanvasContent(pageIndex: pageIndex)
-
-                // 5.5 Floating Rich Media & Pull-Quotes
-                ForEach(documentController.floatingElements.filter { $0.pageIndex == pageIndex }) { element in
-                    StudioFloatingElementView(
-                        element: element,
-                        onDelete: {
-                            documentController.floatingElements.removeAll(where: { $0.id == element.id })
-                        }
-                    )
-                    .frame(width: element.size.width, height: element.size.height)
-                    // Offset by margins because the position is relative to the printable area
-                    .position(
-                        x: element.position.x + element.size.width/2 + documentController.margins.left,
-                        y: element.position.y + element.size.height/2 + documentController.margins.top
-                    )
-                }
-
-                // 6. Running Footer (Page Numbers & Interactive In-Place Double-Click Editor)
-                StudioFooterView(
-                    config: $documentController.headerFooter,
-                    pageIndex: pageIndex,
-                    totalPages: totalPages,
-                    documentTitle: documentController.title,
-                    margins: documentController.margins,
-                    sheetWidth: currentSheetWidth,
-                    sheetHeight: currentSheetHeight,
+                    fontFamily: documentController.fontFamily,
                     isEditing: $isEditingHeaderFooter,
                     activeTarget: $activeHeaderFooterTarget
                 )
             }
-            .environment(\.colorScheme, .light)
-            .frame(width: currentSheetWidth, height: currentSheetHeight)
-            .scaleEffect(zoomScale, anchor: .top)
-            .frame(width: currentSheetWidth * zoomScale, height: currentSheetHeight * zoomScale, alignment: .top)
+
+            // 3. Margin Guides Overlay
+            if showMarginGuides {
+                let effTop = hasCoverBanner ? (16 + CGFloat(documentController.coverBanner.height) + 24) : documentController.margins.top
+                PaperMarginGuidesView(
+                    width: currentSheetWidth,
+                    height: currentSheetHeight,
+                    margins: documentController.margins,
+                    topOffset: hasCoverBanner ? effTop : nil
+                )
+            }
+
+            // 4. Publisher Corner Crop Marks
+            if showCropMarks {
+                PublisherCropMarksView(
+                    width: currentSheetWidth,
+                    height: currentSheetHeight
+                )
+            }
+
+            // 4.5 Watermark (Beneath Text Layer)
+            if !documentController.watermarkText.isEmpty {
+                Text(documentController.watermarkText.uppercased())
+                    .font(.system(size: 140, weight: .black, design: .default))
+                    .foregroundColor(Color.gray.opacity(0.12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.2)
+                    .rotationEffect(.degrees(-45))
+                    .frame(width: currentSheetWidth, height: currentSheetHeight)
+                    .allowsHitTesting(false)
+            }
+
+            // 5. Document Content (Dynamic In-Flow TextKit 2 Segments + Tables + Media)
+            documentCanvasContent(pageIndex: pageIndex)
+
+            // 5.5 Floating Rich Media & Pull-Quotes
+            ForEach(documentController.floatingElements.filter { $0.pageIndex == pageIndex }) { element in
+                StudioFloatingElementView(
+                    element: element,
+                    onDelete: {
+                        documentController.floatingElements.removeAll(where: { $0.id == element.id })
+                    }
+                )
+                .frame(width: element.size.width, height: element.size.height)
+                // Offset by margins because the position is relative to the printable area
+                .position(
+                    x: element.position.x + element.size.width/2 + documentController.margins.left,
+                    y: element.position.y + element.size.height/2 + documentController.margins.top
+                )
+            }
+
+            // 6. Running Footer (Page Numbers & Interactive In-Place Double-Click Editor)
+            StudioFooterView(
+                config: $documentController.headerFooter,
+                pageIndex: pageIndex,
+                totalPages: totalPages,
+                documentTitle: documentController.title,
+                margins: documentController.margins,
+                sheetWidth: currentSheetWidth,
+                sheetHeight: currentSheetHeight,
+                fontFamily: documentController.fontFamily,
+                isEditing: $isEditingHeaderFooter,
+                activeTarget: $activeHeaderFooterTarget
+            )
+
+            // 7. Right Gutter Margin Cards: Side Notes (Comments) & Track Changes (Revisions)
+            paperMarginLayer(pageIndex: pageIndex)
+        }
+        .environment(\.colorScheme, .light)
+
+        let sheetBackdrop = RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(Color.white)
+            .shadow(color: Color.black.opacity(0.06), radius: 3, x: 0, y: 1)
+            .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 14)
+
+        if abs(zoomScale - 1.0) < 0.001 {
+            sheetContent
+                .background(sheetBackdrop)
+                .frame(width: currentSheetWidth, height: currentSheetHeight)
+        } else {
+            sheetContent
+                .background(sheetBackdrop)
+                .frame(width: currentSheetWidth, height: currentSheetHeight)
+                .scaleEffect(zoomScale, anchor: .top)
+                .frame(width: currentSheetWidth * zoomScale, height: currentSheetHeight * zoomScale, alignment: .top)
         }
     }
 
@@ -2292,7 +3412,9 @@ public struct MainEditorView: View {
         let totalPrintableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
         let availableWidthForColumns = totalPrintableWidth - (CGFloat(cols - 1) * gap)
         let columnWidth = max(50, availableWidthForColumns / CGFloat(cols))
-        let printableHeight = max(100, currentSheetHeight - documentController.margins.top - documentController.margins.bottom)
+        let hasCoverBanner = (pageIndex == 0 && documentController.coverBanner.isEnabled)
+        let contentTop: CGFloat = hasCoverBanner ? (16 + CGFloat(documentController.coverBanner.height) + 24) : documentController.margins.top
+        let printableHeight = max(100, currentSheetHeight - contentTop - documentController.margins.bottom)
 
         HStack(alignment: .top, spacing: gap) {
             ForEach(0..<cols, id: \.self) { c in
@@ -2300,7 +3422,7 @@ public struct MainEditorView: View {
                 documentColumnContent(columnIndex: colIdx, width: columnWidth, height: printableHeight)
             }
         }
-        .offset(x: documentController.margins.left, y: documentController.margins.top)
+        .offset(x: documentController.margins.left, y: contentTop)
     }
 
     @ViewBuilder
@@ -2309,6 +3431,9 @@ public struct MainEditorView: View {
         let segments = parseCanvasSegments(for: colStr, pageIndex: columnIndex)
         let printableWidth = width
         let printableHeight = height
+        let fnCount = columnIndex < documentPageSlices.count ? documentPageSlices[columnIndex].footnoteIds.count : 0
+        let fnReservedHeight: CGFloat = fnCount > 0 ? CGFloat(fnCount * 28 + 18) : 0
+        let effectiveTextHeight = max(80, printableHeight - fnReservedHeight)
 
         Group {
             if segments.count == 1, case .text = segments[0] {
@@ -2325,6 +3450,7 @@ public struct MainEditorView: View {
                     richTextData: $documentController.richTextData,
                     selectedText: $selectedText,
                     selectionRange: $selectionRange,
+                    rawFullText: documentController.rawText,
                     attributedText: getColumnAttributedText(columnIndex: columnIndex),
                     sliceRange: getColumnSliceRange(columnIndex: columnIndex),
                     controller: editorController,
@@ -2342,12 +3468,19 @@ public struct MainEditorView: View {
                     kern: documentController.kern,
                     hangingIndent: documentController.hangingIndent,
                     isContinuation: getColumnIsContinuation(columnIndex: columnIndex),
+                    hoveredCommentId: hoveredCommentId,
                     onSelectionChanged: { _, _, attrs in
                         self.selectionAttributes = attrs
+                        if let tc = attrs.textColor {
+                            self.textColorState = tc
+                        }
+                        if let hc = attrs.highlightColor {
+                            self.highlightColorState = hc
+                        }
                     },
                     exclusionPaths: getExclusionPaths(forColumn: columnIndex, columnWidth: width)
                 )
-                .frame(width: printableWidth, height: printableHeight, alignment: .topLeading)
+                .frame(width: printableWidth, height: effectiveTextHeight, alignment: .topLeading)
             } else {
                 // Multi-Segment Page (Interleaved text and embedded figures/tables)
                 VStack(alignment: .leading, spacing: 10) {
@@ -2369,8 +3502,9 @@ public struct MainEditorView: View {
                                 richTextData: $documentController.richTextData,
                                 selectedText: $selectedText,
                                 selectionRange: $selectionRange,
-                                attributedText: nil, // Do not inject full page RTF into a partial chunk!
-                                sliceRange: getColumnSliceRange(columnIndex: columnIndex),
+                                rawFullText: documentController.rawText,
+                                attributedText: getTextChunkAttributedText(columnIndex: columnIndex, textIndex: textIdx),
+                                sliceRange: getTextChunkSliceRange(columnIndex: columnIndex, textIndex: textIdx),
                                 controller: editorController,
                                 fontFamily: documentController.fontFamily,
                                 fontSize: documentController.fontSize,
@@ -2385,20 +3519,28 @@ public struct MainEditorView: View {
                                 showLineNumbers: documentController.showLineNumbers,
                                 kern: documentController.kern,
                                 hangingIndent: documentController.hangingIndent,
-                                isContinuation: getColumnIsContinuation(columnIndex: columnIndex),
+                                isContinuation: textIdx == 0 ? getColumnIsContinuation(columnIndex: columnIndex) : false,
+                                hoveredCommentId: hoveredCommentId,
                                 onSelectionChanged: { _, _, attrs in
                                     self.selectionAttributes = attrs
+                                    if let tc = attrs.textColor {
+                                        self.textColorState = tc
+                                    }
+                                    if let hc = attrs.highlightColor {
+                                        self.highlightColorState = hc
+                                    }
                                 },
                                 exclusionPaths: getExclusionPaths(forColumn: columnIndex, columnWidth: width)
                             )
                             .frame(width: printableWidth, height: h, alignment: .topLeading)
+                            .clipped()
 
                         case .table(id: _, tableId: let tableId):
                             if let idx = documentController.tables.firstIndex(where: { $0.id == tableId }) {
+                                let idStr = documentController.tables[idx].id.uuidString
                                 SmartTableView(
                                     store: documentController, tableId: tableId, fontFamily: documentController.fontFamily,
                                     onDelete: {
-                                        let idStr = documentController.tables[idx].id.uuidString
                                         documentController.tables.remove(at: idx)
                                         documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[table:\(idStr)]]", with: "")
                                         documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[table:budget]]", with: "")
@@ -2406,6 +3548,12 @@ public struct MainEditorView: View {
                                     },
                                     onChange: {
                                         documentController.commitSnapshot(actionName: "Edit Table", isMilestone: false)
+                                    },
+                                    onMoveUp: {
+                                        moveBlockUp(tag: "[[table:\(idStr)]]")
+                                    },
+                                    onMoveDown: {
+                                        moveBlockDown(tag: "[[table:\(idStr)]]")
                                     },
                                     onToast: { msg in
                                         showToast(msg)
@@ -2415,16 +3563,22 @@ public struct MainEditorView: View {
 
                         case .image(id: _, imageId: let imageId):
                             if let idx = documentController.images.firstIndex(where: { $0.id == imageId }) {
+                                let idStr = documentController.images[idx].id.uuidString
                                 StudioImageView(
                                     imageBlock: $documentController.images[idx],
                                     onDelete: {
-                                        let idStr = documentController.images[idx].id.uuidString
                                         documentController.images.remove(at: idx)
                                         documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[image:\(idStr)]]", with: "")
                                         showToast("✓ Deleted figure")
                                     },
                                     onChange: {
                                         showToast("✓ Figure updated")
+                                    },
+                                    onMoveUp: {
+                                        moveBlockUp(tag: "[[image:\(idStr)]]")
+                                    },
+                                    onMoveDown: {
+                                        moveBlockDown(tag: "[[image:\(idStr)]]")
                                     },
                                     onToast: { msg in
                                         showToast(msg)
@@ -2467,6 +3621,9 @@ public struct MainEditorView: View {
                         case .tableOfContents(id: _):
                             DynamicTOCView(
                                 rawText: documentController.rawText,
+                                richTextData: documentController.richTextData,
+                                pageSlices: documentPageSlices,
+                                columnCount: documentController.columnCount,
                                 onDelete: {
                                     documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[toc]]", with: "")
                                     showToast("✓ Deleted Table of Contents")
@@ -2487,7 +3644,7 @@ public struct MainEditorView: View {
                 if !footnoteIds.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Divider()
-                            .frame(width: 100)
+                            .frame(width: 120)
                             .padding(.top, 4)
                         
                         ForEach(footnoteIds, id: \.self) { fnId in
@@ -2505,12 +3662,28 @@ public struct MainEditorView: View {
                                         }
                                     )
                                     
-                                    TextField("Footnote text...", text: binding, axis: .vertical)
-                                        .font(.system(size: 11))
-                                        .lineLimit(nil)
-                                        .textFieldStyle(.plain)
+                                    NativeFootnoteField(
+                                        text: binding,
+                                        placeholder: "Footnote text...",
+                                        font: resolveNSHeaderFont(fontFamily: documentController.fontFamily, size: 10.5, weight: .regular),
+                                        textColor: .labelColor
+                                    )
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Button(action: {
+                                        let marker = fn.referenceMarker
+                                        documentController.footnotes.removeAll(where: { $0.id == fnId })
+                                        documentController.rawText = documentController.rawText.replacingOccurrences(of: marker, with: "")
+                                        showToast("✓ Removed footnote")
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary.opacity(0.6))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Delete Footnote")
                                 }
-                                .foregroundColor(.primary.opacity(0.8))
+                                .foregroundColor(.primary.opacity(0.85))
                             }
                         }
                     }
@@ -2518,39 +3691,595 @@ public struct MainEditorView: View {
                 }
             }
         }
-        .overlay(alignment: .topLeading) {
-            if columnIndex < documentPageSlices.count {
-                let sideNotes = documentPageSlices[columnIndex].sideNotes
-                ForEach(sideNotes, id: \.id) { snRef in
+    }
+
+    private func moveBlockUp(tag: String) {
+        // Try paragraphs first (\n\n)
+        let paragraphs = documentController.rawText.components(separatedBy: "\n\n")
+        if let idx = paragraphs.firstIndex(where: { $0.contains(tag) }), idx > 0 {
+            var newParagraphs = paragraphs
+            newParagraphs.swapAt(idx, idx - 1)
+            documentController.rawText = newParagraphs.joined(separator: "\n\n")
+            showToast("✓ Moved block up")
+            return
+        }
+        // Fallback to single newline split (\n) for documents with compact lines
+        let lines = documentController.rawText.components(separatedBy: "\n")
+        if let idx = lines.firstIndex(where: { $0.contains(tag) }), idx > 0 {
+            var newLines = lines
+            newLines.swapAt(idx, idx - 1)
+            documentController.rawText = newLines.joined(separator: "\n")
+            showToast("✓ Moved block up")
+            return
+        }
+        showToast("Already at top of document")
+    }
+
+    private func moveBlockDown(tag: String) {
+        // Try paragraphs first (\n\n)
+        let paragraphs = documentController.rawText.components(separatedBy: "\n\n")
+        if let idx = paragraphs.firstIndex(where: { $0.contains(tag) }), idx < paragraphs.count - 1 {
+            var newParagraphs = paragraphs
+            newParagraphs.swapAt(idx, idx + 1)
+            documentController.rawText = newParagraphs.joined(separator: "\n\n")
+            showToast("✓ Moved block down")
+            return
+        }
+        // Fallback to single newline split (\n)
+        let lines = documentController.rawText.components(separatedBy: "\n")
+        if let idx = lines.firstIndex(where: { $0.contains(tag) }), idx < lines.count - 1 {
+            var newLines = lines
+            newLines.swapAt(idx, idx + 1)
+            documentController.rawText = newLines.joined(separator: "\n")
+            showToast("✓ Moved block down")
+            return
+        }
+        showToast("Already at bottom of document")
+    }
+
+    private enum MarginCanvasItem: Identifiable {
+        case comment(sn: StudioSideNote, preferredY: CGFloat)
+        case revision(rev: StudioTrackedRevision, preferredY: CGFloat)
+
+        var id: UUID {
+            switch self {
+            case .comment(let sn, _): return sn.id
+            case .revision(let rev, _): return rev.id
+            }
+        }
+
+        var preferredY: CGFloat {
+            switch self {
+            case .comment(_, let y): return y
+            case .revision(_, let y): return y
+            }
+        }
+    }
+
+    private func calculateMarginItems(pageIndex: Int, bannerOffset: CGFloat) -> [(item: MarginCanvasItem, y: CGFloat)] {
+        let cols = max(1, documentController.columnCount)
+        let startCol = pageIndex * cols
+        let endCol = min((pageIndex + 1) * cols, documentPageSlices.count)
+
+        var items: [MarginCanvasItem] = []
+
+        // 1. Side Note Comments for this page
+        if startCol < documentPageSlices.count {
+            for c in startCol..<endCol {
+                for snRef in documentPageSlices[c].sideNotes {
                     if let sn = documentController.sideNotes.first(where: { $0.id == snRef.id }) {
-                        let binding = Binding(
-                            get: { sn.text },
-                            set: { newText in
-                                if let idx = documentController.sideNotes.firstIndex(where: { $0.id == snRef.id }) {
-                                    documentController.sideNotes[idx].text = newText
-                                }
-                            }
-                        )
-                        
-                        HStack(alignment: .top, spacing: 4) {
-                            Text(sn.referenceMarker)
-                                .font(.system(size: 11, weight: .bold))
-                            
-                            TextField("Note...", text: binding, axis: .vertical)
-                                .font(.system(size: 11))
-                                .lineLimit(nil)
-                                .textFieldStyle(.plain)
-                                .frame(width: 120)
-                        }
-                        .foregroundColor(.secondary)
-                        .padding(6)
-                        .background(Color(nsColor: .windowBackgroundColor).opacity(0.8))
-                        .cornerRadius(6)
-                        .offset(x: printableWidth + 10, y: snRef.yPos)
+                        let y = documentController.margins.top + bannerOffset + snRef.yPos
+                        items.append(.comment(sn: sn, preferredY: y))
                     }
                 }
             }
         }
+
+        // 2. Tracked Revisions for this page (Visible & Actionable on Paper)
+        let pageRevisions = documentController.revisions.filter { rev in
+            if let p = rev.pageIndex { return p == pageIndex }
+            if let loc = rev.rangeLocation, startCol < documentPageSlices.count {
+                let sliceStart = documentPageSlices[startCol].range.location
+                let lastSlice = documentPageSlices[min(endCol - 1, documentPageSlices.count - 1)]
+                let sliceEnd = lastSlice.range.location + lastSlice.range.length
+                return loc >= sliceStart && loc <= sliceEnd
+            }
+            return pageIndex == 0
+        }
+
+        for (revIdx, rev) in pageRevisions.enumerated() {
+            let y = documentController.margins.top + bannerOffset + CGFloat(revIdx * 80)
+            items.append(.revision(rev: rev, preferredY: y))
+        }
+
+        guard !items.isEmpty else { return [] }
+        let sorted = items.sorted(by: { $0.preferredY < $1.preferredY })
+        var nextY: CGFloat = documentController.margins.top + bannerOffset
+        var placed: [(item: MarginCanvasItem, y: CGFloat)] = []
+        for item in sorted {
+            let y = max(item.preferredY, nextY)
+            placed.append((item, y))
+            let cardH: CGFloat = {
+                switch item {
+                case .comment: return 80
+                case .revision: return 70
+                }
+            }()
+            nextY = y + cardH + 10
+        }
+        return placed
+    }
+
+    @ViewBuilder
+    private func paperMarginLayer(pageIndex: Int) -> some View {
+        let totalPrintableWidth = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        let bannerOffset: CGFloat = (pageIndex == 0 && documentController.coverBanner.isEnabled)
+            ? max(0, (16 + CGFloat(documentController.coverBanner.height) + 24) - documentController.margins.top)
+            : 0
+        let marginX = documentController.margins.left + totalPrintableWidth + 12
+        let cardWidth: CGFloat = 145
+        let placed = calculateMarginItems(pageIndex: pageIndex, bannerOffset: bannerOffset)
+
+        if !placed.isEmpty {
+            ZStack(alignment: .topLeading) {
+                ForEach(placed, id: \.item.id) { entry in
+                    Group {
+                        switch entry.item {
+                        case .comment(let sn, _):
+                            marginCommentCard(sn: sn)
+                        case .revision(let rev, _):
+                            onPaperRevisionCard(rev: rev)
+                        }
+                    }
+                    .position(x: marginX + cardWidth / 2, y: entry.y + 40)
+                }
+            }
+        }
+    }
+
+    private func marginCommentCard(sn: StudioSideNote) -> some View {
+        let binding = Binding(
+            get: { sn.text },
+            set: { newText in
+                if let idx = documentController.sideNotes.firstIndex(where: { $0.id == sn.id }) {
+                    documentController.sideNotes[idx].text = newText
+                }
+            }
+        )
+
+        return VStack(alignment: .leading, spacing: 4) {
+            // Header: Author & Action Buttons
+            HStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .fill(sn.isResolved ? Color.gray.opacity(0.3) : Color.accentColor.opacity(0.2))
+                        .frame(width: 15, height: 15)
+                    Text(String(sn.author.prefix(1)).uppercased())
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(sn.isResolved ? .secondary : .accentColor)
+                }
+
+                Text(sn.author)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(sn.isResolved ? .secondary : .primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 2)
+
+                // Resolve toggle button
+                Button(action: {
+                    if let idx = documentController.sideNotes.firstIndex(where: { $0.id == sn.id }) {
+                        documentController.sideNotes[idx].isResolved.toggle()
+                        showToast(documentController.sideNotes[idx].isResolved ? "✓ Resolved comment" : "✓ Reopened comment")
+                    }
+                }) {
+                    Image(systemName: sn.isResolved ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(.system(size: 11))
+                        .foregroundColor(sn.isResolved ? .green : .secondary.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help(sn.isResolved ? "Reopen comment" : "Mark as resolved")
+
+                // Delete button
+                Button(action: {
+                    documentController.sideNotes.removeAll(where: { $0.id == sn.id })
+                    showToast("✓ Deleted comment")
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help("Delete comment")
+            }
+
+            // Quoted Anchor Text Excerpt
+            if let anchor = sn.anchorText, !anchor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HStack(alignment: .top, spacing: 4) {
+                    Capsule()
+                        .fill(Color.orange.opacity(0.8))
+                        .frame(width: 2.5, height: 14)
+                    Text("\"\(anchor)\"")
+                        .font(.system(size: 8.5))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .italic()
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Color.orange.opacity(0.06))
+                .cornerRadius(3)
+            }
+
+            // Comment text editor
+            NativeFootnoteField(
+                text: binding,
+                placeholder: "Add a comment...",
+                font: NSFont.systemFont(ofSize: 10.5, weight: .regular),
+                textColor: sn.isResolved ? .secondaryLabelColor : .labelColor
+            )
+            .frame(minHeight: 20)
+            .opacity(sn.isResolved ? 0.6 : 1.0)
+
+            if sn.isResolved {
+                Text("RESOLVED")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(2)
+            }
+        }
+        .padding(6)
+        .frame(width: 145)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(
+                    hoveredCommentId == sn.id
+                        ? Color.orange
+                        : (sn.isResolved ? Color.secondary.opacity(0.2) : Color.accentColor.opacity(0.3)),
+                    lineWidth: hoveredCommentId == sn.id ? 1.6 : 0.8
+                )
+        )
+        .shadow(
+            color: hoveredCommentId == sn.id ? Color.orange.opacity(0.25) : Color.black.opacity(0.06),
+            radius: hoveredCommentId == sn.id ? 5 : 3,
+            x: 0,
+            y: 1.5
+        )
+        .onHover { isHovered in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                hoveredCommentId = isHovered ? sn.id : nil
+            }
+        }
+    }
+
+    private func onPaperRevisionCard(rev: StudioTrackedRevision) -> some View {
+        let isInsertion = rev.kind == .insertion
+        let accentColor = isInsertion ? Color.green : Color.red
+
+        return VStack(alignment: .leading, spacing: 4) {
+            // Header: Author + Action icon + 1-Click Accept / Reject
+            HStack(spacing: 4) {
+                Image(systemName: isInsertion ? "plus.circle.fill" : "minus.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(accentColor)
+
+                Text(rev.author)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 2)
+
+                // 1-Click Accept Button on Paper
+                Button(action: {
+                    documentController.acceptRevision(id: rev.id)
+                    showToast("✓ Accepted change on paper")
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.15))
+                            .frame(width: 18, height: 18)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.green)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Accept change (Keep this edit)")
+
+                // 1-Click Reject Button on Paper
+                Button(action: {
+                    documentController.rejectRevision(id: rev.id)
+                    showToast("✓ Rejected change on paper")
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.red.opacity(0.15))
+                            .frame(width: 18, height: 18)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.red)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Reject change (Revert this edit)")
+            }
+
+            // Body text
+            if !isInsertion, let orig = rev.originalText ?? (rev.text.isEmpty ? nil : rev.text) {
+                Text(orig)
+                    .font(.system(size: 9))
+                    .strikethrough()
+                    .foregroundColor(.red.opacity(0.85))
+                    .lineLimit(3)
+            } else {
+                Text(rev.text)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.green.opacity(0.9))
+                    .lineLimit(3)
+            }
+        }
+        .padding(6)
+        .frame(width: 145)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(accentColor.opacity(0.4), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1.5)
+    }
+
+    private var reviewToolbarStrip: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(documentController.isTrackChangesEnabled ? Color.orange : Color.secondary)
+                    .frame(width: 8, height: 8)
+                Text(documentController.isTrackChangesEnabled ? "Track Changes ON" : "Review Mode")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(documentController.isTrackChangesEnabled ? .orange : .secondary)
+
+                if !documentController.revisions.isEmpty {
+                    Text("(\(documentController.revisions.count) changes)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if !documentController.revisions.isEmpty {
+                Button(action: { showRevisionsPopover.toggle() }) {
+                    Label("Review Changes", systemImage: "list.bullet.rectangle")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .popover(isPresented: $showRevisionsPopover, arrowEdge: .bottom) {
+                    revisionsPopoverContent
+                }
+
+                Button(action: {
+                    documentController.acceptAllRevisions()
+                    showToast("✓ Accepted all changes")
+                }) {
+                    Label("Accept All", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.green)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button(action: {
+                    documentController.rejectAllRevisions()
+                    showToast("✓ Rejected all changes")
+                }) {
+                    Label("Reject All", systemImage: "xmark.circle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Button(action: { insertSideNote() }) {
+                Label("Add Comment", systemImage: "bubble.left.and.bubble.right")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    documentController.isTrackChangesEnabled.toggle()
+                }
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Close Review Bar")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(Color.orange.opacity(0.08))
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color.orange.opacity(0.2)),
+            alignment: .bottom
+        )
+    }
+
+    private var revisionsPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "pencil.and.outline")
+                    .foregroundColor(.orange)
+                Text("Tracked Changes (\(documentController.revisions.count))")
+                    .font(.system(size: 12, weight: .bold))
+                Spacer()
+            }
+            Divider()
+
+            if documentController.revisions.isEmpty {
+                Text("No pending revisions.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(documentController.revisions) { rev in
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Image(systemName: rev.kind == .insertion ? "plus.circle.fill" : "minus.circle.fill")
+                                        .foregroundColor(rev.kind == .insertion ? .green : .red)
+                                        .font(.system(size: 11))
+                                    Text("\(rev.author) • \(rev.kind.rawValue.capitalized)")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Button(action: {
+                                        documentController.acceptRevision(id: rev.id)
+                                        showToast("✓ Accepted change")
+                                    }) {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.green)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Accept Change")
+
+                                    Button(action: {
+                                        documentController.rejectRevision(id: rev.id)
+                                        showToast("✓ Rejected change")
+                                    }) {
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Reject Change")
+                                }
+
+                                if let orig = rev.originalText, !orig.isEmpty {
+                                    HStack(alignment: .top, spacing: 4) {
+                                        Text("Was:")
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundColor(.secondary)
+                                        Text(orig)
+                                            .font(.system(size: 10))
+                                            .strikethrough()
+                                            .foregroundColor(.red.opacity(0.8))
+                                            .lineLimit(2)
+                                    }
+                                }
+
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("Now:")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                    Text(rev.text)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(rev.kind == .insertion ? .green : .primary)
+                                        .lineLimit(3)
+                                }
+                            }
+                            .padding(8)
+                            .background(Color.primary.opacity(0.04))
+                            .cornerRadius(6)
+                        }
+                    }
+                    .padding(.trailing, 16)
+                }
+                .frame(maxHeight: 280)
+            }
+        }
+        .padding(12)
+        .frame(width: 320)
+    }
+
+    private var pasteSpecialSheetView: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 22))
+                    .foregroundColor(.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Paste Special")
+                        .font(.headline)
+                    Text("Choose how clipboard content should be inserted into your document.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
+                ForEach(PasteSpecialMode.allCases) { mode in
+                    Button(action: { selectedPasteMode = mode }) {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: selectedPasteMode == mode ? "largecircle.fill.circle" : "circle")
+                                .foregroundColor(selectedPasteMode == mode ? .accentColor : .secondary)
+                                .font(.system(size: 14))
+                                .padding(.top, 2)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(mode.rawValue)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                Text(mode.description)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(selectedPasteMode == mode ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.02))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(selectedPasteMode == mode ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack {
+                Button("Cancel") {
+                    showingPasteSpecialSheet = false
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("Paste") {
+                    editorController.pasteSpecial(mode: selectedPasteMode)
+                    showingPasteSpecialSheet = false
+                    showToast("✓ Pasted (\(selectedPasteMode.rawValue))")
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 
     @ViewBuilder
@@ -2592,6 +4321,15 @@ public struct MainEditorView: View {
             },
             onSetParagraphSpacing: { sp in
                 setParagraphSpacingAction(sp)
+            },
+            onSetTextColor: { col in
+                setTextColorAction(col)
+            },
+            onSetTextHighlight: { col in
+                setTextHighlightAction(col)
+            },
+            onClearFormatting: {
+                clearFormattingAction()
             },
             onAskAI: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
@@ -2647,6 +4385,14 @@ public struct MainEditorView: View {
     }
 
     private func replaceSelection(with newText: String) {
+        if documentController.isTrackChangesEnabled {
+            documentController.recordRevision(
+                kind: .insertion,
+                text: newText,
+                originalText: selectedText.isEmpty ? nil : selectedText,
+                author: "AI Copilot"
+            )
+        }
         if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
             let ns = documentController.rawText as NSString
             documentController.rawText = ns.replacingCharacters(in: selectionRange, with: newText)
@@ -2661,6 +4407,14 @@ public struct MainEditorView: View {
     }
 
     private func insertBelowSelection(newText: String) {
+        if documentController.isTrackChangesEnabled {
+            documentController.recordRevision(
+                kind: .insertion,
+                text: newText,
+                originalText: nil,
+                author: "AI Copilot"
+            )
+        }
         if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
             let ns = documentController.rawText as NSString
             let insertPos = selectionRange.location + selectionRange.length
@@ -2677,24 +4431,84 @@ public struct MainEditorView: View {
         showToast("✓ Inserted AI content below selection")
     }
 
-    private func extractTextChunks(from pageContent: String) -> [String] {
+    private func applyLintFix(_ issue: StyleLintMatch) {
+        guard let suggestion = issue.suggestion, !suggestion.isEmpty else { return }
+        let ns = documentController.rawText as NSString
+        guard issue.spanStart >= 0, issue.spanEnd <= ns.length, issue.spanStart <= issue.spanEnd else { return }
+        let range = NSRange(location: issue.spanStart, length: issue.spanEnd - issue.spanStart)
+        let oldSnippet = ns.substring(with: range)
+        if documentController.isTrackChangesEnabled {
+            documentController.recordRevision(
+                kind: .insertion,
+                text: suggestion,
+                originalText: oldSnippet,
+                author: "Style Linter"
+            )
+        }
+
+        // Update richTextData synchronously so formatting is never lost across the document
+        if let data = documentController.richTextData,
+           let richDoc = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: data),
+           richDoc.length == ns.length {
+            let mutableRich = NSMutableAttributedString(attributedString: richDoc)
+            let existingAttrs = range.length > 0 ? richDoc.attributes(at: range.location, effectiveRange: nil) : [:]
+            let replacementAttrStr = NSAttributedString(string: suggestion, attributes: existingAttrs)
+            mutableRich.replaceCharacters(in: range, with: replacementAttrStr)
+            if let updatedData = try? NSKeyedArchiver.archivedData(withRootObject: mutableRich, requiringSecureCoding: false) {
+                documentController.richTextData = updatedData
+            }
+        }
+
+        let replaced = ns.replacingCharacters(in: range, with: suggestion)
+        documentController.rawText = replaced
+        documentController.commitSnapshot(actionName: "Apply Fix: \(issue.ruleId)", isMilestone: false)
+        runLinter()
+        showToast("✓ Applied fix: \(suggestion)")
+    }
+
+    private func extractTextChunkRanges(from pageContent: String) -> [NSRange] {
         let regex = EditorPerformanceCache.shared.canvasChunkMarkerRegex
         let ns = pageContent as NSString
         let matches = regex.matches(in: pageContent, options: [], range: NSRange(location: 0, length: ns.length))
         if matches.isEmpty {
-            return [pageContent]
+            return [NSRange(location: 0, length: ns.length)]
         }
-        var chunks: [String] = []
+        var ranges: [NSRange] = []
         var lastLoc = 0
         for match in matches {
-            let len = match.range.location - lastLoc
-            chunks.append(ns.substring(with: NSRange(location: lastLoc, length: max(0, len))))
+            let len = max(0, match.range.location - lastLoc)
+            ranges.append(NSRange(location: lastLoc, length: len))
             lastLoc = match.range.location + match.range.length
         }
         if lastLoc <= ns.length {
-            chunks.append(ns.substring(with: NSRange(location: lastLoc, length: ns.length - lastLoc)))
+            ranges.append(NSRange(location: lastLoc, length: ns.length - lastLoc))
         }
-        return chunks
+        return ranges
+    }
+
+    private func extractTextChunks(from pageContent: String) -> [String] {
+        let ns = pageContent as NSString
+        return extractTextChunkRanges(from: pageContent).map { ns.substring(with: $0) }
+    }
+
+    private func getTextChunkSliceRange(columnIndex: Int, textIndex: Int) -> NSRange? {
+        let slices = documentPageSlices
+        guard columnIndex < slices.count else { return nil }
+        let slice = slices[columnIndex]
+        let localRanges = extractTextChunkRanges(from: slice.text)
+        guard textIndex < localRanges.count else { return slice.range }
+        let localRange = localRanges[textIndex]
+        return NSRange(location: slice.range.location + localRange.location, length: localRange.length)
+    }
+
+    private func getTextChunkAttributedText(columnIndex: Int, textIndex: Int) -> NSAttributedString? {
+        let slices = documentPageSlices
+        guard columnIndex < slices.count, let colAttr = slices[columnIndex].attributedText else { return nil }
+        let localRanges = extractTextChunkRanges(from: slices[columnIndex].text)
+        guard textIndex < localRanges.count else { return nil }
+        let localRange = localRanges[textIndex]
+        guard localRange.location + localRange.length <= colAttr.length else { return nil }
+        return colAttr.attributedSubstring(from: localRange)
     }
 
     private func replaceTextChunk(in pageContent: String, textIndex: Int, with newText: String) -> String {
@@ -2847,13 +4661,243 @@ public enum DocumentCanvasSegment: Identifiable {
     }
 }
 
-// MARK: - Visual Publishing Guides
+// MARK: - Visual Publishing Guides & Interactive Horizontal Ruler
+struct StudioHorizontalRulerView: View {
+    let sheetWidth: CGFloat
+    var zoomScale: CGFloat = 1.0
+    @Binding var margins: PageMargins
+    @Binding var hangingIndent: CGFloat
+    var onMarginChanged: () -> Void = {}
+
+    @AppStorage("letters_ruler_unit") private var rulerUnitString: String = "in"
+
+    @State private var leftDragStart: CGFloat? = nil
+    @State private var rightDragStart: CGFloat? = nil
+    @State private var indentDragStart: CGFloat? = nil
+
+    private var isMetric: Bool {
+        rulerUnitString == "cm"
+    }
+
+    // Conversion: 72 pt = 1 inch, 28.3464567 pt = 1 cm
+    private var ptPerUnit: CGFloat {
+        isMetric ? 28.3464567 : 72.0
+    }
+
+    private var subdivisions: Int {
+        isMetric ? 2 : 4 // cm: 0.5 cm ticks; in: 1/4 in ticks
+    }
+
+    private var minorStep: CGFloat {
+        ptPerUnit / CGFloat(subdivisions)
+    }
+
+    private func snapCoordinate(_ val: CGFloat, isShift: Bool) -> CGFloat {
+        if isShift {
+            // Snaps to exact whole unit (1.0 in or 1.0 cm)
+            return round(val / ptPerUnit) * ptPerUnit
+        }
+        let nearestTick = round(val / minorStep) * minorStep
+        if abs(val - nearestTick) < 5.0 {
+            return nearestTick
+        }
+        return round(val)
+    }
+
+    private func formatUnit(_ pt: CGFloat) -> String {
+        if isMetric {
+            let cm = Double(pt) / 28.3464567
+            return String(format: "%.1f cm", cm)
+        } else {
+            let inch = Double(pt) / 72.0
+            return String(format: "%.2f\"", inch)
+        }
+    }
+
+    var body: some View {
+        let effectiveWidth = sheetWidth * zoomScale
+        let scaledLeftMargin = margins.left * zoomScale
+        let scaledRightMargin = margins.right * zoomScale
+        let rightHandleX = effectiveWidth - scaledRightMargin
+
+        ZStack(alignment: .topLeading) {
+            // 1. Single Pixel-Aligned High-DPI CoreGraphics Canvas
+            Canvas { context, size in
+                let w = size.width
+                let h = size.height
+
+                // Transparent ruler track background with crisp 1px borders
+                let trackRect = CGRect(x: 0, y: 0, width: w, height: h)
+                context.fill(Path(trackRect), with: .color(Color(nsColor: .windowBackgroundColor).opacity(0.35)))
+
+                let topPath = Path { p in
+                    p.move(to: CGPoint(x: 0, y: 0.5))
+                    p.addLine(to: CGPoint(x: w, y: 0.5))
+                }
+                let bottomPath = Path { p in
+                    p.move(to: CGPoint(x: 0, y: h - 0.5))
+                    p.addLine(to: CGPoint(x: w, y: h - 0.5))
+                }
+                context.stroke(topPath, with: .color(Color.primary.opacity(0.12)), lineWidth: 1)
+                context.stroke(bottomPath, with: .color(Color.primary.opacity(0.12)), lineWidth: 1)
+
+                // Transparent Active Printable Column with subtle accent tint (Never solid white)
+                let activeLeft = floor(scaledLeftMargin) + 0.5
+                let activeRight = floor(rightHandleX) + 0.5
+                if activeRight > activeLeft {
+                    let activeRect = CGRect(x: activeLeft, y: 1, width: activeRight - activeLeft, height: h - 2)
+                    context.fill(Path(activeRect), with: .color(Color.accentColor.opacity(0.04)))
+
+                    // Left & Right boundary guidelines
+                    let leftLine = Path { p in
+                        p.move(to: CGPoint(x: activeLeft, y: 0))
+                        p.addLine(to: CGPoint(x: activeLeft, y: h))
+                    }
+                    let rightLine = Path { p in
+                        p.move(to: CGPoint(x: activeRight, y: 0))
+                        p.addLine(to: CGPoint(x: activeRight, y: h))
+                    }
+                    context.stroke(leftLine, with: .color(Color.accentColor.opacity(0.5)), lineWidth: 1)
+                    context.stroke(rightLine, with: .color(Color.accentColor.opacity(0.5)), lineWidth: 1)
+                }
+
+                // Ticks & Numbers drawing
+                let totalSteps = Int(ceil(sheetWidth / minorStep))
+                for step in 0...totalSteps {
+                    let rawX = CGFloat(step) * minorStep * zoomScale
+                    if rawX > w { break }
+                    let x = floor(rawX) + 0.5
+                    let isMajor = (step % subdivisions == 0)
+                    let isHalf = isMetric ? false : (step % 2 == 0)
+                    let tickH: CGFloat = isMajor ? 7.5 : (isHalf ? 5.0 : 3.0)
+
+                    let tickPath = Path { p in
+                        p.move(to: CGPoint(x: x, y: h - tickH))
+                        p.addLine(to: CGPoint(x: x, y: h))
+                    }
+                    context.stroke(tickPath, with: .color(Color(nsColor: .labelColor).opacity(isMajor ? 0.75 : 0.35)), lineWidth: 1)
+
+                    if isMajor && step > 0 {
+                        let unitValue = step / subdivisions
+                        let labelText = Text("\(unitValue)")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(nsColor: .labelColor))
+                        context.draw(labelText, at: CGPoint(x: x, y: 8), anchor: .center)
+                    }
+                }
+            }
+            .frame(width: effectiveWidth, height: 26)
+
+            // Unit Switcher Tag (Click to toggle in / cm)
+            Button {
+                rulerUnitString = isMetric ? "in" : "cm"
+            } label: {
+                Text(isMetric ? "cm" : "in")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1.5)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 3))
+            }
+            .buttonStyle(.plain)
+            .position(x: min(effectiveWidth - 14, effectiveWidth - scaledRightMargin / 2), y: 8)
+            .help("Click to switch ruler units (Inches / Centimeters)")
+
+            // 3. Hanging / First-Line Indent Handle (Top downward triangle at y: 5)
+            let indentX = (margins.left + hangingIndent) * zoomScale
+            ZStack {
+                Image(systemName: "arrowtriangle.down.fill")
+                    .font(.system(size: 8))
+                    .foregroundColor(Color.orange.opacity(0.95))
+                    .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 0.5)
+            }
+            .frame(width: 16, height: 16)
+            .contentShape(Rectangle())
+            .position(x: indentX, y: 5)
+            .help("First Line / Hanging Indent: \(formatUnit(hangingIndent)) (\(Int(hangingIndent)) pt) • Hold ⇧ to snap to 1 \(isMetric ? "cm" : "inch")")
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if indentDragStart == nil { indentDragStart = hangingIndent }
+                        let base = indentDragStart ?? hangingIndent
+                        let deltaDoc = value.translation.width / zoomScale
+                        let proposedX = margins.left + base + deltaDoc
+                        let isShift = NSEvent.modifierFlags.contains(.shift)
+                        let snappedX = snapCoordinate(proposedX, isShift: isShift)
+                        hangingIndent = max(0, min(144, snappedX - margins.left))
+                    }
+                    .onEnded { _ in
+                        indentDragStart = nil
+                    }
+            )
+
+            // 4. Left Margin Draggable Handle (Bottom upward triangle at y: 20)
+            ZStack {
+                Image(systemName: "arrowtriangle.up.fill")
+                    .font(.system(size: 8.5))
+                    .foregroundColor(.accentColor)
+                    .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 0.5)
+            }
+            .frame(width: 16, height: 16)
+            .contentShape(Rectangle())
+            .position(x: scaledLeftMargin, y: 20)
+            .help("Left Margin: \(formatUnit(margins.left)) (\(Int(margins.left)) pt) • Hold ⇧ to snap to 1 \(isMetric ? "cm" : "inch")")
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if leftDragStart == nil { leftDragStart = margins.left }
+                        let base = leftDragStart ?? margins.left
+                        let deltaDoc = value.translation.width / zoomScale
+                        let proposed = min(max(18, base + deltaDoc), sheetWidth - margins.right - 72)
+                        let isShift = NSEvent.modifierFlags.contains(.shift)
+                        margins.left = snapCoordinate(proposed, isShift: isShift)
+                        onMarginChanged()
+                    }
+                    .onEnded { _ in
+                        leftDragStart = nil
+                    }
+            )
+
+            // 5. Right Margin Draggable Handle (Bottom upward triangle at y: 20)
+            ZStack {
+                Image(systemName: "arrowtriangle.up.fill")
+                    .font(.system(size: 8.5))
+                    .foregroundColor(.accentColor)
+                    .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 0.5)
+            }
+            .frame(width: 16, height: 16)
+            .contentShape(Rectangle())
+            .position(x: rightHandleX, y: 20)
+            .help("Right Margin: \(formatUnit(margins.right)) (\(Int(margins.right)) pt) • Hold ⇧ to snap to 1 \(isMetric ? "cm" : "inch")")
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if rightDragStart == nil { rightDragStart = margins.right }
+                        let base = rightDragStart ?? margins.right
+                        let deltaDoc = value.translation.width / zoomScale
+                        let proposedX = sheetWidth - (base - deltaDoc)
+                        let isShift = NSEvent.modifierFlags.contains(.shift)
+                        let snappedX = snapCoordinate(proposedX, isShift: isShift)
+                        margins.right = max(18, min(sheetWidth - margins.left - 72, sheetWidth - snappedX))
+                        onMarginChanged()
+                    }
+                    .onEnded { _ in
+                        rightDragStart = nil
+                    }
+            )
+        }
+        .frame(width: effectiveWidth, height: 26, alignment: .topLeading)
+    }
+}
+
 struct PaperMarginGuidesView: View {
     let width: CGFloat
     let height: CGFloat
     let margins: PageMargins
+    var topOffset: CGFloat? = nil
 
     var body: some View {
+        let effTop = topOffset ?? margins.top
         ZStack(alignment: .topLeading) {
             Rectangle()
                 .stroke(
@@ -2862,15 +4906,17 @@ struct PaperMarginGuidesView: View {
                 )
                 .frame(
                     width: max(0, width - margins.left - margins.right),
-                    height: max(0, height - margins.top - margins.bottom)
+                    height: max(0, height - effTop - margins.bottom)
                 )
-                .offset(x: margins.left, y: margins.top)
+                .offset(x: margins.left, y: effTop)
 
-            Path { path in
-                path.move(to: CGPoint(x: margins.left, y: margins.top / 2))
-                path.addLine(to: CGPoint(x: width - margins.right, y: margins.top / 2))
+            if topOffset == nil {
+                Path { path in
+                    path.move(to: CGPoint(x: margins.left, y: margins.top / 2))
+                    path.addLine(to: CGPoint(x: width - margins.right, y: margins.top / 2))
+                }
+                .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
             }
-            .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
 
             Path { path in
                 let footerY = height - (margins.bottom / 2)
@@ -2926,10 +4972,12 @@ struct CropMarkCorner: View {
 struct EditorFileNotificationsModifier: ViewModifier {
     let onNew: () -> Void
     let onOpen: () -> Void
+    let onRestoreAutosave: () -> Void
     let onImportWordOrPDF: () -> Void
     let onSave: () -> Void
     let onExportDocx: () -> Void
     let onExportPDF: () -> Void
+    let onExportMarkdown: () -> Void
     let onPrint: () -> Void
     let onSettings: () -> Void
 
@@ -2937,10 +4985,12 @@ struct EditorFileNotificationsModifier: ViewModifier {
         content
             .onReceive(NotificationCenter.default.publisher(for: .lettersNewDocument)) { _ in onNew() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersOpenDocument)) { _ in onOpen() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersRestoreAutosave)) { _ in onRestoreAutosave() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersImportWordOrPDF)) { _ in onImportWordOrPDF() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersSaveDocument)) { _ in onSave() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersExportDocx)) { _ in onExportDocx() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersExportPDF)) { _ in onExportPDF() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersExportMarkdown)) { _ in onExportMarkdown() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersPrintDocument)) { _ in onPrint() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersOpenSettings)) { _ in onSettings() }
     }
@@ -2957,6 +5007,10 @@ struct EditorFormatNotificationsModifier: ViewModifier {
     let onImage: () -> Void
     let onVideo: () -> Void
     let onCitation: () -> Void
+    let onFootnote: () -> Void
+    let onSideNote: () -> Void
+    let onTOC: () -> Void
+    let onBibliography: () -> Void
     let onPageBreak: () -> Void
 
     func body(content: Content) -> some View {
@@ -2971,6 +5025,10 @@ struct EditorFormatNotificationsModifier: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .lettersInsertImage)) { _ in onImage() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersInsertVideo)) { _ in onVideo() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersInsertCitation)) { _ in onCitation() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertFootnote)) { _ in onFootnote() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertSideNote)) { _ in onSideNote() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertTOC)) { _ in onTOC() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersInsertBibliography)) { _ in onBibliography() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersInsertPageBreak)) { _ in onPageBreak() }
     }
 }
@@ -2980,9 +5038,15 @@ struct EditorViewNotificationsModifier: ViewModifier {
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
     let onZoomReset: () -> Void
+    let onToggleRuler: () -> Void
     let onOutline: () -> Void
     let onAIDrawer: () -> Void
+    let onPageDesign: () -> Void
+    let onDocumentHistory: () -> Void
     let onCommandPalette: () -> Void
+    var onToggleTrackChanges: () -> Void = {}
+    var onPasteAndMatchStyle: () -> Void = {}
+    var onPasteSpecial: () -> Void = {}
 
     func body(content: Content) -> some View {
         content
@@ -2990,9 +5054,15 @@ struct EditorViewNotificationsModifier: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .lettersZoomIn)) { _ in onZoomIn() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersZoomOut)) { _ in onZoomOut() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersZoomReset)) { _ in onZoomReset() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleRuler)) { _ in onToggleRuler() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersToggleOutline)) { _ in onOutline() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersToggleAIDrawer)) { _ in onAIDrawer() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersTogglePageDesign)) { _ in onPageDesign() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleDocumentHistory)) { _ in onDocumentHistory() }
             .onReceive(NotificationCenter.default.publisher(for: .lettersToggleCommandPalette)) { _ in onCommandPalette() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersToggleTrackChanges)) { _ in onToggleTrackChanges() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersPasteAndMatchStyle)) { _ in onPasteAndMatchStyle() }
+            .onReceive(NotificationCenter.default.publisher(for: .lettersPasteSpecial)) { _ in onPasteSpecial() }
     }
 }
 
@@ -3049,6 +5119,9 @@ public class LettersDocumentController: ObservableObject {
     @Published public var margins: PageMargins
     @Published public var coverBanner: CoverBannerConfig
     @Published public var headerFooter: HeaderFooterConfig
+    @Published public var isTrackChangesEnabled: Bool
+    @Published public var revisions: [StudioTrackedRevision]
+    @Published public var styleProfile: String = "none"
     
     @Published public var fontFamily: String
     @Published public var fontSize: CGFloat
@@ -3061,16 +5134,58 @@ public class LettersDocumentController: ObservableObject {
     @Published public var kern: CGFloat
     @Published public var hangingIndent: CGFloat
     
-    // MARK: - DAG Time Travel Engine
+    // MARK: - DAG Time Travel Engine & Document Lifecycle
     @Published public var historyNodes: [UUID: HistoryNode] = [:]
     @Published public var currentSnapshotId: UUID? = nil
     @Published public var mainBranchHeadId: UUID? = nil
     @Published public var isPeeking: Bool = false
+    @Published public var currentFileURL: URL? = nil
+    @Published public var isDirty: Bool = false {
+        didSet {
+            NSApp.windows.first?.isDocumentEdited = isDirty
+        }
+    }
+    @Published public var lastAutosaveDate: Date? = nil
     
     private var isReverting: Bool = false
     private var cancellables = Set<AnyCancellable>()
     private var backupBundleForPeek: LettersDocumentBundle? = nil
     
+    public static var autosaveShadowURL: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let dir = appSupport.appendingPathComponent("ProjectLetters", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("AutosaveRecovery.letters")
+    }
+
+    public func performAutosave() {
+        guard !isReverting, !isPeeking else { return }
+        let bundle = createBundle()
+        guard let data = try? bundle.encodeToData() else { return }
+        // 1. Always write shadow recovery bundle
+        try? data.write(to: Self.autosaveShadowURL, options: .atomic)
+        // 2. If user already saved to a .letters or .ltt file on disk, autosave in place
+        if let fileURL = currentFileURL {
+            let ext = fileURL.pathExtension.lowercased()
+            if ext == "letters" || ext == "ltt" {
+                if (try? data.write(to: fileURL, options: .atomic)) != nil {
+                    isDirty = false
+                }
+            }
+        }
+        lastAutosaveDate = Date()
+    }
+
+    public func markSaved(url: URL) {
+        currentFileURL = url
+        isDirty = false
+        lastAutosaveDate = Date()
+        NSDocumentController.shared.noteNewRecentDocumentURL(url)
+        let titleStr = url.lastPathComponent
+        NSApp.windows.first?.title = "Letters — \(titleStr)"
+        NSApp.windows.first?.representedURL = url
+    }
     
     private static func scrubDeadTags(text: String, tables: [StudioTableData], images: [StudioImageBlock], videos: [StudioVideoBlock]) -> String {
         let regex = EditorPerformanceCache.shared.canvasSegmentRegex
@@ -3104,6 +5219,9 @@ public class LettersDocumentController: ObservableObject {
             nsMutable.deleteCharacters(in: range)
             cleanText = nsMutable as String
         }
+
+        // Scrub any legacy `[note:1]` or `[note:xyz]` tags that might exist in old files
+        cleanText = cleanText.replacingOccurrences(of: #"\s*\[note:[^\]]+\]"#, with: "", options: .regularExpression)
         
         return cleanText
     }
@@ -3125,6 +5243,8 @@ public class LettersDocumentController: ObservableObject {
         margins: PageMargins = PageMargins(top: 72, bottom: 72, left: 72, right: 72),
         coverBanner: CoverBannerConfig = CoverBannerConfig(),
         headerFooter: HeaderFooterConfig = HeaderFooterConfig(),
+        isTrackChangesEnabled: Bool = false,
+        revisions: [StudioTrackedRevision] = [],
         fontFamily: String = "Default Serif (Georgia)",
         fontSize: CGFloat = 15.0,
         lineSpacing: CGFloat = 1.15,
@@ -3134,7 +5254,8 @@ public class LettersDocumentController: ObservableObject {
         showLineNumbers: Bool = false,
         watermarkText: String = "",
         kern: CGFloat = 0.0,
-        hangingIndent: CGFloat = 0.0
+        hangingIndent: CGFloat = 0.0,
+        styleProfile: String = "none"
     ) {
         self.title = title
         self.rawText = Self.scrubDeadTags(text: rawText, tables: tables, images: images, videos: videos)
@@ -3152,6 +5273,8 @@ public class LettersDocumentController: ObservableObject {
         self.margins = margins
         self.coverBanner = coverBanner
         self.headerFooter = headerFooter
+        self.isTrackChangesEnabled = isTrackChangesEnabled
+        self.revisions = revisions
         self.fontFamily = fontFamily
         self.fontSize = fontSize
         self.lineSpacing = lineSpacing
@@ -3162,18 +5285,29 @@ public class LettersDocumentController: ObservableObject {
         self.watermarkText = watermarkText
         self.kern = kern
         self.hangingIndent = hangingIndent
+        self.styleProfile = styleProfile
         Self.active = self
         // Initial snapshot
         DispatchQueue.main.async {
             self.commitSnapshot(actionName: "Created Document", isMilestone: true)
+            self.isDirty = false
         }
         
+        $rawText
+            .dropFirst()
+            .sink { [weak self] _ in
+                guard let self = self, !self.isReverting, !self.isPeeking else { return }
+                self.isDirty = true
+            }
+            .store(in: &cancellables)
+
         $rawText
             .dropFirst()
             .debounce(for: .milliseconds(800), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self = self, !self.isReverting, !self.isPeeking else { return }
                 self.commitSnapshot(actionName: "Typing", isMilestone: false)
+                self.performAutosave()
             }
             .store(in: &cancellables)
 
@@ -3182,13 +5316,32 @@ public class LettersDocumentController: ObservableObject {
             .debounce(for: .milliseconds(800), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self = self, !self.isReverting, !self.isPeeking else { return }
+                self.isDirty = true
                 self.commitSnapshot(actionName: "Table Edit", isMilestone: false)
+                self.performAutosave()
+            }
+            .store(in: &cancellables)
+
+        $images
+            .dropFirst()
+            .debounce(for: .milliseconds(800), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self = self, !self.isReverting, !self.isPeeking else { return }
+                self.isDirty = true
+                self.performAutosave()
             }
             .store(in: &cancellables)
     }
     
     public func createBundle() -> LettersDocumentBundle {
-        LettersDocumentBundle(
+        let alignStr: String
+        switch textAlignment {
+        case .leading: alignStr = "leading"
+        case .center: alignStr = "center"
+        case .trailing: alignStr = "trailing"
+        }
+
+        return LettersDocumentBundle(
             title: title,
             rawText: rawText,
             richTextData: richTextData,
@@ -3207,13 +5360,17 @@ public class LettersDocumentController: ObservableObject {
             fontSize: Double(fontSize),
             lineSpacing: Double(lineSpacing),
             paragraphSpacing: Double(paragraphSpacing),
+            textAlignmentString: alignStr,
             columnCount: columnCount,
             showLineNumbers: showLineNumbers,
             watermarkText: watermarkText,
             kern: Double(kern),
             hangingIndent: Double(hangingIndent),
             headerFooter: headerFooter,
-            coverBanner: coverBanner
+            coverBanner: coverBanner,
+            isTrackChangesEnabled: isTrackChangesEnabled,
+            revisions: revisions,
+            styleProfile: styleProfile
         )
     }
     
@@ -3232,17 +5389,138 @@ public class LettersDocumentController: ObservableObject {
         self.pageSize = bundle.pageSizePreset
         self.marginPreset = bundle.marginPreset
         self.margins = bundle.margins
+        switch bundle.textAlignmentString {
+        case "center": self.textAlignment = .center
+        case "trailing", "right": self.textAlignment = .trailing
+        default: self.textAlignment = .leading
+        }
         self.columnCount = bundle.columnCount
         self.showLineNumbers = bundle.showLineNumbers
         self.watermarkText = bundle.watermarkText
         self.coverBanner = bundle.coverBanner
         self.headerFooter = bundle.headerFooter
+        self.isTrackChangesEnabled = bundle.isTrackChangesEnabled
+        self.revisions = bundle.revisions
+        self.styleProfile = bundle.styleProfile
         self.fontFamily = bundle.fontFamily
         self.fontSize = CGFloat(bundle.fontSize)
         self.lineSpacing = CGFloat(bundle.lineSpacing)
         self.paragraphSpacing = CGFloat(bundle.paragraphSpacing)
         self.kern = CGFloat(bundle.kern)
         self.hangingIndent = CGFloat(bundle.hangingIndent)
+    }
+
+    // MARK: - Track Changes & Revisions Engine
+    public func recordRevision(
+        kind: StudioTrackedRevision.RevisionKind,
+        text: String,
+        originalText: String? = nil,
+        author: String? = nil,
+        rangeLocation: Int? = nil,
+        pageIndex: Int? = nil
+    ) {
+        let auth = author ?? (NSFullUserName().isEmpty ? "Reviewer" : NSFullUserName())
+
+        // 1. Coalesce rapid consecutive typing (insertions) into single revision card
+        if kind == .insertion, originalText == nil,
+           let last = revisions.last,
+           last.kind == .insertion,
+           last.originalText == nil,
+           last.author == auth,
+           Date().timeIntervalSince(last.createdAt) < 3.0 {
+            revisions[revisions.count - 1].text += text
+            revisions[revisions.count - 1].createdAt = Date()
+            return
+        }
+
+        // 2. Coalesce rapid consecutive backspacing/deletions into single revision card
+        if kind == .deletion,
+           let last = revisions.last,
+           last.kind == .deletion,
+           last.author == auth,
+           Date().timeIntervalSince(last.createdAt) < 3.0 {
+            let lastOrig = last.originalText ?? ""
+            let newOrig = originalText ?? ""
+            if let newLoc = rangeLocation, let lastLoc = last.rangeLocation, newLoc <= lastLoc {
+                revisions[revisions.count - 1].originalText = newOrig + lastOrig
+                revisions[revisions.count - 1].rangeLocation = newLoc
+            } else {
+                revisions[revisions.count - 1].originalText = lastOrig + newOrig
+            }
+            revisions[revisions.count - 1].createdAt = Date()
+            return
+        }
+
+        let rev = StudioTrackedRevision(
+            id: UUID(),
+            kind: kind,
+            text: text,
+            originalText: originalText,
+            author: auth,
+            createdAt: Date(),
+            rangeLocation: rangeLocation,
+            pageIndex: pageIndex
+        )
+        revisions.append(rev)
+        commitSnapshot(actionName: "Track Change (\(kind.rawValue))", isMilestone: false)
+    }
+
+    public func acceptRevision(id: UUID) {
+        guard let rev = revisions.first(where: { $0.id == id }) else { return }
+        if rev.kind == .deletion, let orig = rev.originalText, !orig.isEmpty {
+            rawText = rawText.replacingOccurrences(of: orig, with: "")
+        }
+        revisions.removeAll(where: { $0.id == id })
+        commitSnapshot(actionName: "Accept Change", isMilestone: false)
+    }
+
+    public func rejectRevision(id: UUID) {
+        guard let rev = revisions.first(where: { $0.id == id }) else { return }
+        if rev.kind == .insertion {
+            rawText = rawText.replacingOccurrences(of: rev.text, with: rev.originalText ?? "")
+        } else if rev.kind == .deletion {
+            if let orig = rev.originalText, !orig.isEmpty {
+                if let loc = rev.rangeLocation, loc <= (rawText as NSString).length {
+                    let ns = rawText as NSString
+                    let newStr = ns.substring(to: loc) + orig + ns.substring(from: loc)
+                    rawText = newStr
+                } else {
+                    rawText += orig
+                }
+            }
+        }
+        revisions.removeAll(where: { $0.id == id })
+        commitSnapshot(actionName: "Reject Change", isMilestone: false)
+    }
+
+    public func acceptAllRevisions() {
+        for rev in revisions {
+            if rev.kind == .deletion, let orig = rev.originalText ?? (rev.text.isEmpty ? nil : rev.text) {
+                rawText = rawText.replacingOccurrences(of: orig, with: "")
+            }
+        }
+        revisions.removeAll()
+        commitSnapshot(actionName: "Accept All Changes", isMilestone: false)
+    }
+
+    public func rejectAllRevisions() {
+        for rev in revisions.reversed() {
+            if rev.kind == .insertion {
+                rawText = rawText.replacingOccurrences(of: rev.text, with: rev.originalText ?? "")
+            } else if rev.kind == .deletion {
+                if let orig = rev.originalText, !orig.isEmpty {
+                    if let loc = rev.rangeLocation, loc <= (rawText as NSString).length {
+                        let ns = rawText as NSString
+                        let newStr = ns.substring(to: loc) + orig + ns.substring(from: loc)
+                        rawText = newStr
+                    } else {
+                        rawText += orig
+                    }
+                }
+            }
+        }
+        revisions.removeAll()
+        commitSnapshot(actionName: "Reject All Changes", isMilestone: false)
     }
     
     // MARK: - DAG Engine Methods
@@ -3426,6 +5704,7 @@ extension MainEditorView {
                 paths.append(path)
             }
         }
+
         return paths
     }
 }

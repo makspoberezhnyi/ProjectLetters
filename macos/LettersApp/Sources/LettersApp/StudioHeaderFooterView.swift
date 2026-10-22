@@ -10,6 +10,247 @@ public enum HeaderFooterTarget: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 }
 
+public func resolveHeaderFont(fontFamily: String, size: CGFloat = 10.5, weight: Font.Weight = .regular) -> Font {
+    switch fontFamily {
+    case "SF Pro (Modern Sans)":
+        return .system(size: size, weight: weight)
+    case "New York (Editorial)":
+        return .custom("NewYork-Regular", size: size)
+    case "SF Mono (Code)":
+        return .system(size: size, weight: weight, design: .monospaced)
+    case "Default Serif (Georgia)":
+        return .custom("Georgia", size: size)
+    default:
+        return .custom(fontFamily, size: size)
+    }
+}
+
+public func resolveNSHeaderFont(fontFamily: String, size: CGFloat = 11.0, weight: NSFont.Weight = .regular) -> NSFont {
+    switch fontFamily {
+    case "SF Pro (Modern Sans)":
+        return NSFont.systemFont(ofSize: size, weight: weight)
+    case "New York (Editorial)":
+        if weight == .bold {
+            if let custom = NSFont(name: "NewYork-Bold", size: size) { return custom }
+        }
+        if let custom = NSFont(name: "NewYork-Regular", size: size) { return custom }
+        return NSFont.systemFont(ofSize: size, weight: weight)
+    case "SF Mono (Code)":
+        return NSFont.monospacedSystemFont(ofSize: size, weight: weight)
+    case "Default Serif (Georgia)":
+        if weight == .bold {
+            if let custom = NSFont(name: "Georgia-Bold", size: size) { return custom }
+        }
+        if let custom = NSFont(name: "Georgia", size: size) { return custom }
+        return NSFont.systemFont(ofSize: size, weight: weight)
+    default:
+        if weight == .bold {
+            if let custom = NSFont(name: "\(fontFamily)-Bold", size: size) { return custom }
+        }
+        if let custom = NSFont(name: fontFamily, size: size) { return custom }
+        return NSFont.systemFont(ofSize: size, weight: weight)
+    }
+}
+
+// MARK: - Native AppKit Header/Footer Text Slot (Razor-Sharp CoreText)
+public struct NativeHeaderSlotField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var alignment: NSTextAlignment
+    var font: NSFont
+    var textColor: NSColor
+    var isEditable: Bool
+    var onCommit: (() -> Void)? = nil
+
+    public init(
+        text: Binding<String>,
+        placeholder: String = "",
+        alignment: NSTextAlignment = .left,
+        font: NSFont,
+        textColor: NSColor = .labelColor,
+        isEditable: Bool = true,
+        onCommit: (() -> Void)? = nil
+    ) {
+        self._text = text
+        self.placeholder = placeholder
+        self.alignment = alignment
+        self.font = font
+        self.textColor = textColor
+        self.isEditable = isEditable
+        self.onCommit = onCommit
+    }
+
+    public func makeNSView(context: Context) -> NSTextField {
+        let tf: NSTextField
+        if isEditable {
+            tf = NSTextField()
+            tf.isEditable = true
+            tf.isSelectable = true
+        } else {
+            tf = NSTextField(labelWithString: text)
+            tf.isEditable = false
+            tf.isSelectable = false
+        }
+        tf.isBezeled = false
+        tf.isBordered = false
+        tf.drawsBackground = false
+        tf.backgroundColor = .clear
+        tf.focusRingType = .none
+        tf.alignment = alignment
+        tf.font = font
+        tf.textColor = textColor
+        tf.delegate = context.coordinator
+        tf.maximumNumberOfLines = 1
+        tf.cell?.wraps = false
+        tf.cell?.isScrollable = true
+        tf.cell?.usesSingleLineMode = true
+        tf.lineBreakMode = .byTruncatingTail
+        tf.wantsLayer = true
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        tf.layer?.contentsScale = scale
+        tf.layer?.rasterizationScale = scale
+        tf.layer?.shouldRasterize = false
+        if isEditable && !placeholder.isEmpty {
+            tf.placeholderAttributedString = NSAttributedString(
+                string: placeholder,
+                attributes: [
+                    .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.4),
+                    .font: font
+                ]
+            )
+        }
+        return tf
+    }
+
+    public func updateNSView(_ nsView: NSTextField, context: Context) {
+        let scale = nsView.window?.backingScaleFactor ?? (NSScreen.main?.backingScaleFactor ?? 2.0)
+        nsView.layer?.contentsScale = scale
+        nsView.layer?.rasterizationScale = scale
+        nsView.layer?.shouldRasterize = false
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.alignment = alignment
+        nsView.font = font
+        nsView.textColor = textColor
+        nsView.isEditable = isEditable
+    }
+
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    public class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: NativeHeaderSlotField
+
+        init(_ parent: NativeHeaderSlotField) {
+            self.parent = parent
+        }
+
+        public func controlTextDidChange(_ obj: Notification) {
+            guard let tf = obj.object as? NSTextField else { return }
+            parent.text = tf.stringValue
+        }
+
+        public func controlTextDidEndEditing(_ obj: Notification) {
+            parent.onCommit?()
+        }
+    }
+}
+
+public struct NativeFootnoteField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var font: NSFont
+    var textColor: NSColor
+    var isEditable: Bool
+    var onCommit: (() -> Void)? = nil
+
+    public init(
+        text: Binding<String>,
+        placeholder: String = "Footnote text...",
+        font: NSFont,
+        textColor: NSColor = .labelColor,
+        isEditable: Bool = true,
+        onCommit: (() -> Void)? = nil
+    ) {
+        self._text = text
+        self.placeholder = placeholder
+        self.font = font
+        self.textColor = textColor
+        self.isEditable = isEditable
+        self.onCommit = onCommit
+    }
+
+    public func makeNSView(context: Context) -> NSTextField {
+        let tf = NSTextField()
+        tf.isBezeled = false
+        tf.isBordered = false
+        tf.drawsBackground = false
+        tf.backgroundColor = .clear
+        tf.focusRingType = .none
+        tf.alignment = .left
+        tf.font = font
+        tf.textColor = textColor
+        tf.isEditable = isEditable
+        tf.isSelectable = true
+        tf.delegate = context.coordinator
+        tf.maximumNumberOfLines = 0
+        tf.cell?.wraps = true
+        tf.cell?.isScrollable = false
+        tf.cell?.usesSingleLineMode = false
+        tf.wantsLayer = true
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        tf.layer?.contentsScale = scale
+        tf.layer?.rasterizationScale = scale
+        tf.layer?.shouldRasterize = false
+        if !placeholder.isEmpty {
+            tf.placeholderAttributedString = NSAttributedString(
+                string: placeholder,
+                attributes: [
+                    .foregroundColor: NSColor.placeholderTextColor,
+                    .font: font
+                ]
+            )
+        }
+        return tf
+    }
+
+    public func updateNSView(_ nsView: NSTextField, context: Context) {
+        let scale = nsView.window?.backingScaleFactor ?? (NSScreen.main?.backingScaleFactor ?? 2.0)
+        nsView.layer?.contentsScale = scale
+        nsView.layer?.rasterizationScale = scale
+        nsView.layer?.shouldRasterize = false
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.font = font
+        nsView.textColor = textColor
+        nsView.isEditable = isEditable
+    }
+
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    public class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: NativeFootnoteField
+
+        init(_ parent: NativeFootnoteField) {
+            self.parent = parent
+        }
+
+        public func controlTextDidChange(_ obj: Notification) {
+            guard let tf = obj.object as? NSTextField else { return }
+            parent.text = tf.stringValue
+        }
+
+        public func controlTextDidEndEditing(_ obj: Notification) {
+            parent.onCommit?()
+        }
+    }
+}
+
 public struct StudioHeaderView: View {
     @Binding var config: HeaderFooterConfig
     let pageIndex: Int
@@ -17,6 +258,7 @@ public struct StudioHeaderView: View {
     let documentTitle: String
     let margins: PageMargins
     let sheetWidth: CGFloat
+    var fontFamily: String = "Default Serif (Georgia)"
     @Binding var isEditing: Bool
     @Binding var activeTarget: HeaderFooterTarget
 
@@ -32,51 +274,40 @@ public struct StudioHeaderView: View {
 
         ZStack {
             if isCurrentlyEditing {
-                // Interactive In-Place Editor for Header
+                // Interactive In-Place Native Editor for Header
                 HStack(spacing: 8) {
-                    TextField("Left header ({title}, {date})...", text: Binding(
-                        get: { config.headerLeftText.isEmpty ? (isHovered ? "" : documentTitle) : config.headerLeftText },
-                        set: { config.headerLeftText = $0 }
-                    ))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3.5)
-                    .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.black.opacity(0.12), lineWidth: 0.8)
+                    NativeHeaderSlotField(
+                        text: Binding(
+                            get: { config.headerLeftText.isEmpty ? (isHovered ? "" : documentTitle) : config.headerLeftText },
+                            set: { config.headerLeftText = $0 }
+                        ),
+                        placeholder: "Left header ({title}, {date})...",
+                        alignment: .left,
+                        font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                        textColor: .labelColor,
+                        isEditable: true
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    TextField("Center header...", text: $config.headerCenterText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3.5)
-                        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.black.opacity(0.12), lineWidth: 0.8)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .center)
+                    NativeHeaderSlotField(
+                        text: $config.headerCenterText,
+                        placeholder: "Center header...",
+                        alignment: .center,
+                        font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                        textColor: .labelColor,
+                        isEditable: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
 
-                    TextField("Right header ({page}, {pages})...", text: $config.headerRightText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
-                        .multilineTextAlignment(.trailing)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3.5)
-                        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.black.opacity(0.12), lineWidth: 0.8)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    NativeHeaderSlotField(
+                        text: $config.headerRightText,
+                        placeholder: "Right header ({page}, {pages})...",
+                        alignment: .right,
+                        font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                        textColor: .labelColor,
+                        isEditable: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .environment(\.colorScheme, .light)
                 .padding(.horizontal, 6)
@@ -89,9 +320,9 @@ public struct StudioHeaderView: View {
                 .overlay(
                     HStack {
                         Text("Header • Page \(pageIndex + 1)")
-                            .font(.system(size: 8, weight: .bold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(Color.accentColor, in: Capsule())
                             .foregroundColor(.white)
                             .offset(y: -14)
@@ -101,7 +332,7 @@ public struct StudioHeaderView: View {
                     alignment: .topLeading
                 )
             } else {
-                // Normal Display with Hover & Double-Click Detection
+                // Normal Display with Direct Native CoreText Rendering
                 HStack {
                     let leftStr = config.evaluateHeader(slot: .left, pageIndex: pageIndex, totalPages: totalPages, documentTitle: documentTitle)
                     let centerStr = config.evaluateHeader(slot: .center, pageIndex: pageIndex, totalPages: totalPages, documentTitle: documentTitle)
@@ -109,30 +340,42 @@ public struct StudioHeaderView: View {
 
                     if isSuppressed {
                         Text("First Page Header (Suppressed)")
-                            .font(.system(size: 8, weight: .regular))
+                            .font(resolveHeaderFont(fontFamily: fontFamily, size: 11, weight: .regular))
                             .foregroundColor(.secondary.opacity(0.4))
                             .italic()
                         Spacer()
                     } else {
-                        Text(leftStr)
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
-                            .lineLimit(1)
-
-                        Spacer()
+                        NativeHeaderSlotField(
+                            text: .constant(leftStr),
+                            placeholder: "",
+                            alignment: .left,
+                            font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                            textColor: .labelColor,
+                            isEditable: false
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         if !centerStr.isEmpty {
-                            Text(centerStr)
-                                .font(.system(size: 8.5, weight: .medium))
-                                .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
-                                .lineLimit(1)
-                            Spacer()
+                            NativeHeaderSlotField(
+                                text: .constant(centerStr),
+                                placeholder: "",
+                                alignment: .center,
+                                font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                                textColor: .labelColor,
+                                isEditable: false
+                            )
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
 
-                        Text(rightStr)
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                            .lineLimit(1)
+                        NativeHeaderSlotField(
+                            text: .constant(rightStr),
+                            placeholder: "",
+                            alignment: .right,
+                            font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                            textColor: .labelColor,
+                            isEditable: false
+                        )
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
                 .padding(.horizontal, 6)
@@ -150,12 +393,12 @@ public struct StudioHeaderView: View {
                                 .stroke(Color.accentColor.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                                 .overlay(
                                     Text("Double-click to edit Header")
-                                        .font(.system(size: 7.5, weight: .semibold))
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
+                                        .font(.system(size: 9.5, weight: .semibold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
                                         .background(Color.accentColor.opacity(0.85), in: Capsule())
                                         .foregroundColor(.white)
-                                        .offset(y: -11),
+                                        .offset(y: -12),
                                     alignment: .topTrailing
                                 )
                         }
@@ -186,6 +429,7 @@ public struct StudioFooterView: View {
     let margins: PageMargins
     let sheetWidth: CGFloat
     let sheetHeight: CGFloat
+    var fontFamily: String = "Default Serif (Georgia)"
     @Binding var isEditing: Bool
     @Binding var activeTarget: HeaderFooterTarget
 
@@ -201,48 +445,37 @@ public struct StudioFooterView: View {
 
         ZStack {
             if isCurrentlyEditing {
-                // Interactive In-Place Editor for Footer
+                // Interactive In-Place Native Editor for Footer
                 HStack(spacing: 8) {
-                    TextField("Left footer ({date}, Confidential)...", text: $config.footerLeftText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3.5)
-                        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.black.opacity(0.12), lineWidth: 0.8)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    NativeHeaderSlotField(
+                        text: $config.footerLeftText,
+                        placeholder: "Left footer ({date}, Confidential)...",
+                        alignment: .left,
+                        font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                        textColor: .labelColor,
+                        isEditable: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    TextField("Center footer...", text: $config.footerCenterText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3.5)
-                        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.black.opacity(0.12), lineWidth: 0.8)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .center)
+                    NativeHeaderSlotField(
+                        text: $config.footerCenterText,
+                        placeholder: "Center footer...",
+                        alignment: .center,
+                        font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                        textColor: .labelColor,
+                        isEditable: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
 
-                    TextField("Right footer ({page}, {pages})...", text: $config.footerRightText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
-                        .multilineTextAlignment(.trailing)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3.5)
-                        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.black.opacity(0.12), lineWidth: 0.8)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    NativeHeaderSlotField(
+                        text: $config.footerRightText,
+                        placeholder: "Right footer ({page}, {pages})...",
+                        alignment: .right,
+                        font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                        textColor: .labelColor,
+                        isEditable: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .environment(\.colorScheme, .light)
                 .padding(.horizontal, 6)
@@ -255,9 +488,9 @@ public struct StudioFooterView: View {
                 .overlay(
                     HStack {
                         Text("Footer • Page \(pageIndex + 1)")
-                            .font(.system(size: 8, weight: .bold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(Color.accentColor, in: Capsule())
                             .foregroundColor(.white)
                             .offset(y: 14)
@@ -267,7 +500,7 @@ public struct StudioFooterView: View {
                     alignment: .bottomLeading
                 )
             } else {
-                // Normal Display with Hover & Double-Click Detection
+                // Normal Display with Native CoreText Rendering
                 HStack {
                     let leftStr = config.evaluateFooter(slot: .left, pageIndex: pageIndex, totalPages: totalPages, documentTitle: documentTitle)
                     let centerStr = config.evaluateFooter(slot: .center, pageIndex: pageIndex, totalPages: totalPages, documentTitle: documentTitle)
@@ -275,30 +508,42 @@ public struct StudioFooterView: View {
 
                     if isSuppressed {
                         Text("First Page Footer (Suppressed)")
-                            .font(.system(size: 8, weight: .regular))
+                            .font(resolveHeaderFont(fontFamily: fontFamily, size: 11, weight: .regular))
                             .foregroundColor(.secondary.opacity(0.4))
                             .italic()
                         Spacer()
                     } else {
-                        Text(leftStr)
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                            .lineLimit(1)
-
-                        Spacer()
+                        NativeHeaderSlotField(
+                            text: .constant(leftStr),
+                            placeholder: "",
+                            alignment: .left,
+                            font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                            textColor: .labelColor,
+                            isEditable: false
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         if !centerStr.isEmpty {
-                            Text(centerStr)
-                                .font(.system(size: 8.5, weight: .medium))
-                                .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
-                                .lineLimit(1)
-                            Spacer()
+                            NativeHeaderSlotField(
+                                text: .constant(centerStr),
+                                placeholder: "",
+                                alignment: .center,
+                                font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                                textColor: .labelColor,
+                                isEditable: false
+                            )
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
 
-                        Text(rightStr)
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
-                            .lineLimit(1)
+                        NativeHeaderSlotField(
+                            text: .constant(rightStr),
+                            placeholder: "",
+                            alignment: .right,
+                            font: resolveNSHeaderFont(fontFamily: fontFamily, size: 11.0, weight: .regular),
+                            textColor: .labelColor,
+                            isEditable: false
+                        )
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
                 .padding(.horizontal, 6)
@@ -316,12 +561,12 @@ public struct StudioFooterView: View {
                                 .stroke(Color.accentColor.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                                 .overlay(
                                     Text("Double-click to edit Footer")
-                                        .font(.system(size: 7.5, weight: .semibold))
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
+                                        .font(.system(size: 9.5, weight: .semibold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
                                         .background(Color.accentColor.opacity(0.85), in: Capsule())
                                         .foregroundColor(.white)
-                                        .offset(y: 11),
+                                        .offset(y: 12),
                                     alignment: .bottomTrailing
                                 )
                         }

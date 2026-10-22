@@ -8,8 +8,10 @@ public extension Notification.Name {
     static let lettersSaveDocument = Notification.Name("lettersSaveDocument")
     static let lettersExportDocx = Notification.Name("lettersExportDocx")
     static let lettersExportPDF = Notification.Name("lettersExportPDF")
+    static let lettersExportMarkdown = Notification.Name("lettersExportMarkdown")
     static let lettersPrintDocument = Notification.Name("lettersPrintDocument")
     static let lettersOpenSettings = Notification.Name("lettersOpenSettings")
+    static let lettersRestoreAutosave = Notification.Name("lettersRestoreAutosave")
 
     static let lettersToggleFindReplace = Notification.Name("lettersToggleFindReplace")
     static let lettersToggleBold = Notification.Name("lettersToggleBold")
@@ -23,14 +25,24 @@ public extension Notification.Name {
     static let lettersInsertImage = Notification.Name("lettersInsertImage")
     static let lettersInsertVideo = Notification.Name("lettersInsertVideo")
     static let lettersInsertCitation = Notification.Name("lettersInsertCitation")
+    static let lettersInsertTOC = Notification.Name("lettersInsertTOC")
+    static let lettersInsertBibliography = Notification.Name("lettersInsertBibliography")
+    static let lettersInsertFootnote = Notification.Name("lettersInsertFootnote")
+    static let lettersInsertSideNote = Notification.Name("lettersInsertSideNote")
     static let lettersInsertPageBreak = Notification.Name("lettersInsertPageBreak")
 
     static let lettersZoomIn = Notification.Name("lettersZoomIn")
     static let lettersZoomOut = Notification.Name("lettersZoomOut")
     static let lettersZoomReset = Notification.Name("lettersZoomReset")
+    static let lettersToggleRuler = Notification.Name("lettersToggleRuler")
     static let lettersToggleOutline = Notification.Name("lettersToggleOutline")
+    static let lettersTogglePageDesign = Notification.Name("lettersTogglePageDesign")
+    static let lettersToggleDocumentHistory = Notification.Name("lettersToggleDocumentHistory")
     static let lettersToggleAIDrawer = Notification.Name("lettersToggleAIDrawer")
     static let lettersToggleCommandPalette = Notification.Name("lettersToggleCommandPalette")
+    static let lettersToggleTrackChanges = Notification.Name("lettersToggleTrackChanges")
+    static let lettersPasteAndMatchStyle = Notification.Name("lettersPasteAndMatchStyle")
+    static let lettersPasteSpecial = Notification.Name("lettersPasteSpecial")
 }
 
 @MainActor
@@ -78,6 +90,7 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         
         addMenuItem(to: fileMenu, title: "New Document", notification: .lettersNewDocument, keyEquivalent: "n")
         addMenuItem(to: fileMenu, title: "Open...", notification: .lettersOpenDocument, keyEquivalent: "o")
+        addMenuItem(to: fileMenu, title: "Restore Last Autosave", notification: .lettersRestoreAutosave, keyEquivalent: "r", modifiers: [.command, .option])
         addMenuItem(to: fileMenu, title: "Import Word or PDF...", notification: .lettersImportWordOrPDF, keyEquivalent: "i", modifiers: [.command, .shift])
         fileMenu.addItem(NSMenuItem.separator())
         addMenuItem(to: fileMenu, title: "Save .letters", notification: .lettersSaveDocument, keyEquivalent: "s")
@@ -86,6 +99,7 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         let exportMenu = NSMenu(title: "Export")
         addMenuItem(to: exportMenu, title: "Export as Word Document (.docx)...", notification: .lettersExportDocx, keyEquivalent: "S", modifiers: [.command, .shift])
         addMenuItem(to: exportMenu, title: "Export as Vector PDF (.pdf)...", notification: .lettersExportPDF, keyEquivalent: "e", modifiers: [.command, .shift])
+        addMenuItem(to: exportMenu, title: "Export as Markdown (.md)...", notification: .lettersExportMarkdown, keyEquivalent: "m", modifiers: [.command, .shift])
         exportItem.submenu = exportMenu
         fileMenu.addItem(exportItem)
         
@@ -106,10 +120,14 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        addMenuItem(to: editMenu, title: "Paste and Match Style", notification: .lettersPasteAndMatchStyle, keyEquivalent: "V", modifiers: [.command, .option, .shift])
+        addMenuItem(to: editMenu, title: "Paste Special...", notification: .lettersPasteSpecial, keyEquivalent: "v", modifiers: [.command, .option])
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(NSMenuItem.separator())
         addMenuItem(to: editMenu, title: "Find & Replace...", notification: .lettersToggleFindReplace, keyEquivalent: "f")
         addMenuItem(to: editMenu, title: "Command Palette...", notification: .lettersToggleCommandPalette, keyEquivalent: "k")
+        editMenu.addItem(NSMenuItem.separator())
+        addMenuItem(to: editMenu, title: "Track Changes (Review Mode)", notification: .lettersToggleTrackChanges, keyEquivalent: "k", modifiers: [.command, .option])
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
@@ -132,7 +150,12 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         addMenuItem(to: insertMenu, title: "Smart Calculation Table", notification: .lettersInsertTable, keyEquivalent: "t")
         addMenuItem(to: insertMenu, title: "Figure / Image...", notification: .lettersInsertImage, keyEquivalent: "")
         addMenuItem(to: insertMenu, title: "Video Embed Card...", notification: .lettersInsertVideo, keyEquivalent: "")
+        insertMenu.addItem(NSMenuItem.separator())
         addMenuItem(to: insertMenu, title: "Linked Bibliographic Citation...", notification: .lettersInsertCitation, keyEquivalent: "c", modifiers: [.command, .option])
+        addMenuItem(to: insertMenu, title: "Footnote", notification: .lettersInsertFootnote, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Margin Side Note", notification: .lettersInsertSideNote, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Table of Contents", notification: .lettersInsertTOC, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Dynamic Bibliography", notification: .lettersInsertBibliography, keyEquivalent: "")
         insertMenu.addItem(NSMenuItem.separator())
         addMenuItem(to: insertMenu, title: "Page Break", notification: .lettersInsertPageBreak, keyEquivalent: "\r")
         insertMenuItem.submenu = insertMenu
@@ -145,7 +168,10 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         addMenuItem(to: viewMenu, title: "Zoom Out", notification: .lettersZoomOut, keyEquivalent: "-")
         addMenuItem(to: viewMenu, title: "Actual Size (100%)", notification: .lettersZoomReset, keyEquivalent: "0")
         viewMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: viewMenu, title: "Toggle Outline & Pages", notification: .lettersToggleOutline, keyEquivalent: "1", modifiers: [.command, .option])
+        addMenuItem(to: viewMenu, title: "Show / Hide Ruler", notification: .lettersToggleRuler, keyEquivalent: "r")
+        addMenuItem(to: viewMenu, title: "Toggle Outline & Sources", notification: .lettersToggleOutline, keyEquivalent: "1", modifiers: [.command, .option])
+        addMenuItem(to: viewMenu, title: "Toggle Page Design Inspector", notification: .lettersTogglePageDesign, keyEquivalent: "d", modifiers: [.command, .option])
+        addMenuItem(to: viewMenu, title: "Toggle Reading Flow Timeline", notification: .lettersToggleDocumentHistory, keyEquivalent: "t", modifiers: [.command, .option])
         addMenuItem(to: viewMenu, title: "Toggle AI Copilot Companion", notification: .lettersToggleAIDrawer, keyEquivalent: "j")
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)

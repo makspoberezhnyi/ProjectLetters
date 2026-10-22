@@ -16,7 +16,7 @@ public struct InlineAICanvasEditorView: View {
     @State private var isStreaming: Bool = false
     @State private var errorMessage: String? = nil
     @State private var streamTask: Task<Void, Never>? = nil
-    @State private var showDiff: Bool = false
+    @State private var showDiff: Bool = true
     @FocusState private var isPromptFocused: Bool
 
     // Quick Prompt Presets
@@ -251,9 +251,9 @@ public struct InlineAICanvasEditorView: View {
 
                         Button(action: { showDiff.toggle() }) {
                             HStack(spacing: 3) {
-                                Image(systemName: showDiff ? "eye.slash" : "arrow.left.arrow.right")
+                                Image(systemName: showDiff ? "doc.text" : "arrow.left.arrow.right")
                                     .font(.system(size: 9))
-                                Text(showDiff ? "Hide Original" : "Compare")
+                                Text(showDiff ? "Clean Preview" : "Track Changes Diff")
                                     .font(.system(size: 9.5, weight: .medium))
                             }
                             .foregroundColor(.accentColor)
@@ -262,33 +262,19 @@ public struct InlineAICanvasEditorView: View {
                     }
 
                     if showDiff {
-                        // Side-by-side or stacked diff view
-                        VStack(alignment: .leading, spacing: 6) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Original:")
-                                    .font(.system(size: 9.5, weight: .bold))
-                                    .foregroundColor(.secondary)
-                                Text(selectedText)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                                    .padding(6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("AI Revision:")
-                                    .font(.system(size: 9.5, weight: .bold))
-                                    .foregroundColor(.secondary)
-                                Text(generatedResult)
-                                    .font(.system(size: 11.5))
-                                    .foregroundColor(.primary)
-                                    .padding(6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                            }
+                        // Unified Inline Word-Level Track Changes Diff
+                        ScrollView {
+                            Text(buildInlineWordDiff(original: selectedText, revised: cleanOutput(generatedResult)))
+                                .font(.system(size: 12))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
                         }
-                        .frame(maxHeight: 140)
+                        .frame(maxHeight: 135)
+                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                        )
                     } else {
                         // Clean Proposed Text Scrollbox
                         ScrollView {
@@ -376,26 +362,46 @@ public struct InlineAICanvasEditorView: View {
 
             // 5. Error View
             if let err = errorMessage {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.red)
-                    Text(err)
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.red)
-                        .lineLimit(2)
-                    Spacer()
-                    Button("Retry") {
-                        errorMessage = nil
-                        if !userPrompt.isEmpty {
-                            runAICommand(prompt: userPrompt)
-                        }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                        Text(err)
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.red)
+                            .lineLimit(3)
+                        Spacer()
                     }
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.accentColor)
-                    .buttonStyle(.plain)
+                    HStack(spacing: 8) {
+                        Button {
+                            AIGateway.launchClaudeLoginInTerminal()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "terminal.fill")
+                                    .font(.system(size: 9.5))
+                                Text("Re-login Claude")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 5))
+                            .foregroundColor(.accentColor)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button("Retry") {
+                            errorMessage = nil
+                            if !userPrompt.isEmpty {
+                                runAICommand(prompt: userPrompt)
+                            }
+                        }
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.primary)
+                        .buttonStyle(.plain)
+                    }
                 }
-                .padding(6)
+                .padding(8)
                 .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             }
         }
@@ -484,5 +490,85 @@ public struct InlineAICanvasEditorView: View {
             clean = String(clean.dropFirst().dropLast())
         }
         return clean
+    }
+
+    private func buildInlineWordDiff(original: String, revised: String) -> AttributedString {
+        let origWords = original.split(omittingEmptySubsequences: true, whereSeparator: { $0.isWhitespace }).map(String.init)
+        let revWords = revised.split(omittingEmptySubsequences: true, whereSeparator: { $0.isWhitespace }).map(String.init)
+
+        // Compute Longest Common Subsequence (LCS) on words (capped for speed on huge paragraphs)
+        let m = origWords.count
+        let n = revWords.count
+        if m == 0 {
+            return AttributedString(revised)
+        }
+        if m * n > 40_000 {
+            // Fallback for very large blocks
+            var out = AttributedString(original + " ")
+            out.strikethroughStyle = .single
+            out.foregroundColor = .red.opacity(0.8)
+            var revAttr = AttributedString(revised)
+            revAttr.foregroundColor = .green
+            out.append(revAttr)
+            return out
+        }
+
+        var dp = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
+        for i in stride(from: m - 1, through: 0, by: -1) {
+            for j in stride(from: n - 1, through: 0, by: -1) {
+                if origWords[i] == revWords[j] {
+                    dp[i][j] = 1 + dp[i + 1][j + 1]
+                } else {
+                    dp[i][j] = max(dp[i + 1][j], dp[i][j + 1])
+                }
+            }
+        }
+
+        var result = AttributedString()
+        var i = 0
+        var j = 0
+        var needsSpace = false
+
+        func appendToken(_ word: String, state: Int) {
+            let prefix = needsSpace ? " " : ""
+            needsSpace = true
+            var token = AttributedString(prefix + word)
+            if state == -1 {
+                token.strikethroughStyle = .single
+                token.foregroundColor = Color.red.opacity(0.85)
+                token.backgroundColor = Color.red.opacity(0.10)
+            } else if state == 1 {
+                token.underlineStyle = .single
+                token.foregroundColor = Color.green
+                token.backgroundColor = Color.green.opacity(0.12)
+            } else {
+                token.foregroundColor = Color.primary.opacity(0.88)
+            }
+            result.append(token)
+        }
+
+        while i < m && j < n {
+            if origWords[i] == revWords[j] {
+                appendToken(origWords[i], state: 0)
+                i += 1
+                j += 1
+            } else if dp[i + 1][j] >= dp[i][j + 1] {
+                appendToken(origWords[i], state: -1)
+                i += 1
+            } else {
+                appendToken(revWords[j], state: 1)
+                j += 1
+            }
+        }
+        while i < m {
+            appendToken(origWords[i], state: -1)
+            i += 1
+        }
+        while j < n {
+            appendToken(revWords[j], state: 1)
+            j += 1
+        }
+
+        return result
     }
 }

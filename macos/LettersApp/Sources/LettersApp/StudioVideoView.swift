@@ -70,6 +70,9 @@ public struct StudioVideoView: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(Color.black.opacity(0.2), lineWidth: 1)
                     )
+                    .contextMenu {
+                        videoContextMenu
+                    }
 
                 // Thumbnail & Play Overlay
                 VStack(spacing: 12) {
@@ -120,5 +123,32 @@ public struct StudioVideoView: View {
             .padding(.top, 2)
         }
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var videoContextMenu: some View {
+        Button {
+            if let url = URL(string: videoBlock.url) {
+                NSWorkspace.shared.open(url)
+            }
+        } label: {
+            Label("Open in Browser", systemImage: "safari")
+        }
+
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(videoBlock.url, forType: .string)
+            onToast?("✓ Copied video URL")
+        } label: {
+            Label("Copy Video URL", systemImage: "doc.on.doc")
+        }
+
+        Divider()
+
+        if let onDelete = onDelete {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete Video Card", systemImage: "trash")
+            }
+        }
     }
 }

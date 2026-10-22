@@ -128,68 +128,123 @@ impl Document {
 
     pub fn from_markdown_or_text(title: &str, text: &str) -> Self {
         let mut doc = Document::new(title);
-        use pulldown_cmark::{Parser, Event, Tag, TagEnd};
-        
-        let parser = Parser::new(text);
+        use crate::table::{CellValue, TableCell};
+        use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+
+        let mut options = Options::empty();
+        options.insert(Options::ENABLE_TABLES);
+        options.insert(Options::ENABLE_STRIKETHROUGH);
+
+        let parser = Parser::new_ext(text, options);
         let mut current_runs = Vec::new();
         let mut is_bold = false;
         let mut is_italic = false;
-        
+        let mut is_strike = false;
+
+        let mut in_table = false;
+        let mut table_rows: Vec<Vec<TableCell>> = Vec::new();
+        let mut current_row: Vec<TableCell> = Vec::new();
+        let mut table_counter = 0usize;
+
         for event in parser {
             match event {
-                Event::Start(tag) => {
-                    match tag {
-                        Tag::Strong => is_bold = true,
-                        Tag::Emphasis => is_italic = true,
-                        _ => {}
+                Event::Start(tag) => match tag {
+                    Tag::Strong => is_bold = true,
+                    Tag::Emphasis => is_italic = true,
+                    Tag::Strikethrough => is_strike = true,
+                    Tag::Table(_) => {
+                        in_table = true;
+                        table_rows.clear();
+                        current_row.clear();
                     }
-                }
-                Event::End(tag_end) => {
-                    match tag_end {
-                        TagEnd::Paragraph => {
+                    Tag::TableHead | Tag::TableRow => {
+                        current_row.clear();
+                    }
+                    Tag::TableCell => {
+                        current_runs.clear();
+                    }
+                    _ => {}
+                },
+                Event::End(tag_end) => match tag_end {
+                    TagEnd::Paragraph => {
+                        if !in_table {
                             doc.blocks.push(BlockElement::Paragraph {
                                 runs: std::mem::take(&mut current_runs),
                                 alignment: None,
                             });
                         }
-                        TagEnd::Heading(level) => {
-                            let doc_level = match level {
-                                pulldown_cmark::HeadingLevel::H1 => HeadingLevel::Heading1,
-                                pulldown_cmark::HeadingLevel::H2 => HeadingLevel::Heading2,
-                                pulldown_cmark::HeadingLevel::H3 => HeadingLevel::Heading3,
-                                _ => HeadingLevel::Heading4,
-                            };
-                            doc.blocks.push(BlockElement::Heading {
-                                level: doc_level,
-                                runs: std::mem::take(&mut current_runs),
-                            });
-                        }
-                        TagEnd::Item => {
-                            doc.blocks.push(BlockElement::BulletItem {
-                                runs: std::mem::take(&mut current_runs),
-                                indent_level: 0,
-                            });
-                        }
-                        TagEnd::BlockQuote(_) => {
-                            doc.blocks.push(BlockElement::Blockquote {
-                                runs: std::mem::take(&mut current_runs),
-                            });
-                        }
-                        TagEnd::Strong => is_bold = false,
-                        TagEnd::Emphasis => is_italic = false,
-                        _ => {}
                     }
-                }
+                    TagEnd::Heading(level) => {
+                        let doc_level = match level {
+                            pulldown_cmark::HeadingLevel::H1 => HeadingLevel::Heading1,
+                            pulldown_cmark::HeadingLevel::H2 => HeadingLevel::Heading2,
+                            pulldown_cmark::HeadingLevel::H3 => HeadingLevel::Heading3,
+                            _ => HeadingLevel::Heading4,
+                        };
+                        doc.blocks.push(BlockElement::Heading {
+                            level: doc_level,
+                            runs: std::mem::take(&mut current_runs),
+                        });
+                    }
+                    TagEnd::Item => {
+                        doc.blocks.push(BlockElement::BulletItem {
+                            runs: std::mem::take(&mut current_runs),
+                            indent_level: 0,
+                        });
+                    }
+                    TagEnd::BlockQuote(_) => {
+                        doc.blocks.push(BlockElement::Blockquote {
+                            runs: std::mem::take(&mut current_runs),
+                        });
+                    }
+                    TagEnd::TableCell => {
+                        let cell_text: String = std::mem::take(&mut current_runs)
+                            .into_iter()
+                            .map(|r| r.text)
+                            .collect();
+                        current_row.push(TableCell {
+                            raw_value: CellValue::Text(cell_text.clone()),
+                            variable_tag: None,
+                            evaluated_value: Some(cell_text),
+                        });
+                    }
+                    TagEnd::TableHead | TagEnd::TableRow => {
+                        if !current_row.is_empty() {
+                            table_rows.push(std::mem::take(&mut current_row));
+                        }
+                    }
+                    TagEnd::Table => {
+                        in_table = false;
+                        if !table_rows.is_empty() {
+                            table_counter += 1;
+                            let rows_len = table_rows.len();
+                            let cols_len = table_rows.first().map(|r| r.len()).unwrap_or(0);
+                            let mut dyn_table = DynamicTable::new(
+                                format!("table_{}", table_counter),
+                                rows_len,
+                                cols_len,
+                            );
+                            dyn_table.cells = std::mem::take(&mut table_rows);
+                            doc.blocks.push(BlockElement::Table(dyn_table));
+                        }
+                    }
+                    TagEnd::Strong => is_bold = false,
+                    TagEnd::Emphasis => is_italic = false,
+                    TagEnd::Strikethrough => is_strike = false,
+                    _ => {}
+                },
                 Event::Text(t) => {
                     let mut run = TextRun::plain(t.into_string());
                     run.bold = is_bold;
                     run.italic = is_italic;
+                    run.strike = is_strike;
                     current_runs.push(run);
                 }
                 Event::SoftBreak | Event::HardBreak => {
                     let mut run = TextRun::plain(" ");
                     run.bold = is_bold;
                     run.italic = is_italic;
+                    run.strike = is_strike;
                     current_runs.push(run);
                 }
                 Event::Rule => {
@@ -198,7 +253,7 @@ impl Document {
                 _ => {}
             }
         }
-        
+
         doc
     }
 

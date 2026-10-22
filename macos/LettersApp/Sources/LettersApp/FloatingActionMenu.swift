@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 #if canImport(LettersKit)
 import LettersKit
 #endif
@@ -24,6 +25,9 @@ public struct FloatingActionMenu: View {
     var onSetAlignment: (TextAlignment) -> Void
     var onSetLineSpacing: (CGFloat) -> Void
     var onSetParagraphSpacing: (CGFloat) -> Void
+    var onSetTextColor: (NSColor) -> Void
+    var onSetTextHighlight: (NSColor?) -> Void
+    var onClearFormatting: () -> Void
     var onAskAI: () -> Void
     var onPolish: () -> Void
     var onTranslate: () -> Void
@@ -35,6 +39,13 @@ public struct FloatingActionMenu: View {
     var onAddCrossReference: () -> Void
     var onToggleKeepLinesTogether: () -> Void
     var onToggleKeepWithNext: () -> Void
+
+    @State private var customTextColor: Color = Color(red: 0.10, green: 0.10, blue: 0.12)
+    @State private var customHighlightColor: Color = .yellow
+    @State private var showTextColorPopover: Bool = false
+    @State private var showHighlightColorPopover: Bool = false
+    @State private var recentTextColors: [Color] = []
+    @State private var recentHighlightColors: [Color] = []
 
     public init(
         selectedText: String,
@@ -56,6 +67,9 @@ public struct FloatingActionMenu: View {
         onSetAlignment: @escaping (TextAlignment) -> Void = { _ in },
         onSetLineSpacing: @escaping (CGFloat) -> Void = { _ in },
         onSetParagraphSpacing: @escaping (CGFloat) -> Void = { _ in },
+        onSetTextColor: @escaping (NSColor) -> Void = { _ in },
+        onSetTextHighlight: @escaping (NSColor?) -> Void = { _ in },
+        onClearFormatting: @escaping () -> Void = {},
         onAskAI: @escaping () -> Void = {},
         onPolish: @escaping () -> Void = {},
         onTranslate: @escaping () -> Void = {},
@@ -85,6 +99,9 @@ public struct FloatingActionMenu: View {
         self.onSetAlignment = onSetAlignment
         self.onSetLineSpacing = onSetLineSpacing
         self.onSetParagraphSpacing = onSetParagraphSpacing
+        self.onSetTextColor = onSetTextColor
+        self.onSetTextHighlight = onSetTextHighlight
+        self.onClearFormatting = onClearFormatting
         self.onAskAI = onAskAI
         self.onPolish = onPolish
         self.onTranslate = onTranslate
@@ -103,9 +120,13 @@ public struct FloatingActionMenu: View {
     private func shortFontName(_ name: String) -> String {
         if name.contains("Georgia") { return "Georgia" }
         if name.contains("Times") { return "Times" }
-        if name.contains("SF Pro") { return "SF Pro" }
+        if name.contains("SF Pro") || name == "System" { return "SF Pro" }
+        if name.contains("New York") { return "New York" }
         if name.contains("Helvetica") { return "Helvetica" }
-        if name.contains("Menlo") { return "Menlo" }
+        if name.contains("Avenir") { return "Avenir" }
+        if name.contains("Baskerville") { return "Baskerville" }
+        if name.contains("Palatino") { return "Palatino" }
+        if name.contains("Menlo") || name.contains("SF Mono") { return "Menlo" }
         if name.contains("Courier") { return "Courier" }
         if name.contains("Charter") { return "Charter" }
         return name
@@ -113,150 +134,7 @@ public struct FloatingActionMenu: View {
 
     public var body: some View {
         HStack(spacing: 6) {
-            // 1. Font Family Dropdown Menu
-            Menu {
-                Button("Georgia (Serif)") { onSetFontFamily("Default Serif (Georgia)") }
-                Button("Times New Roman") { onSetFontFamily("Times New Roman") }
-                Button("SF Pro (San Francisco)") { onSetFontFamily("SF Pro") }
-                Button("Helvetica Neue") { onSetFontFamily("Helvetica") }
-                Button("Charter") { onSetFontFamily("Charter") }
-                Button("Menlo (Monospace)") { onSetFontFamily("Menlo (Monospace)") }
-                Button("Courier") { onSetFontFamily("Courier") }
-            } label: {
-                HStack(spacing: 3) {
-                    Text(shortFontName(fontFamily))
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Font Family: \(fontFamily)")
-
-            // 2. Font Size Stepper & Quick Menu
-            HStack(spacing: 1) {
-                Button {
-                    if fontSize > 8 { onSetFontSize(fontSize - 1) }
-                } label: {
-                    Text("−")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 16, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                Menu {
-                    ForEach([9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 36, 48, 64], id: \.self) { pt in
-                        Button("\(pt) pt") { onSetFontSize(CGFloat(pt)) }
-                    }
-                } label: {
-                    Text("\(Int(fontSize))")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 22, height: 22)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-
-                Button {
-                    if fontSize < 96 { onSetFontSize(fontSize + 1) }
-                } label: {
-                    Text("+")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 16, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 1)
-            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .help("Font Size: \(Int(fontSize)) pt")
-
-            Divider()
-                .frame(height: 14)
-
-            // 3. Bold, Italic, Underline, Strikethrough
-            HStack(spacing: 2) {
-                HUDToggleButton(icon: "bold", isActive: isBold, shortcut: "Bold (⌘B)") {
-                    onBold()
-                }
-                HUDToggleButton(icon: "italic", isActive: isItalic, shortcut: "Italic (⌘I)") {
-                    onItalic()
-                }
-                HUDToggleButton(icon: "underline", isActive: isUnderline, shortcut: "Underline (⌘U)") {
-                    onUnderline()
-                }
-                HUDToggleButton(icon: "strikethrough", isActive: false, shortcut: "Strikethrough (⇧⌘X)") {
-                    onStrikethrough()
-                }
-            }
-
-            Divider()
-                .frame(height: 14)
-
-            // Keep Rules
-            HStack(spacing: 2) {
-                HUDToggleButton(icon: "rectangle.arrowtriangle.2.inward", isActive: isKeepLinesTogether, shortcut: "Keep Lines Together") {
-                    onToggleKeepLinesTogether()
-                }
-                HUDToggleButton(icon: "arrow.down.to.line.compact", isActive: isKeepWithNext, shortcut: "Keep With Next") {
-                    onToggleKeepWithNext()
-                }
-            }
-
-            Divider()
-                .frame(height: 14)
-
-            // 4. Alignment Menu
-            Menu {
-                Button { onSetAlignment(.leading) } label: { Label("Align Left (⌘{)", systemImage: "text.alignleft") }
-                Button { onSetAlignment(.center) } label: { Label("Align Center (⌘|)", systemImage: "text.aligncenter") }
-                Button { onSetAlignment(.trailing) } label: { Label("Align Right (⌘})", systemImage: "text.alignright") }
-            } label: {
-                Image(systemName: textAlignment == .leading ? "text.alignleft" : (textAlignment == .center ? "text.aligncenter" : "text.alignright"))
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 22, height: 22)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Text Alignment")
-
-            // 5. Line Spacing Menu
-            Menu {
-                Button("1.0 (Single)") { onSetLineSpacing(1.0) }
-                Button("1.15 (Standard)") { onSetLineSpacing(1.15) }
-                Button("1.25 (Relaxed)") { onSetLineSpacing(1.25) }
-                Button("1.5 (1.5x)") { onSetLineSpacing(1.5) }
-                Button("2.0 (Double)") { onSetLineSpacing(2.0) }
-                Divider()
-                Button("Add Space After Paragraph") { onSetParagraphSpacing(12.0) }
-                Button("Remove Space After Paragraph") { onSetParagraphSpacing(0.0) }
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "arrow.up.and.down.text.horizontal")
-                        .font(.system(size: 10, weight: .medium))
-                    Text(String(format: "%.2g", lineSpacing))
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
-                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Line Spacing: \(String(format: "%.2g", lineSpacing))x")
-
-            Divider()
-                .frame(height: 14)
-
-            // 6. AI & Intelligent Tools (Inline Canvas Ask AI + Quick Tools)
+            // 1. AI & Intelligent Tools (Inline Canvas Ask AI + Quick Tools)
             HStack(spacing: 4) {
                 Button(action: onAskAI) {
                     HStack(spacing: 4) {
@@ -265,8 +143,8 @@ public struct FloatingActionMenu: View {
                         Text("Ask AI")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3.5)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                     .background(
                         LinearGradient(
                             colors: [Color.purple.opacity(0.85), Color.blue.opacity(0.85)],
@@ -287,6 +165,13 @@ public struct FloatingActionMenu: View {
                 HUDActionButton(icon: "translate", color: .blue, help: "Instant Translate") {
                     onTranslate()
                 }
+            }
+
+            Divider()
+                .frame(height: 14)
+
+            // 2. Academic & Editorial Annotations
+            HStack(spacing: 3) {
                 HUDActionButton(icon: "quote.bubble", color: .teal, help: "Insert Linked Citation") {
                     onCite()
                 }
@@ -304,13 +189,94 @@ public struct FloatingActionMenu: View {
             Divider()
                 .frame(height: 14)
 
-            // 7. Command Center Launch
-            HUDActionButton(icon: "command", color: .accentColor, help: "Open Command Center (⌘K)") {
-                onCommandPalette()
+            // 3. Text Color, Highlight & Formatting
+            HStack(spacing: 3) {
+                Button(action: { showTextColorPopover.toggle() }) {
+                    Image(systemName: "paintpalette")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(width: 22, height: 22)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Text Color & Palette (Word-Style)")
+                .popover(isPresented: $showTextColorPopover, arrowEdge: .bottom) {
+                    WordStyleColorPaletteView(
+                        title: "Text Color",
+                        selectedColor: $customTextColor,
+                        isHighlight: false,
+                        allowNoColor: true,
+                        clearTitle: "Default Color",
+                        onSelectColor: { newColor in
+                            customTextColor = newColor
+                            onSetTextColor(NSColor(newColor))
+                        },
+                        onClearColor: {
+                            let defaultColor = Color(red: 0.10, green: 0.10, blue: 0.12)
+                            customTextColor = defaultColor
+                            onSetTextColor(NSColor(defaultColor))
+                            showTextColorPopover = false
+                        },
+                        onDismiss: {
+                            showTextColorPopover = false
+                        }
+                    )
+                }
+
+                Button(action: { showHighlightColorPopover.toggle() }) {
+                    Image(systemName: "highlighter")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(width: 22, height: 22)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Text Highlight & Palette (Word-Style)")
+                .popover(isPresented: $showHighlightColorPopover, arrowEdge: .bottom) {
+                    WordStyleColorPaletteView(
+                        title: "Highlight Color",
+                        selectedColor: $customHighlightColor,
+                        isHighlight: true,
+                        allowNoColor: true,
+                        clearTitle: "No Highlight",
+                        onSelectColor: { newColor in
+                            customHighlightColor = newColor
+                            onSetTextHighlight(NSColor(newColor).withAlphaComponent(0.42))
+                        },
+                        onClearColor: {
+                            onSetTextHighlight(nil)
+                            showHighlightColorPopover = false
+                        },
+                        onDismiss: {
+                            showHighlightColorPopover = false
+                        }
+                    )
+                }
+
+                HUDActionButton(icon: "eraser", color: .secondary, help: "Clear Formatting (Return to Default)") {
+                    onClearFormatting()
+                }
+            }
+
+            Divider()
+                .frame(height: 14)
+
+            // 4. Keep Rules & Strikethrough
+            HStack(spacing: 2) {
+                HUDToggleButton(icon: "strikethrough", isActive: false, shortcut: "Strikethrough (⇧⌘X)") {
+                    onStrikethrough()
+                }
+                HUDToggleButton(icon: "rectangle.arrowtriangle.2.inward", isActive: isKeepLinesTogether, shortcut: "Keep Lines Together") {
+                    onToggleKeepLinesTogether()
+                }
+                HUDToggleButton(icon: "arrow.down.to.line.compact", isActive: isKeepWithNext, shortcut: "Keep With Next") {
+                    onToggleKeepWithNext()
+                }
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4.5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .fixedSize()
         .background(.ultraThickMaterial, in: Capsule())
         .overlay(
             Capsule()

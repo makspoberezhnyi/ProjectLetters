@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 #if canImport(LettersKit)
 import LettersKit
 #endif
@@ -14,6 +15,29 @@ public struct StudioImageBlock: Identifiable, Codable, Sendable, Hashable {
     public var scaleWidthPercent: Double // 25.0 to 100.0
     public var aspectRatioPreset: ImageAspectRatio
     public var alignment: ImageAlignment
+    public var offsetX: CGFloat = 0.0
+    public var offsetY: CGFloat = 0.0
+    public var wrapMode: ImageWrapMode = .topAndBottom
+    public var rotationAngle: Double = 0.0
+    public var lockAspectRatio: Bool = true
+
+    public enum ImageWrapMode: String, Codable, Sendable, CaseIterable {
+        case inline = "In Line with Text"
+        case topAndBottom = "Top and Bottom"
+        case square = "Square (Wrap Text)"
+        case behindText = "Behind Text"
+        case inFrontOfText = "In Front of Text"
+
+        public var systemImage: String {
+            switch self {
+            case .inline: return "text.alignleft"
+            case .topAndBottom: return "distribute.vertical.top"
+            case .square: return "character.textbox"
+            case .behindText: return "square.2.layers.3d.bottom.filled"
+            case .inFrontOfText: return "square.2.layers.3d.top.filled"
+            }
+        }
+    }
 
     public enum ImageAlignment: String, Codable, Sendable, CaseIterable {
         case leading = "leading"
@@ -37,6 +61,27 @@ public struct StudioImageBlock: Identifiable, Codable, Sendable, Hashable {
         }
     }
 
+    enum CodingKeys: String, CodingKey {
+        case id, base64Data, originalByteSize, compressedByteSize, caption, scaleWidthPercent, aspectRatioPreset, alignment, offsetX, offsetY, wrapMode, rotationAngle, lockAspectRatio
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.base64Data = try container.decode(String.self, forKey: .base64Data)
+        self.originalByteSize = try container.decodeIfPresent(Int.self, forKey: .originalByteSize) ?? 0
+        self.compressedByteSize = try container.decodeIfPresent(Int.self, forKey: .compressedByteSize) ?? 0
+        self.caption = try container.decodeIfPresent(String.self, forKey: .caption) ?? ""
+        self.scaleWidthPercent = try container.decodeIfPresent(Double.self, forKey: .scaleWidthPercent) ?? 100.0
+        self.aspectRatioPreset = try container.decodeIfPresent(ImageAspectRatio.self, forKey: .aspectRatioPreset) ?? .original
+        self.alignment = try container.decodeIfPresent(ImageAlignment.self, forKey: .alignment) ?? .center
+        self.offsetX = try container.decodeIfPresent(CGFloat.self, forKey: .offsetX) ?? 0.0
+        self.offsetY = try container.decodeIfPresent(CGFloat.self, forKey: .offsetY) ?? 0.0
+        self.wrapMode = try container.decodeIfPresent(ImageWrapMode.self, forKey: .wrapMode) ?? .topAndBottom
+        self.rotationAngle = try container.decodeIfPresent(Double.self, forKey: .rotationAngle) ?? 0.0
+        self.lockAspectRatio = try container.decodeIfPresent(Bool.self, forKey: .lockAspectRatio) ?? true
+    }
+
     public init(
         id: UUID = UUID(),
         base64Data: String,
@@ -45,7 +90,12 @@ public struct StudioImageBlock: Identifiable, Codable, Sendable, Hashable {
         caption: String = "Figure 1: Illustration",
         scaleWidthPercent: Double = 100.0,
         aspectRatioPreset: ImageAspectRatio = .original,
-        alignment: ImageAlignment = .center
+        alignment: ImageAlignment = .center,
+        offsetX: CGFloat = 0.0,
+        offsetY: CGFloat = 0.0,
+        wrapMode: ImageWrapMode = .topAndBottom,
+        rotationAngle: Double = 0.0,
+        lockAspectRatio: Bool = true
     ) {
         self.id = id
         self.base64Data = base64Data
@@ -55,6 +105,11 @@ public struct StudioImageBlock: Identifiable, Codable, Sendable, Hashable {
         self.scaleWidthPercent = scaleWidthPercent
         self.aspectRatioPreset = aspectRatioPreset
         self.alignment = alignment
+        self.offsetX = offsetX
+        self.offsetY = offsetY
+        self.wrapMode = wrapMode
+        self.rotationAngle = rotationAngle
+        self.lockAspectRatio = lockAspectRatio
     }
 
     public func toMarkdown() -> String {
@@ -160,6 +215,9 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var hangingIndent: Double // hanging indent (pts)
     public var headerFooter: HeaderFooterConfig
     public var coverBanner: CoverBannerConfig
+    public var isTrackChangesEnabled: Bool
+    public var revisions: [StudioTrackedRevision]
+    public var styleProfile: String
     public var createdAt: Date
     public var modifiedAt: Date
 
@@ -189,7 +247,10 @@ public struct LettersDocumentBundle: Codable, Sendable {
         kern: Double = 0.0,
         hangingIndent: Double = 0.0,
         headerFooter: HeaderFooterConfig = HeaderFooterConfig(),
-        coverBanner: CoverBannerConfig = CoverBannerConfig()
+        coverBanner: CoverBannerConfig = CoverBannerConfig(),
+        isTrackChangesEnabled: Bool = false,
+        revisions: [StudioTrackedRevision] = [],
+        styleProfile: String = "none"
     ) {
         self.version = Self.currentVersion
         self.title = title
@@ -218,12 +279,15 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.hangingIndent = hangingIndent
         self.headerFooter = headerFooter
         self.coverBanner = coverBanner
+        self.isTrackChangesEnabled = isTrackChangesEnabled
+        self.revisions = revisions
+        self.styleProfile = styleProfile
         self.createdAt = Date()
         self.modifiedAt = Date()
     }
 
     enum CodingKeys: String, CodingKey {
-        case version, title, rawText, richTextData, tables, images, videos, floatingElements, footnotes, sideNotes, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, columnCount, showLineNumbers, watermarkText, kern, hangingIndent, headerFooter, coverBanner, createdAt, modifiedAt
+        case version, title, rawText, richTextData, tables, images, videos, floatingElements, footnotes, sideNotes, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, columnCount, showLineNumbers, watermarkText, kern, hangingIndent, headerFooter, coverBanner, isTrackChangesEnabled, revisions, styleProfile, createdAt, modifiedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -255,6 +319,9 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.hangingIndent = try container.decodeIfPresent(Double.self, forKey: .hangingIndent) ?? 0.0
         self.headerFooter = try container.decodeIfPresent(HeaderFooterConfig.self, forKey: .headerFooter) ?? HeaderFooterConfig()
         self.coverBanner = try container.decodeIfPresent(CoverBannerConfig.self, forKey: .coverBanner) ?? CoverBannerConfig()
+        self.isTrackChangesEnabled = try container.decodeIfPresent(Bool.self, forKey: .isTrackChangesEnabled) ?? false
+        self.revisions = try container.decodeIfPresent([StudioTrackedRevision].self, forKey: .revisions) ?? []
+        self.styleProfile = try container.decodeIfPresent(String.self, forKey: .styleProfile) ?? "none"
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt) ?? Date()
     }
@@ -288,27 +355,113 @@ public struct StudioFloatingElement: Identifiable, Codable, Sendable, Hashable {
         self.pageIndex = pageIndex
     }
 }
-import Foundation
-import AppKit
-
 public extension NSAttributedString.Key {
     static let keepLinesTogether = NSAttributedString.Key("LettersKeepLinesTogether")
     static let keepWithNext = NSAttributedString.Key("LettersKeepWithNext")
 }
-import Foundation
 
 public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var referenceMarker: String
     public var text: String
-    
-    public init(id: UUID = UUID(), referenceMarker: String, text: String) {
+    public var anchorText: String?
+    public var rangeLocation: Int?
+    public var rangeLength: Int?
+    public var author: String
+    public var createdAt: Date
+    public var isResolved: Bool
+
+    public init(
+        id: UUID = UUID(),
+        referenceMarker: String = "",
+        text: String,
+        anchorText: String? = nil,
+        rangeLocation: Int? = nil,
+        rangeLength: Int? = nil,
+        author: String = "Reviewer",
+        createdAt: Date = Date(),
+        isResolved: Bool = false
+    ) {
         self.id = id
         self.referenceMarker = referenceMarker
         self.text = text
+        self.anchorText = anchorText
+        self.rangeLocation = rangeLocation
+        self.rangeLength = rangeLength
+        self.author = author
+        self.createdAt = createdAt
+        self.isResolved = isResolved
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.referenceMarker = try container.decodeIfPresent(String.self, forKey: .referenceMarker) ?? ""
+        self.text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        self.anchorText = try container.decodeIfPresent(String.self, forKey: .anchorText)
+        self.rangeLocation = try container.decodeIfPresent(Int.self, forKey: .rangeLocation)
+        self.rangeLength = try container.decodeIfPresent(Int.self, forKey: .rangeLength)
+        self.author = try container.decodeIfPresent(String.self, forKey: .author) ?? "Reviewer"
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        self.isResolved = try container.decodeIfPresent(Bool.self, forKey: .isResolved) ?? false
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, referenceMarker, text, anchorText, rangeLocation, rangeLength, author, createdAt, isResolved
     }
 }
-import AppKit
+
+public struct StudioTrackedRevision: Identifiable, Codable, Sendable, Hashable {
+    public enum RevisionKind: String, Codable, Sendable {
+        case insertion
+        case deletion
+    }
+
+    public var id: UUID
+    public var kind: RevisionKind
+    public var text: String
+    public var originalText: String?
+    public var author: String
+    public var createdAt: Date
+    public var rangeLocation: Int?
+    public var pageIndex: Int?
+
+    public init(
+        id: UUID = UUID(),
+        kind: RevisionKind,
+        text: String,
+        originalText: String? = nil,
+        author: String = "Author",
+        createdAt: Date = Date(),
+        rangeLocation: Int? = nil,
+        pageIndex: Int? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.text = text
+        self.originalText = originalText
+        self.author = author
+        self.createdAt = createdAt
+        self.rangeLocation = rangeLocation
+        self.pageIndex = pageIndex
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, text, originalText, author, createdAt, rangeLocation, pageIndex
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.kind = try container.decodeIfPresent(RevisionKind.self, forKey: .kind) ?? .insertion
+        self.text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        self.originalText = try container.decodeIfPresent(String.self, forKey: .originalText)
+        self.author = try container.decodeIfPresent(String.self, forKey: .author) ?? "Author"
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        self.rangeLocation = try container.decodeIfPresent(Int.self, forKey: .rangeLocation)
+        self.pageIndex = try container.decodeIfPresent(Int.self, forKey: .pageIndex)
+    }
+}
 
 @objc(CrossReferenceAttachment)
 public class CrossReferenceAttachment: NSTextAttachment {
@@ -340,33 +493,31 @@ public class CrossReferenceAttachment: NSTextAttachment {
 
 public class CrossReferenceViewProvider: NSTextAttachmentViewProvider {
     public override func loadView() {
-        let label = NSTextField(labelWithString: "Figure...")
-        label.textColor = .systemBlue
-        label.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        label.drawsBackground = true
-        label.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.1)
-        label.isBordered = false
-        label.isEditable = false
-        label.isSelectable = false
-        label.wantsLayer = true
-        label.layer?.cornerRadius = 3
-        self.view = label
-        
-        if let attachment = self.textAttachment as? CrossReferenceAttachment {
-            let targetId = attachment.targetId
-            let targetType = attachment.targetType
-            
-            Task { @MainActor in
-                if let active = LettersDocumentController.active {
-                    if targetType == "Figure" {
-                        if let idx = active.images.firstIndex(where: { $0.id.uuidString == targetId }) {
-                            label.stringValue = "Figure \(idx + 1)"
-                        } else {
-                            label.stringValue = "Figure ?"
-                        }
-                    }
+        let attachment = self.textAttachment as? CrossReferenceAttachment
+        let targetId = attachment?.targetId ?? ""
+        let targetType = attachment?.targetType ?? ""
+
+        let label = MainActor.assumeIsolated { () -> NSTextField in
+            var initialTitle = "Figure..."
+            if targetType == "Figure", let active = LettersDocumentController.active {
+                if let idx = active.images.firstIndex(where: { $0.id.uuidString == targetId }) {
+                    initialTitle = "Figure \(idx + 1)"
+                } else {
+                    initialTitle = "Figure ?"
                 }
             }
+            let tf = NSTextField(labelWithString: initialTitle)
+            tf.textColor = .systemBlue
+            tf.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            tf.drawsBackground = true
+            tf.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.1)
+            tf.isBordered = false
+            tf.isEditable = false
+            tf.isSelectable = false
+            tf.wantsLayer = true
+            tf.layer?.cornerRadius = 3
+            return tf
         }
+        self.view = label
     }
 }

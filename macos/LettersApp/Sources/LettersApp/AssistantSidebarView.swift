@@ -101,25 +101,14 @@ public struct AssistantSidebarView: View {
                 copilotInputBar
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.ultraThinMaterial)
-            .background(StudioTheme.panelBackground.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(.regularMaterial)
+            .background(StudioTheme.panelBackground.opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                StudioTheme.luminousPurple.opacity(0.5),
-                                StudioTheme.luminousBlue.opacity(0.2),
-                                Color.white.opacity(0.06)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
             )
-            .shadow(color: Color.black.opacity(0.4), radius: 28, x: 0, y: 12)
+            .shadow(color: Color.black.opacity(0.14), radius: 18, x: 0, y: 6)
         }
         .frame(width: sidebarWidth)
         .frame(maxHeight: .infinity)
@@ -150,7 +139,7 @@ public struct AssistantSidebarView: View {
                 .contentShape(Rectangle())
 
             Capsule()
-                .fill(Color.white.opacity(0.2))
+                .fill(Color.primary.opacity(0.18))
                 .frame(width: 3, height: 32)
         }
         .gesture(
@@ -174,19 +163,12 @@ public struct AssistantSidebarView: View {
         HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [StudioTheme.luminousPurple, StudioTheme.luminousBlue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.accentColor.opacity(0.12))
                     .frame(width: 26, height: 26)
-                    .shadow(color: StudioTheme.luminousPurple.opacity(0.4), radius: 8, x: 0, y: 2)
 
                 Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.accentColor)
             }
 
             Text("Letters Assistant")
@@ -201,7 +183,7 @@ public struct AssistantSidebarView: View {
             } label: {
                 HStack(spacing: 5) {
                     Circle()
-                        .fill(isClaudeInstalled ? StudioTheme.luminousEmerald : StudioTheme.luminousAmber)
+                        .fill(isClaudeInstalled ? Color.green : Color.orange)
                         .frame(width: 6, height: 6)
 
                     Text(isClaudeInstalled ? "Claude Connected" : "Connect Claude")
@@ -210,10 +192,10 @@ public struct AssistantSidebarView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(StudioTheme.surfaceHighlight, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
                 )
             }
             .buttonStyle(.plain)
@@ -245,8 +227,8 @@ public struct AssistantSidebarView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color.black.opacity(0.15))
+        .padding(.vertical, 10)
+        .background(Color.primary.opacity(0.02))
     }
 
     // MARK: - Context Status Strip
@@ -255,11 +237,11 @@ public struct AssistantSidebarView: View {
             if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Image(systemName: "selection.pin.in.out")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(StudioTheme.luminousCyan)
+                    .foregroundColor(.accentColor)
 
                 Text("Target: Selected Passage (\(selectedWordCount) words)")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(StudioTheme.luminousCyan)
+                    .foregroundColor(.accentColor)
             } else {
                 Image(systemName: "doc.text.fill")
                     .font(.system(size: 10))
@@ -273,10 +255,10 @@ public struct AssistantSidebarView: View {
             Spacer()
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
         .background(
             !selectedText.isEmpty
-                ? StudioTheme.luminousCyan.opacity(0.08)
+                ? Color.accentColor.opacity(0.08)
                 : Color.primary.opacity(0.02)
         )
     }
@@ -288,18 +270,12 @@ public struct AssistantSidebarView: View {
 
             ZStack {
                 Circle()
-                    .fill(StudioTheme.luminousPurple.opacity(0.12))
-                    .frame(width: 56, height: 56)
+                    .fill(Color.accentColor.opacity(0.12))
+                    .frame(width: 52, height: 52)
 
                 Image(systemName: "sparkles")
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [StudioTheme.luminousPurple, StudioTheme.luminousBlue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundColor(.accentColor)
             }
 
             VStack(spacing: 6) {
@@ -348,10 +324,10 @@ public struct AssistantSidebarView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(StudioTheme.surfaceHighlight.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 0.75)
             )
         }
         .buttonStyle(.plain)
@@ -395,15 +371,15 @@ public struct AssistantSidebarView: View {
                         .foregroundColor(.secondary)
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(StudioTheme.luminousBlue)
+                        .foregroundColor(.secondary)
                 } else {
                     ZStack {
                         Circle()
-                            .fill(StudioTheme.luminousPurple.opacity(0.2))
+                            .fill(Color.accentColor.opacity(0.15))
                             .frame(width: 18, height: 18)
                         Image(systemName: "sparkles")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(StudioTheme.luminousPurple)
+                            .foregroundColor(.accentColor)
                     }
                     Text("Letters Assistant")
                         .font(.system(size: 10, weight: .bold))
@@ -507,6 +483,43 @@ public struct AssistantSidebarView: View {
                             .buttonStyle(.plain)
                             .help("Copy clean document content")
                         }
+                    } else {
+                        Divider()
+                            .background(Color.white.opacity(0.08))
+
+                        HStack(spacing: 8) {
+                            Button {
+                                AIGateway.launchClaudeLoginInTerminal()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "terminal.fill")
+                                    Text("Re-login Claude")
+                                }
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(StudioTheme.luminousPurple.opacity(0.22), in: RoundedRectangle(cornerRadius: 6))
+                                .foregroundColor(StudioTheme.luminousPurple)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                showingConnectSheet = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "gearshape.fill")
+                                    Text("Connection Settings")
+                                }
+                                .font(.system(size: 10, weight: .medium))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                .foregroundColor(.primary)
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer()
+                        }
                     }
                 }
             }
@@ -581,10 +594,10 @@ public struct AssistantSidebarView: View {
             .disabled(isApplied)
         }
         .padding(8)
-        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(action.color.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(action.color.opacity(0.25), lineWidth: 0.75)
         )
     }
 
@@ -595,11 +608,11 @@ public struct AssistantSidebarView: View {
         return HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(StudioTheme.luminousEmerald.opacity(0.18))
+                    .fill(Color.green.opacity(0.15))
                     .frame(width: 28, height: 28)
                 Image(systemName: "tablecells.badge.ellipsis")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(StudioTheme.luminousEmerald)
+                    .foregroundColor(.green)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -630,19 +643,19 @@ public struct AssistantSidebarView: View {
                 .background(
                     isApplied
                         ? Color.secondary.opacity(0.2)
-                        : StudioTheme.luminousEmerald.opacity(0.22),
+                        : Color.green.opacity(0.2),
                     in: Capsule()
                 )
-                .foregroundColor(isApplied ? .secondary : StudioTheme.luminousEmerald)
+                .foregroundColor(isApplied ? .secondary : .green)
             }
             .buttonStyle(.plain)
             .disabled(isApplied)
         }
         .padding(8)
-        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(StudioTheme.luminousEmerald.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
         )
     }
 
@@ -679,7 +692,7 @@ public struct AssistantSidebarView: View {
     private var streamingLoadingIndicator: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(StudioTheme.luminousPurple)
+                .fill(Color.accentColor)
                 .frame(width: 6, height: 6)
                 .scaleEffect(isGenerating ? 1.3 : 0.8)
                 .animation(.easeInOut(duration: 0.6).repeatForever(), value: isGenerating)
@@ -720,8 +733,8 @@ public struct AssistantSidebarView: View {
                     Circle()
                         .fill(
                             inputPrompt.isEmpty && !isGenerating
-                                ? LinearGradient(colors: [Color.primary.opacity(0.1), Color.primary.opacity(0.05)], startPoint: .top, endPoint: .bottom)
-                                : LinearGradient(colors: [StudioTheme.luminousPurple, StudioTheme.luminousBlue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                ? Color.primary.opacity(0.08)
+                                : Color.accentColor
                         )
                         .frame(width: 26, height: 26)
 
@@ -739,13 +752,13 @@ public struct AssistantSidebarView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(StudioTheme.surfaceHighlight.opacity(0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
         )
         .padding(10)
-        .background(Color.black.opacity(0.2))
+        .background(Color.clear)
     }
 
     // MARK: - Friendly 1-Step Connect Claude Sheet
@@ -805,17 +818,32 @@ public struct AssistantSidebarView: View {
                             .foregroundColor(.secondary)
 
                         HStack {
-                            Text("npm install -g @anthropic-ai/claude-code && claude")
-                                .font(.system(size: 11))
+                            Text("claude login")
+                                .font(.system(size: 11, design: .monospaced))
                                 .foregroundColor(StudioTheme.luminousCyan)
                                 .textSelection(.enabled)
 
                             Spacer()
 
                             Button {
+                                AIGateway.launchClaudeLoginInTerminal()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "terminal.fill")
+                                    Text("Open Terminal & Login")
+                                }
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(StudioTheme.luminousPurple.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+                                .foregroundColor(.white)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
                                 let pb = NSPasteboard.general
                                 pb.clearContents()
-                                pb.setString("npm install -g @anthropic-ai/claude-code && claude", forType: .string)
+                                pb.setString("npm install -g @anthropic-ai/claude-code && claude login", forType: .string)
                                 onToast?("✓ Copied command to clipboard")
                             } label: {
                                 HStack(spacing: 4) {
@@ -824,7 +852,7 @@ public struct AssistantSidebarView: View {
                                 }
                                 .font(.system(size: 10, weight: .bold))
                                 .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 5)
                                 .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                                 .foregroundColor(.white)
                             }

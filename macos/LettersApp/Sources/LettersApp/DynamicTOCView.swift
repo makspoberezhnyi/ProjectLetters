@@ -16,24 +16,90 @@ public struct TOCItem: Identifiable, Hashable {
 
 public struct DynamicTOCView: View {
     public let rawText: String
+    public let richTextData: Data?
+    public let pageSlices: [DocumentPageSlice]
+    public let columnCount: Int
+    public var onSelectHeading: ((Int, Int) -> Void)? = nil
     public var onDelete: () -> Void
     public var onToast: ((String) -> Void)? = nil
 
     public init(
         rawText: String,
+        richTextData: Data? = nil,
+        pageSlices: [DocumentPageSlice] = [],
+        columnCount: Int = 1,
+        onSelectHeading: ((Int, Int) -> Void)? = nil,
         onDelete: @escaping () -> Void,
         onToast: ((String) -> Void)? = nil
     ) {
         self.rawText = rawText
+        self.richTextData = richTextData
+        self.pageSlices = pageSlices
+        self.columnCount = max(1, columnCount)
+        self.onSelectHeading = onSelectHeading
         self.onDelete = onDelete
         self.onToast = onToast
     }
 
     private var tocItems: [TOCItem] {
         var items: [TOCItem] = []
-        let pages = rawText.components(separatedBy: "---pagebreak---")
         let regex = EditorPerformanceCache.shared.tocHeadingRegex
 
+        if !pageSlices.isEmpty {
+            for (colIdx, slice) in pageSlices.enumerated() {
+                let pageNum = (colIdx / columnCount) + 1
+                let nsSlice = slice.text as NSString
+                var lineOffset = 0
+                let lines = slice.text.components(separatedBy: "\n")
+
+                for line in lines {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("# ") {
+                        let title = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                        if !title.isEmpty {
+                            items.append(TOCItem(title: title, level: 1, page: pageNum))
+                        }
+                    } else if trimmed.hasPrefix("## ") {
+                        let title = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                        if !title.isEmpty {
+                            items.append(TOCItem(title: title, level: 2, page: pageNum))
+                        }
+                    } else if trimmed.hasPrefix("### ") {
+                        let title = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+                        if !title.isEmpty {
+                            items.append(TOCItem(title: title, level: 3, page: pageNum))
+                        }
+                    } else {
+                        let ns = trimmed as NSString
+                        if let m = regex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: ns.length)), m.range.location != NSNotFound {
+                            let dotCount = trimmed.prefix(while: { $0 != " " }).filter { $0 == "." }.count
+                            items.append(TOCItem(title: trimmed, level: max(1, dotCount), page: pageNum))
+                        } else if !trimmed.isEmpty,
+                                  !trimmed.hasPrefix("[["),
+                                  trimmed.count <= 120,
+                                  let attrSlice = slice.attributedText,
+                                  lineOffset < attrSlice.length,
+                                  let font = attrSlice.attribute(.font, at: lineOffset, effectiveRange: nil) as? NSFont {
+                            let traits = NSFontManager.shared.traits(of: font)
+                            let isBold = traits.contains(.boldFontMask)
+                            let isItalic = traits.contains(.italicFontMask)
+                            let preset = DocumentParagraphStyle.infer(fontSize: font.pointSize, isBold: isBold, isItalic: isItalic)
+                            if preset == .title || preset == .heading1 {
+                                items.append(TOCItem(title: trimmed, level: 1, page: pageNum))
+                            } else if preset == .heading2 {
+                                items.append(TOCItem(title: trimmed, level: 2, page: pageNum))
+                            } else if preset == .heading3 {
+                                items.append(TOCItem(title: trimmed, level: 3, page: pageNum))
+                            }
+                        }
+                    }
+                    lineOffset = min(nsSlice.length, lineOffset + (line as NSString).length + 1)
+                }
+            }
+            return items
+        }
+
+        let pages = rawText.components(separatedBy: "---pagebreak---")
         for (pageIdx, pageText) in pages.enumerated() {
             let lines = pageText.components(separatedBy: .newlines)
             for line in lines {

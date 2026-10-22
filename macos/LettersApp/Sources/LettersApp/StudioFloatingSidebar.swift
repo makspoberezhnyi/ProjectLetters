@@ -21,6 +21,7 @@ public struct StudioFloatingSidebar: View {
     var onAddSource: () -> Void
     var onInsertPageBreak: () -> Void
     var onTogglePageDesign: () -> Void
+    var onToggleOutline: (() -> Void)?
     var onToast: ((String) -> Void)?
 
     @State private var hoveredTool: String? = nil
@@ -43,6 +44,7 @@ public struct StudioFloatingSidebar: View {
         onAddSource: @escaping () -> Void,
         onInsertPageBreak: @escaping () -> Void,
         onTogglePageDesign: @escaping () -> Void,
+        onToggleOutline: (() -> Void)? = nil,
         onToast: ((String) -> Void)? = nil
     ) {
         self._isPresented = isPresented
@@ -62,6 +64,7 @@ public struct StudioFloatingSidebar: View {
         self.onAddSource = onAddSource
         self.onInsertPageBreak = onInsertPageBreak
         self.onTogglePageDesign = onTogglePageDesign
+        self.onToggleOutline = onToggleOutline
         self.onToast = onToast
     }
 
@@ -83,27 +86,26 @@ public struct StudioFloatingSidebar: View {
                 .frame(width: 24)
             
             // Instruments
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 12) {
-                    instrumentButton(icon: "cursorarrow", name: "Select", shortcut: "v") { }
-                    instrumentButton(icon: "text.quote", name: "Text Box", shortcut: "t") { onInsertSection() }
-                    instrumentButton(icon: "photo", name: "Image", shortcut: "i") { onInsertImage() }
-                    instrumentButton(icon: "tablecells", name: "Table", shortcut: "s") { onInsertTable() }
-                    instrumentButton(icon: "arrow.up.and.down.text.horizontal", name: "Page Break") { onInsertPageBreak() }
+            VStack(spacing: 10) {
+                instrumentButton(icon: "list.bullet.indent", name: "Outline & Sources") { onToggleOutline?() }
+                instrumentButton(icon: "text.quote", name: "Text Box", shortcut: "t") { onInsertSection() }
+                instrumentButton(icon: "photo", name: "Image", shortcut: "i") { onInsertImage() }
+                instrumentButton(icon: "tablecells", name: "Table", shortcut: "s") { onInsertTable() }
+                instrumentButton(icon: "arrow.up.and.down.text.horizontal", name: "Page Break") { onInsertPageBreak() }
+                
+                Divider()
+                    .frame(width: 24)
+                    .padding(.vertical, 2)
                     
-                    Divider()
-                        .frame(width: 24)
-                        .padding(.vertical, 4)
-                        
-                    instrumentButton(icon: "slider.horizontal.3", name: "Page Design", shortcut: "d", shortcutModifiers: [.command, .option]) { onTogglePageDesign() }
-                    instrumentButton(icon: "book.closed", name: "Sources", shortcut: "c") { onAddSource() }
-                    instrumentButton(icon: "magnifyingglass", name: "Find", shortcut: "f", shortcutModifiers: [.command]) { showCommandPalette = true }
-                    instrumentButton(icon: "sparkles", name: "AI Copilot", shortcut: "a") { showAIDrawer.toggle() }
-                }
-                .padding(.bottom, 12)
+                instrumentButton(icon: "slider.horizontal.3", name: "Page Design", shortcut: "d", shortcutModifiers: [.command, .option]) { onTogglePageDesign() }
+                instrumentButton(icon: "book.closed", name: "Sources", shortcut: "c") { onAddSource() }
+                instrumentButton(icon: "magnifyingglass", name: "Find", shortcut: "f", shortcutModifiers: [.command]) { showCommandPalette = true }
+                instrumentButton(icon: "sparkles", name: "AI Copilot", shortcut: "a") { showAIDrawer.toggle() }
             }
+            .padding(.bottom, 12)
         }
         .frame(width: 56)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.regularMaterial)

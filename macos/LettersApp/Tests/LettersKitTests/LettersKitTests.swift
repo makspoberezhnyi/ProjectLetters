@@ -32,8 +32,27 @@ final class LettersKitTests: XCTestCase {
     }
 
     func testStyleLinting() {
-        let text = "As we all know, this is a test."
+        let text = "As we all know, it is obvious that this is clearly important."
         let issues = CoreBridge.shared.lint(text: text, profile: "academic")
         XCTAssertNotNil(issues)
+        XCTAssertGreaterThan(issues.count, 0)
+        let first = issues[0]
+        XCTAssertFalse(first.ruleId.isEmpty)
+        XCTAssertFalse(first.message.isEmpty)
+    }
+
+    func testMarkdownTableDocxExport() {
+        let md = """
+        # Financial Summary
+        Here is the quarterly breakdown:
+
+        | Quarter | Revenue |
+        | --- | --- |
+        | Q1 | 1500 |
+        | Q2 | 2500 |
+        """
+        let docxData = CoreBridge.shared.exportDocx(title: "Financial Summary", text: md)
+        XCTAssertNotNil(docxData)
+        XCTAssertGreaterThan(docxData?.count ?? 0, 100)
     }
 }

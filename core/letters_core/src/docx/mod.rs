@@ -210,6 +210,9 @@ impl DocxEngine {
         let mut in_t = false;
         let mut current_bold = false;
         let mut current_italic = false;
+        let mut current_underline = false;
+        let mut current_strike = false;
+        let mut current_alignment: Option<String> = None;
         let mut current_runs = Vec::new();
         let mut buf = Vec::new();
 
@@ -218,12 +221,15 @@ impl DocxEngine {
                 Ok(quick_xml::events::Event::Start(e)) => match e.name().as_ref() {
                     b"w:p" => {
                         in_p = true;
+                        current_alignment = None;
                         current_runs.clear();
                     }
                     b"w:r" => {
                         in_r = true;
                         current_bold = false;
                         current_italic = false;
+                        current_underline = false;
+                        current_strike = false;
                     }
                     b"w:b" => {
                         if in_r {
@@ -233,6 +239,27 @@ impl DocxEngine {
                     b"w:i" => {
                         if in_r {
                             current_italic = true;
+                        }
+                    }
+                    b"w:u" => {
+                        if in_r {
+                            current_underline = true;
+                        }
+                    }
+                    b"w:strike" => {
+                        if in_r {
+                            current_strike = true;
+                        }
+                    }
+                    b"w:jc" => {
+                        if in_p {
+                            for attr in e.attributes().flatten() {
+                                if attr.key.as_ref().ends_with(b"val") {
+                                    if let Ok(v) = std::str::from_utf8(&attr.value) {
+                                        current_alignment = Some(v.to_string());
+                                    }
+                                }
+                            }
                         }
                     }
                     b"w:t" => {
@@ -251,6 +278,27 @@ impl DocxEngine {
                             current_italic = true;
                         }
                     }
+                    b"w:u" => {
+                        if in_r {
+                            current_underline = true;
+                        }
+                    }
+                    b"w:strike" => {
+                        if in_r {
+                            current_strike = true;
+                        }
+                    }
+                    b"w:jc" => {
+                        if in_p {
+                            for attr in e.attributes().flatten() {
+                                if attr.key.as_ref().ends_with(b"val") {
+                                    if let Ok(v) = std::str::from_utf8(&attr.value) {
+                                        current_alignment = Some(v.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
                     _ => {}
                 },
                 Ok(quick_xml::events::Event::Text(e)) => {
@@ -260,8 +308,8 @@ impl DocxEngine {
                             text,
                             bold: current_bold,
                             italic: current_italic,
-                            underline: false,
-                            strike: false,
+                            underline: current_underline,
+                            strike: current_strike,
                             citation: None,
                             variable_ref: None,
                         });
@@ -278,7 +326,7 @@ impl DocxEngine {
                         if in_p && !current_runs.is_empty() {
                             doc.blocks.push(BlockElement::Paragraph {
                                 runs: current_runs.clone(),
-                                alignment: None,
+                                alignment: current_alignment.take(),
                             });
                         }
                         in_p = false;
