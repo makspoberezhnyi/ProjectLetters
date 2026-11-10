@@ -90,6 +90,7 @@ public struct NativeHeaderSlotField: NSViewRepresentable {
             tf = NSTextField(labelWithString: text)
             tf.isEditable = false
             tf.isSelectable = false
+            tf.refusesFirstResponder = true
         }
         tf.isBezeled = false
         tf.isBordered = false
@@ -353,6 +354,7 @@ public struct StudioHeaderView: View {
                             textColor: .labelColor,
                             isEditable: false
                         )
+                        .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         if !centerStr.isEmpty {
@@ -364,6 +366,7 @@ public struct StudioHeaderView: View {
                                 textColor: .labelColor,
                                 isEditable: false
                             )
+                            .allowsHitTesting(false)
                             .frame(maxWidth: .infinity, alignment: .center)
                         }
 
@@ -375,6 +378,7 @@ public struct StudioHeaderView: View {
                             textColor: .labelColor,
                             isEditable: false
                         )
+                        .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
@@ -428,12 +432,36 @@ public struct StudioFooterView: View {
     let documentTitle: String
     let margins: PageMargins
     let sheetWidth: CGFloat
-    let sheetHeight: CGFloat
+    var sheetHeight: CGFloat? = nil
     var fontFamily: String = "Default Serif (Georgia)"
     @Binding var isEditing: Bool
     @Binding var activeTarget: HeaderFooterTarget
 
     @State private var isHovered: Bool = false
+
+    public init(
+        config: Binding<HeaderFooterConfig>,
+        pageIndex: Int,
+        totalPages: Int,
+        documentTitle: String,
+        margins: PageMargins,
+        sheetWidth: CGFloat,
+        sheetHeight: CGFloat? = nil,
+        fontFamily: String = "Default Serif (Georgia)",
+        isEditing: Binding<Bool>,
+        activeTarget: Binding<HeaderFooterTarget>
+    ) {
+        self._config = config
+        self.pageIndex = pageIndex
+        self.totalPages = totalPages
+        self.documentTitle = documentTitle
+        self.margins = margins
+        self.sheetWidth = sheetWidth
+        self.sheetHeight = sheetHeight
+        self.fontFamily = fontFamily
+        self._isEditing = isEditing
+        self._activeTarget = activeTarget
+    }
 
     private var isCurrentlyEditing: Bool {
         isEditing && activeTarget == .footer
@@ -521,6 +549,7 @@ public struct StudioFooterView: View {
                             textColor: .labelColor,
                             isEditable: false
                         )
+                        .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         if !centerStr.isEmpty {
@@ -532,6 +561,7 @@ public struct StudioFooterView: View {
                                 textColor: .labelColor,
                                 isEditable: false
                             )
+                            .allowsHitTesting(false)
                             .frame(maxWidth: .infinity, alignment: .center)
                         }
 
@@ -543,6 +573,7 @@ public struct StudioFooterView: View {
                             textColor: .labelColor,
                             isEditable: false
                         )
+                        .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
@@ -585,7 +616,7 @@ public struct StudioFooterView: View {
         }
         .padding(.horizontal, margins.left)
         .padding(.bottom, max(4, margins.bottom / 2 - 8))
-        .frame(width: sheetWidth, height: sheetHeight, alignment: .bottom)
+        .frame(width: sheetWidth, height: max(32, margins.bottom), alignment: .bottom)
     }
 }
 

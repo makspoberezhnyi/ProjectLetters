@@ -41,6 +41,7 @@
 		DF65AE3506A856A38D577A75 /* LettersApp/Sources/LettersKit/DocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C3E0EFE9C952C49BD42999 /* LettersApp/Sources/LettersKit/DocumentModel.swift */; };
 		B10000152C12345600000015 /* LettersApp/Sources/LettersApp/RecentColorsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000152C12345600000015 /* LettersApp/Sources/LettersApp/RecentColorsManager.swift */; };
 		B10000162C12345600000016 /* LettersApp/Sources/LettersApp/WordStyleColorPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000162C12345600000016 /* LettersApp/Sources/LettersApp/WordStyleColorPaletteView.swift */; };
+		B10000172C12345600000017 /* LettersApp/Sources/LettersApp/StudioContextualInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000172C12345600000017 /* LettersApp/Sources/LettersApp/StudioContextualInspectorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -81,6 +82,7 @@
 		E407308380E956A6B0D4FEE3 /* LettersApp/Sources/LettersApp/SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/SourceManagerView.swift; sourceTree = "<group>"; };
 		A10000152C12345600000015 /* LettersApp/Sources/LettersApp/RecentColorsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/RecentColorsManager.swift; sourceTree = "<group>"; };
 		A10000162C12345600000016 /* LettersApp/Sources/LettersApp/WordStyleColorPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/WordStyleColorPaletteView.swift; sourceTree = "<group>"; };
+		A10000172C12345600000017 /* LettersApp/Sources/LettersApp/StudioContextualInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LettersApp/Sources/LettersApp/StudioContextualInspectorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -142,6 +144,7 @@
 				A10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift */,
 				A10000152C12345600000015 /* LettersApp/Sources/LettersApp/RecentColorsManager.swift */,
 				A10000162C12345600000016 /* LettersApp/Sources/LettersApp/WordStyleColorPaletteView.swift */,
+				A10000172C12345600000017 /* LettersApp/Sources/LettersApp/StudioContextualInspectorView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -230,6 +233,7 @@
 				B10000142C12345600000014 /* LettersApp/Sources/LettersApp/DocumentPaginator.swift in Sources */,
 				B10000152C12345600000015 /* LettersApp/Sources/LettersApp/RecentColorsManager.swift in Sources */,
 				B10000162C12345600000016 /* LettersApp/Sources/LettersApp/WordStyleColorPaletteView.swift in Sources */,
+				B10000172C12345600000017 /* LettersApp/Sources/LettersApp/StudioContextualInspectorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

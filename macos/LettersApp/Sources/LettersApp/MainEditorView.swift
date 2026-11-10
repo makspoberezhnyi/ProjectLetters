@@ -67,10 +67,9 @@ public struct MainEditorView: View {
     @State private var selectionAttributes: EditorSelectionAttributes? = nil
 
     @State private var showAIDrawer: Bool = false
-    @State private var showOutlineDrawer: Bool = false
+    @State private var showOutlineDrawer: Bool = true
 
-    // Modern Dark Floating Island & Cover Banner States
-        @State private var showIslandSidebar: Bool = true
+    // Modern Docked Sidebar & Panel States
     @State private var showDocumentHistory: Bool = false
     @State private var showPageDesignInspector: Bool = false
     @State private var showRevisionsPopover: Bool = false
@@ -743,7 +742,12 @@ public struct MainEditorView: View {
                 reviewToolbarStrip
             }
 
-            // 2. Wide Main Workspace Canvas with Floating Islands & Timeline
+            // Header & Footer Editor Toolbar Strip (Docked, Non-Modal, Zero Overlap)
+            if isEditingHeaderFooter {
+                headerFooterToolbarStrip
+            }
+
+            // 2. Wide Main Workspace Canvas with Docked Navigation & Inspector Panes
             HStack(spacing: 0) {
                 // Docked Left Outline Navigator
                 if showOutlineDrawer {
@@ -792,161 +796,30 @@ public struct MainEditorView: View {
                         }
                         .background(StudioTheme.canvasBackground)
 
-                        // Floating Left Island Sidebar Overlay
-                        if showIslandSidebar {
-                            HStack(alignment: .top, spacing: 12) {
-                                StudioFloatingSidebar(
-                                    isPresented: $showIslandSidebar,
-                                    rawText: $documentController.rawText,
-                                    documentPages: documentPages,
-                                    selectedPage: $selectedPage,
-                                    sources: $documentController.document.sources,
-                                    tables: $documentController.tables,
-                                    images: $documentController.images,
-                                    videos: $documentController.videos,
-                                    showAIDrawer: $showAIDrawer,
-                                    showCommandPalette: $showCommandPalette,
-                                    showPageDesignInspector: $showPageDesignInspector,
-                                    onInsertSection: { handleToolAction(.text) },
-                                    onInsertTable: { handleToolAction(.table) },
-                                    onInsertImage: { handleToolAction(.image) },
-                                    onAddSource: { showingAddSourceSheet = true },
-                                    onInsertPageBreak: { insertPageBreakAction() },
-                                    onTogglePageDesign: { showPageDesignInspector.toggle() },
-                                    onToggleOutline: {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                                            showOutlineDrawer.toggle()
-                                        }
-                                    },
-                                    onToast: { msg in showToast(msg) }
-                                )
-                            }
-                            .padding(.leading, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-                            .zIndex(10)
-                        }
+                        // Unified Bottom Transient HUD Stack (Toast, Inline AI, Find & Replace — non-blocking hit testing)
+                        if toastMessage != nil || showFindReplace || (showInlineAI && !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                            VStack(spacing: 10) {
+                                Spacer()
 
-                        // Floating Right Document Timeline Overlay
-                        if showDocumentHistory {
-                            VStack {
-                                HStack {
-                                    Spacer()
-                                    StudioDocumentHistoryView(isPresented: $showDocumentHistory, store: documentController)
+                                if let msg = toastMessage {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                        Text(msg)
+                                            .font(.subheadline.bold())
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 5)
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
                                 }
-                                Spacer()
-                            }
-                            .padding(.trailing, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                            .zIndex(10)
-                        }
 
-                        // 3. Floating Draggable Header & Footer / Page Numbering HUD (Double-click activation)
-                        if isEditingHeaderFooter {
-                            VStack {
-                                StudioHeaderFooterToolbar(
-                                    config: $documentController.headerFooter,
-                                    isEditing: $isEditingHeaderFooter,
-                                    activeTarget: $activeHeaderFooterTarget
-                                )
-                                .padding(.top, 16)
-                                Spacer()
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                            .zIndex(20)
-                        }
-
-                        // Floating Right AI Copilot Companion Island
-                        if showAIDrawer {
-                            HStack {
-                                Spacer()
-                                AssistantSidebarView(
-                                    rawText: $documentController.rawText,
-                                    selectedText: $selectedText,
-                                    onInsertTable: { table in
-                                        let marker = "\n\n[[table:\(table.id.uuidString)]]\n\n"
-                                        if selectionRange.location <= (documentController.rawText as NSString).length {
-                                            let ns = documentController.rawText as NSString
-                                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
-                                        } else {
-                                            documentController.rawText += marker
-                                        }
-                                        documentController.tables.append(table)
-                                        documentController.commitSnapshot(actionName: "Insert Table", isMilestone: true)
-                                    },
-                                    onInsertSource: { source in
-                                        documentController.document.sources[source.id] = source
-                                        let citeTag = "(\(source.authors.first ?? "Author"), \(source.year != nil ? "\(source.year!)" : "n.d."))"
-                                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
-                                            let ns = documentController.rawText as NSString
-                                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
-                                        }
-                                    },
-                                    onInsertHeading: { level, title in
-                                        insertSectionHeadingAction(level: level, customTitle: title)
-                                    },
-                                    onSetMargins: { presetStr in
-                                        let lower = presetStr.lowercased()
-                                        if lower.contains("narrow") {
-                                            documentController.marginPreset = .narrow
-                                        } else if lower.contains("wide") {
-                                            documentController.marginPreset = .wide
-                                        } else {
-                                            documentController.marginPreset = .normal
-                                        }
-                                    },
-                                    onInsertPageBreak: {
-                                        insertPageBreakAction()
-                                    },
-                                    onInsertTOC: {
-                                        insertTOCAction()
-                                    },
-                                    onInsertBibliography: {
-                                        insertBibliographyAction()
-                                    },
-                                    onToast: { msg in showToast(msg) },
-                                    onClose: {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            showAIDrawer = false
-                                        }
-                                    },
-                                    currentDocumentContext: { buildDocumentAIContext() }
-                                )
-                            }
-                            .padding(.trailing, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                            .zIndex(15)
-                        }
-
-                        // 4. Unified Bottom Floating Stack (Toast, Selection Menu / Inline AI, Find & Replace — never overlaps!)
-                        VStack(spacing: 10) {
-                            Spacer()
-
-                            if let msg = toastMessage {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                    Text(msg)
-                                        .font(.subheadline.bold())
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 5)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
-
-                            if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isEditingHeaderFooter && !showFindReplace {
-                                if showInlineAI {
+                                if showInlineAI && !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     InlineAICanvasEditorView(
                                         selectedText: selectedText,
                                         fullDocumentContext: documentController.rawText,
@@ -968,35 +841,32 @@ public struct MainEditorView: View {
                                             }
                                         }
                                     )
+                                    .allowsHitTesting(true)
                                     .transition(.asymmetric(
                                         insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 12)),
                                         removal: .opacity.combined(with: .scale(scale: 0.96))
                                     ))
-                                } else {
-                                    floatingSelectionActionMenu
-                                        .transition(.asymmetric(
-                                            insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 10)),
-                                            removal: .opacity.combined(with: .scale(scale: 0.96))
-                                        ))
+                                }
+
+                                if showFindReplace {
+                                    FindReplaceBar(
+                                        isPresented: $showFindReplace,
+                                        rawText: $documentController.rawText,
+                                        onToast: { msg in showToast(msg) }
+                                    )
+                                    .allowsHitTesting(true)
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
                                 }
                             }
-
-                            if showFindReplace {
-                                FindReplaceBar(
-                                    isPresented: $showFindReplace,
-                                    rawText: $documentController.rawText,
-                                    onToast: { msg in showToast(msg) }
-                                )
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
+                            .padding(.bottom, 16)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .allowsHitTesting(false)
+                            .zIndex(25)
                         }
-                        .padding(.bottom, 16)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .zIndex(25)
                     }
                 }
 
-                // Docked Right Contextual Inspector
+                // Docked Right Contextual Inspector / Copilot / Document History Panes
                 if showPageDesignInspector {
                     Divider()
 
@@ -1027,6 +897,69 @@ public struct MainEditorView: View {
                         onToast: { msg in showToast(msg) }
                     )
                     .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else if showAIDrawer {
+                    Divider()
+
+                    AssistantSidebarView(
+                        rawText: $documentController.rawText,
+                        selectedText: $selectedText,
+                        onInsertTable: { table in
+                            let marker = "\n\n[[table:\(table.id.uuidString)]]\n\n"
+                            if selectionRange.location <= (documentController.rawText as NSString).length {
+                                let ns = documentController.rawText as NSString
+                                documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
+                            } else {
+                                documentController.rawText += marker
+                            }
+                            documentController.tables.append(table)
+                            documentController.commitSnapshot(actionName: "Insert Table", isMilestone: true)
+                        },
+                        onInsertSource: { source in
+                            documentController.document.sources[source.id] = source
+                            let citeTag = "(\(source.authors.first ?? "Author"), \(source.year != nil ? "\(source.year!)" : "n.d."))"
+                            if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
+                                let ns = documentController.rawText as NSString
+                                documentController.rawText = ns.replacingCharacters(in: selectionRange, with: " " + citeTag + " ")
+                            }
+                        },
+                        onInsertHeading: { level, title in
+                            insertSectionHeadingAction(level: level, customTitle: title)
+                        },
+                        onSetMargins: { presetStr in
+                            let lower = presetStr.lowercased()
+                            if lower.contains("narrow") {
+                                documentController.marginPreset = .narrow
+                            } else if lower.contains("wide") {
+                                documentController.marginPreset = .wide
+                            } else {
+                                documentController.marginPreset = .normal
+                            }
+                        },
+                        onInsertPageBreak: {
+                            insertPageBreakAction()
+                        },
+                        onInsertTOC: {
+                            insertTOCAction()
+                        },
+                        onInsertBibliography: {
+                            insertBibliographyAction()
+                        },
+                        onToast: { msg in showToast(msg) },
+                        onClose: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                showAIDrawer = false
+                            }
+                        },
+                        currentDocumentContext: { buildDocumentAIContext() }
+                    )
+                    .frame(width: 320)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                } else if showDocumentHistory {
+                    Divider()
+
+                    StudioDocumentHistoryView(isPresented: $showDocumentHistory, store: documentController)
+                        .frame(width: 300)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
 
@@ -1110,7 +1043,7 @@ public struct MainEditorView: View {
                             } label: {
                                 HStack {
                                     Image(systemName: "photo")
-                                    Text("Figure \((documentController.images.firstIndex(where: { $0.id == img.id }) ?? 0) + 1)")
+                                    Text("Figure \(figureNumber(for: img.id))")
                                         .bold()
                                     if !img.caption.isEmpty {
                                         Text("- \(img.caption)").foregroundColor(.secondary)
@@ -2824,6 +2757,7 @@ public struct MainEditorView: View {
                 isEditing: .constant(false),
                 activeTarget: .constant(.footer)
             )
+            .offset(y: currentSheetHeight - max(32, documentController.margins.bottom))
         }
         .environment(\.colorScheme, .light)
         .frame(width: currentSheetWidth, height: currentSheetHeight)
@@ -3187,6 +3121,9 @@ public struct MainEditorView: View {
         let printableW = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
         let totalEstHeight = max(currentSheetHeight, calculateEditorHeight(for: documentController.rawText) + documentController.margins.top + documentController.margins.bottom + 80)
         let pageCount = max(1, Int(ceil(totalEstHeight / currentSheetHeight)))
+        let topPad = max(36.0, documentController.margins.top + 28.0)
+        let bottomPad = max(36.0, documentController.margins.bottom + 28.0)
+        let editorMinH = max(300.0, totalEstHeight - topPad - bottomPad)
 
         VStack(spacing: 6) {
             // Header Page Metric & Ruler Toggle Strip
@@ -3357,30 +3294,28 @@ public struct MainEditorView: View {
                         },
                         isContinuousCanvas: true
                     )
-                    .frame(width: printableW, alignment: .topLeading)
+                    .frame(width: printableW)
+                    .frame(minHeight: editorMinH, alignment: .topLeading)
                 }
                 .padding(.leading, documentController.margins.left)
                 .padding(.trailing, documentController.margins.right)
-                .padding(.top, max(36, documentController.margins.top + 28))
-                .padding(.bottom, max(36, documentController.margins.bottom + 28))
+                .padding(.top, topPad)
+                .padding(.bottom, bottomPad)
 
                 // 8. Running Footer
-                VStack {
-                    Spacer()
-                    StudioFooterView(
-                        config: $documentController.headerFooter,
-                        pageIndex: 0,
-                        totalPages: pageCount,
-                        documentTitle: documentController.title,
-                        margins: documentController.margins,
-                        sheetWidth: currentSheetWidth,
-                        sheetHeight: totalEstHeight,
-                        fontFamily: documentController.fontFamily,
-                        isEditing: $isEditingHeaderFooter,
-                        activeTarget: $activeHeaderFooterTarget
-                    )
-                }
-                .frame(width: currentSheetWidth, height: totalEstHeight)
+                StudioFooterView(
+                    config: $documentController.headerFooter,
+                    pageIndex: 0,
+                    totalPages: pageCount,
+                    documentTitle: documentController.title,
+                    margins: documentController.margins,
+                    sheetWidth: currentSheetWidth,
+                    sheetHeight: totalEstHeight,
+                    fontFamily: documentController.fontFamily,
+                    isEditing: $isEditingHeaderFooter,
+                    activeTarget: $activeHeaderFooterTarget
+                )
+                .offset(y: totalEstHeight - max(32, documentController.margins.bottom))
             }
             .environment(\.colorScheme, .light)
             .scaleEffect(zoomScale, anchor: .top)
@@ -3557,6 +3492,7 @@ public struct MainEditorView: View {
                 isEditing: $isEditingHeaderFooter,
                 activeTarget: $activeHeaderFooterTarget
             )
+            .offset(y: currentSheetHeight - max(32, documentController.margins.bottom))
 
             // 7. Right Gutter Margin Cards: Side Notes (Comments) & Track Changes (Revisions)
             paperMarginLayer(pageIndex: pageIndex)
@@ -4442,106 +4378,214 @@ public struct MainEditorView: View {
         .frame(width: 460)
     }
 
-    @ViewBuilder
-    private var floatingSelectionActionMenu: some View {
-        FloatingActionMenu(
-            selectedText: selectedText,
-            fontFamily: selectionAttributes?.fontFamily ?? documentController.fontFamily,
-            fontSize: selectionAttributes?.fontSize ?? documentController.fontSize,
-            isBold: selectionAttributes?.isBold ?? isBold,
-            isItalic: selectionAttributes?.isItalic ?? isItalic,
-            isUnderline: selectionAttributes?.isUnderline ?? isUnderline,
-            isKeepLinesTogether: selectionAttributes?.isKeepLinesTogether ?? false,
-            isKeepWithNext: selectionAttributes?.isKeepWithNext ?? false,
-            textAlignment: selectionAttributes?.alignment ?? documentController.textAlignment,
-            lineSpacing: documentController.lineSpacing,
-            onBold: {
-                toggleBoldAction()
-            },
-            onItalic: {
-                toggleItalicAction()
-            },
-            onUnderline: {
-                toggleUnderlineAction()
-            },
-            onStrikethrough: {
-                toggleStrikethroughAction()
-            },
-            onSetFontFamily: { fam in
-                setFontFamilyAction(fam)
-            },
-            onSetFontSize: { sz in
-                setFontSizeAction(sz)
-            },
-            onSetAlignment: { align in
-                setAlignmentAction(align)
-            },
-            onSetLineSpacing: { sp in
-                setLineSpacingAction(sp)
-            },
-            onSetParagraphSpacing: { sp in
-                setParagraphSpacingAction(sp)
-            },
-            onSetTextColor: { col in
-                setTextColorAction(col)
-            },
-            onSetTextHighlight: { col in
-                setTextHighlightAction(col)
-            },
-            onClearFormatting: {
-                clearFormattingAction()
-            },
-            onAskAI: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                    showInlineAI = true
+    private var headerFooterToolbarStrip: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: activeHeaderFooterTarget == .header ? "arrow.up.to.line" : "arrow.down.to.line")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.accentColor)
+                Text("Editing \(activeHeaderFooterTarget.rawValue)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.accentColor)
+            }
+
+            // Custom Compact Switcher (Header vs Footer)
+            HStack(spacing: 1) {
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        activeHeaderFooterTarget = .header
+                    }
+                } label: {
+                    Text("Header")
+                        .font(.system(size: 10, weight: activeHeaderFooterTarget == .header ? .bold : .medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            activeHeaderFooterTarget == .header ? Color.accentColor.opacity(0.18) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                        .foregroundColor(activeHeaderFooterTarget == .header ? .accentColor : .secondary)
                 }
-            },
-            onPolish: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    showAIDrawer = true
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                        activeHeaderFooterTarget = .footer
+                    }
+                } label: {
+                    Text("Footer")
+                        .font(.system(size: 10, weight: activeHeaderFooterTarget == .footer ? .bold : .medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            activeHeaderFooterTarget == .footer ? Color.accentColor.opacity(0.18) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                        .foregroundColor(activeHeaderFooterTarget == .footer ? .accentColor : .secondary)
                 }
-                showToast("✨ AI Copilot opened for polish")
-            },
-            onTranslate: {
-                Task {
-                    if let res = try? await TranslationService.shared.translate(text: selectedText) {
-                        if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
-                            let ns = documentController.rawText as NSString
-                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: res)
-                        } else {
-                            documentController.rawText = documentController.rawText.replacingOccurrences(of: selectedText, with: res)
-                        }
+                .buttonStyle(.plain)
+            }
+            .padding(2)
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+
+            Divider().frame(height: 14)
+
+            // Page Number Position Picker Menu
+            Menu {
+                ForEach(PageNumberPosition.allCases, id: \.self) { pos in
+                    Button(pos.rawValue) {
+                        documentController.headerFooter.pageNumberPosition = pos
                     }
                 }
-            },
-            onExplain: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    showAIDrawer = true
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "number.square")
+                        .font(.system(size: 9))
+                    Text(documentController.headerFooter.pageNumberPosition.rawValue)
+                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 6, weight: .bold))
+                        .foregroundColor(.secondary)
                 }
-                showToast("✨ AI Copilot explaining selection")
-            },
-            onCite: {
-                insertCitationForSelection()
-            },
-            onCommandPalette: {
-                showCommandPalette = true
-            },
-            onAddFootnote: {
-                insertFootnote()
-            },
-            onAddSideNote: {
-                insertSideNote()
-            },
-            onAddCrossReference: {
-                showingCrossReferenceSheet = true
-            },
-            onToggleKeepLinesTogether: {
-                toggleKeepLinesTogetherAction()
-            },
-            onToggleKeepWithNext: {
-                toggleKeepWithNextAction()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Page Number Placement")
+
+            // Page Number Format Picker Menu
+            Menu {
+                ForEach(PageNumberFormat.allCases, id: \.self) { fmt in
+                    Button(fmt.rawValue) {
+                        documentController.headerFooter.pageNumberFormat = fmt
+                    }
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(documentController.headerFooter.pageNumberFormat.rawValue)
+                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 6, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Page Number Format Style")
+
+            // Starting Page Stepper
+            HStack(spacing: 2) {
+                Text("Start:")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(.secondary)
+
+                Button {
+                    if documentController.headerFooter.startingPageNumber > 0 {
+                        documentController.headerFooter.startingPageNumber -= 1
+                    }
+                } label: {
+                    Text("−")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 12, height: 14)
+                }
+                .buttonStyle(.plain)
+
+                Text("\(documentController.headerFooter.startingPageNumber)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 16)
+
+                Button {
+                    documentController.headerFooter.startingPageNumber += 1
+                } label: {
+                    Text("+")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 12, height: 14)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 4))
+            .help("Starting Page Number (Offset)")
+
+            Divider().frame(height: 14)
+
+            // Different First Page Checkbox
+            Toggle(isOn: $documentController.headerFooter.differentFirstPage) {
+                Text("Different First Page")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .toggleStyle(.checkbox)
+            .help("Hide header and footer on the title / cover page")
+
+            Divider().frame(height: 14)
+
+            // Insert Token Field Menu
+            Menu {
+                Button("Insert {page} (Current Page)") { appendHeaderFooterToken("{page}") }
+                Button("Insert {pages} (Total Pages)") { appendHeaderFooterToken("{pages}") }
+                Button("Insert {title} (Document Title)") { appendHeaderFooterToken("{title}") }
+                Button("Insert {date} (Current Date)") { appendHeaderFooterToken("{date}") }
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "plus.circle")
+                    Text("Insert Field")
+                }
+                .font(.system(size: 10, weight: .medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
+            Spacer()
+
+            // Close / Done Button
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    isEditingHeaderFooter = false
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Done")
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.accentColor, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Close Header & Footer Editor (Esc)")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(StudioTheme.panelBackground)
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(StudioTheme.border),
+            alignment: .bottom
         )
+    }
+
+    private func appendHeaderFooterToken(_ token: String) {
+        if activeHeaderFooterTarget == .header {
+            documentController.headerFooter.headerRightText += (documentController.headerFooter.headerRightText.isEmpty ? "" : " ") + token
+        } else {
+            documentController.headerFooter.footerRightText += (documentController.headerFooter.footerRightText.isEmpty ? "" : " ") + token
+        }
+    }
+
+    private func figureNumber(for imgId: UUID) -> Int {
+        (documentController.images.firstIndex(where: { $0.id == imgId }) ?? 0) + 1
     }
 
     private func replaceSelection(with newText: String) {
