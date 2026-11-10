@@ -1,7 +1,7 @@
-import JavaScriptCore
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import Foundation
 
 // MARK: - Table Formula Evaluator
 public final class TableFormulaEvaluator {
@@ -234,24 +234,17 @@ public final class TableFormulaEvaluator {
 
         if sanitized.isEmpty { return "" }
         
-        // Use JavaScriptCore for 100% crash-safe mathematical evaluation
-        if let context = JSContext() {
-            context.exceptionHandler = { _, _ in } // Ignore JS exceptions
-            let result = context.evaluateScript(sanitized)
-            if result?.isNumber == true {
-                let num = result!.toNumber()!
-                if num.doubleValue.isInfinite {
-                    return "#DIV/0!"
-                } else if num.doubleValue.isNaN {
-                    return "#ERROR"
-                }
-                return formatNumber(num.doubleValue)
-            } else {
+        // Use Foundation NSExpression for crash-safe mathematical evaluation
+        let mathExpr = NSExpression(format: sanitized)
+        if let result = mathExpr.expressionValue(with: nil, context: nil) as? NSNumber {
+            let val = result.doubleValue
+            if val.isInfinite {
+                return "#DIV/0!"
+            } else if val.isNaN {
                 return "#ERROR"
             }
+            return formatNumber(val)
         }
-
-
 
         return expr
     }

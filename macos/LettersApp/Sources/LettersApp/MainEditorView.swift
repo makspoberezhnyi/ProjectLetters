@@ -26,8 +26,6 @@ public struct MainEditorView: View {
     @State private var zoomScale: Double = 1.0
     @State private var showingAddSourceSheet: Bool = false
     @State private var showingCrossReferenceSheet: Bool = false
-    @State private var showingAddVideoSheet: Bool = false
-    @State private var newVideoURLInput: String = ""
     @State private var showFindReplace: Bool = false
     @State private var showInlineAI: Bool = false
     @State private var showingSettingsSheet: Bool = false
@@ -1095,40 +1093,6 @@ public struct MainEditorView: View {
             .padding(20)
             .frame(width: 400)
         }
-        .sheet(isPresented: $showingAddVideoSheet) {
-            VStack(spacing: 16) {
-                Text("Embed YouTube / Web Video")
-                    .font(.headline)
-
-                TextField("Paste YouTube or Video URL...", text: $newVideoURLInput)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 340)
-
-                HStack {
-                    Button("Cancel") {
-                        showingAddVideoSheet = false
-                        newVideoURLInput = ""
-                    }
-                    Button("Embed Video") {
-                        let block = StudioVideoBlock.parse(url: newVideoURLInput)
-                        documentController.videos.append(block)
-                        let marker = "\n\n[[video:\(block.id.uuidString)]]\n\n"
-                        if selectionRange.location <= (documentController.rawText as NSString).length {
-                            let ns = documentController.rawText as NSString
-                            documentController.rawText = ns.replacingCharacters(in: selectionRange, with: marker)
-                        } else {
-                            documentController.rawText += marker
-                        }
-                        showingAddVideoSheet = false
-                        newVideoURLInput = ""
-                        showToast("✓ Embedded Video Card")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(newVideoURLInput.isEmpty)
-                }
-            }
-            .padding(20)
-        }
         .sheet(isPresented: $showCommandPalette) {
             CommandPaletteView(
                 isPresented: $showCommandPalette,
@@ -1195,7 +1159,7 @@ public struct MainEditorView: View {
             onAlignRight: { setAlignmentAction(.trailing) },
             onTable: { handleToolAction(.table) },
             onImage: insertImageAction,
-            onVideo: { showingAddVideoSheet = true },
+            onVideo: {},
             onCitation: { showingAddSourceSheet = true },
             onFootnote: insertFootnote,
             onSideNote: insertSideNote,
@@ -2120,9 +2084,6 @@ public struct MainEditorView: View {
             CommandItem(title: "Insert Image Figure", subtitle: "Add image with aspect ratio and caption", icon: "photo", category: .insert, keywords: ["image", "picture", "photo", "figure"]) {
                 insertImageAction()
             },
-            CommandItem(title: "Embed Video Card", subtitle: "Add YouTube or Vimeo player card", icon: "play.rectangle", category: .insert, keywords: ["video", "youtube", "vimeo", "media"]) {
-                showingAddVideoSheet = true
-            },
             CommandItem(title: "Add Bibliographic Citation", subtitle: "Link source author, year, and DOI/URL", icon: "quote.bubble", category: .insert, keywords: ["cite", "citation", "source", "reference", "bibliography"]) {
                 showingAddSourceSheet = true
             },
@@ -2699,13 +2660,6 @@ public struct MainEditorView: View {
             }
 
             VStack(alignment: .leading, spacing: 18) {
-                if hasCoverBanner {
-                    StudioCoverBannerView(
-                        config: .constant(documentController.coverBanner),
-                        documentTitle: .constant(documentController.title),
-                        sheetWidth: totalPrintableWidth
-                    )
-                }
 
                 HStack(alignment: .top, spacing: gap) {
                     ForEach(0..<cols, id: \.self) { c in
@@ -2750,10 +2704,8 @@ public struct MainEditorView: View {
                                     if let idx = documentController.images.firstIndex(where: { $0.id == imageId }) {
                                         StudioImageView(imageBlock: .constant(documentController.images[idx]))
                                     }
-                                case .video(id: _, videoId: let videoId):
-                                    if let idx = documentController.videos.firstIndex(where: { $0.id == videoId }) {
-                                        StudioVideoView(videoBlock: .constant(documentController.videos[idx]))
-                                    }
+                                case .video(id: _, videoId: _):
+                                    EmptyView()
                                 case .bibliography:
                                     DynamicBibliographyView(
                                         sources: documentController.document.sources,
@@ -3292,31 +3244,18 @@ public struct MainEditorView: View {
                     }
                 }
 
-            // 1.5 Hero Cover Banner Card (Page 0 only, crowning upper sheet)
-            if hasCoverBanner {
-                StudioCoverBannerView(
-                    config: $documentController.coverBanner,
-                    documentTitle: $documentController.title,
-                    sheetWidth: currentSheetWidth - 32
-                )
-                .offset(x: 16, y: 16)
-            }
-
             // 2. Running Header (Title, Subtitle & Interactive In-Place Double-Click Editor)
-            // Suppressed on Page 0 if cover banner is active
-            if !hasCoverBanner {
-                StudioHeaderView(
-                    config: $documentController.headerFooter,
-                    pageIndex: pageIndex,
-                    totalPages: totalPages,
-                    documentTitle: documentController.title,
-                    margins: documentController.margins,
-                    sheetWidth: currentSheetWidth,
-                    fontFamily: documentController.fontFamily,
-                    isEditing: $isEditingHeaderFooter,
-                    activeTarget: $activeHeaderFooterTarget
-                )
-            }
+            StudioHeaderView(
+                config: $documentController.headerFooter,
+                pageIndex: pageIndex,
+                totalPages: totalPages,
+                documentTitle: documentController.title,
+                margins: documentController.margins,
+                sheetWidth: currentSheetWidth,
+                fontFamily: documentController.fontFamily,
+                isEditing: $isEditingHeaderFooter,
+                activeTarget: $activeHeaderFooterTarget
+            )
 
             // 3. Margin Guides Overlay
             if showMarginGuides {
@@ -3586,24 +3525,8 @@ public struct MainEditorView: View {
                                 )
                             }
 
-                        case .video(id: _, videoId: let videoId):
-                            if let idx = documentController.videos.firstIndex(where: { $0.id == videoId }) {
-                                StudioVideoView(
-                                    videoBlock: $documentController.videos[idx],
-                                    onDelete: {
-                                        let idStr = documentController.videos[idx].id.uuidString
-                                        documentController.videos.remove(at: idx)
-                                        documentController.rawText = documentController.rawText.replacingOccurrences(of: "[[video:\(idStr)]]", with: "")
-                                        showToast("✓ Deleted video card")
-                                    },
-                                    onChange: {
-                                        showToast("✓ Video updated")
-                                    },
-                                    onToast: { msg in
-                                        showToast(msg)
-                                    }
-                                )
-                            }
+                        case .video(id: _, videoId: _):
+                            EmptyView()
 
                         case .bibliography(id: _):
                             DynamicBibliographyView(
