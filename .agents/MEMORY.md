@@ -27,3 +27,7 @@
    - Use non-disruptive inline Ghostwriting (Tab to accept, 40% opacity grey text).
    - Use floating selection-anchored `Cmd+K` capsule with colored diff previews (red strikethrough, green addition).
    - Margin review cards pinned to paragraph baselines in the outer right canvas gutter.
+
+## 🚀 Resolved Milestones
+* **Sprint 1 (De-Bloat & Pure-Swift Consolidation)**: Excised JavaScriptCore from `SmartTableView`, removed video embeds and Notion cover banners. Pure Foundation math evaluation.
+* **Sprint 2 (The Unified Canvas)**: Implemented continuous single-container TextKit 2 canvas (`unifiedSanctuaryCanvas`) with Pages-style triple-layer compound shadow, dynamic visual page dividers (`Page X of Y`), resizable `StudioTextView` intrinsic content sizing, and zero-latency cursor focus. All tests pass with zero warnings.

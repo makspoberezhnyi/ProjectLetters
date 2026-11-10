@@ -175,7 +175,7 @@ public class EditorActionController: ObservableObject {
 
     public func focusPage(_ pageIndex: Int, at cursorLoc: Int = 0, retries: Int = 8) {
         DispatchQueue.main.async {
-            if let tv = self.pageViews[pageIndex] {
+            if let tv = self.activeTextView ?? self.pageViews[pageIndex] {
                 tv.window?.makeFirstResponder(tv)
                 self.textView = tv
                 let length = (tv.string as NSString).length
@@ -918,8 +918,23 @@ public class StudioTextView: NSTextView {
     public weak var actionController: EditorActionController?
     public var pageIndex: Int = 0
     public var showLineNumbers: Bool = false
+    public var isContinuousCanvas: Bool = false
 
     public override var isFlipped: Bool { true }
+
+    public override var intrinsicContentSize: NSSize {
+        if isContinuousCanvas {
+            if #available(macOS 12.0, *), let tlm = textLayoutManager {
+                let h = tlm.usageBoundsForTextContainer.height
+                return NSSize(width: NSView.noIntrinsicMetric, height: max(300, ceil(h) + 32))
+            } else if let lm = layoutManager, let tc = textContainer {
+                lm.ensureLayout(for: tc)
+                let h = lm.usedRect(for: tc).height
+                return NSSize(width: NSView.noIntrinsicMetric, height: max(300, ceil(h) + 32))
+            }
+        }
+        return super.intrinsicContentSize
+    }
 
     public override func selectAll(_ sender: Any?) {
         super.selectAll(sender)
@@ -927,25 +942,41 @@ public class StudioTextView: NSTextView {
     }
 
     public override func scrollRangeToVisible(_ range: NSRange) {
-        self.bounds.origin = .zero
+        if isContinuousCanvas {
+            super.scrollRangeToVisible(range)
+        } else {
+            self.bounds.origin = .zero
+        }
     }
 
     public override func scroll(_ point: NSPoint) {
-        self.bounds.origin = .zero
+        if isContinuousCanvas {
+            super.scroll(point)
+        } else {
+            self.bounds.origin = .zero
+        }
     }
 
     public override func autoscroll(with event: NSEvent) -> Bool {
-        self.bounds.origin = .zero
-        return false
+        if isContinuousCanvas {
+            return super.autoscroll(with: event)
+        } else {
+            self.bounds.origin = .zero
+            return false
+        }
     }
 
     public override func scrollWheel(with event: NSEvent) {
-        self.nextResponder?.scrollWheel(with: event)
+        if isContinuousCanvas {
+            super.scrollWheel(with: event)
+        } else {
+            self.nextResponder?.scrollWheel(with: event)
+        }
     }
 
     public override func layout() {
         super.layout()
-        if self.bounds.origin != .zero {
+        if !isContinuousCanvas && self.bounds.origin != .zero {
             self.bounds.origin = .zero
         }
     }
@@ -1186,20 +1217,20 @@ public class StudioTextView: NSTextView {
             }
         }
 
-        // Backspace at beginning of page -> hop to end of previous page & delete
-        if event.keyCode == 51 && sel.location == 0 && sel.length == 0 && pageIndex > 0 {
+        // Backspace at beginning of page -> hop to end of previous page & delete (paged mode only)
+        if !isContinuousCanvas && event.keyCode == 51 && sel.location == 0 && sel.length == 0 && pageIndex > 0 {
             actionController?.focusPreviousPage(from: pageIndex, deleteTrailing: true)
             return
         }
 
-        // Left arrow at beginning of page -> hop to end of previous page
-        if event.keyCode == 123 && sel.location == 0 && sel.length == 0 && pageIndex > 0 {
+        // Left arrow at beginning of page -> hop to end of previous page (paged mode only)
+        if !isContinuousCanvas && event.keyCode == 123 && sel.location == 0 && sel.length == 0 && pageIndex > 0 {
             actionController?.focusPreviousPage(from: pageIndex, deleteTrailing: false)
             return
         }
 
-        // Right arrow at end of page -> hop to beginning of next page
-        if event.keyCode == 124 && sel.location == strLen && sel.length == 0 {
+        // Right arrow at end of page -> hop to beginning of next page (paged mode only)
+        if !isContinuousCanvas && event.keyCode == 124 && sel.location == strLen && sel.length == 0 {
             if let ac = actionController, ac.hasPage(pageIndex + 1) {
                 ac.focusNextPage(from: pageIndex)
                 return
@@ -1236,6 +1267,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
     var hoveredCommentId: UUID?
     var onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)?
     var exclusionPaths: [NSBezierPath] = []
+    var isContinuousCanvas: Bool = false
 
     public init(
         text: Binding<String>,
@@ -1262,7 +1294,8 @@ public struct TextKit2EditorView: NSViewRepresentable {
         isContinuation: Bool = false,
         hoveredCommentId: UUID? = nil,
         onSelectionChanged: ((NSRange, String, EditorSelectionAttributes) -> Void)? = nil,
-        exclusionPaths: [NSBezierPath] = []
+        exclusionPaths: [NSBezierPath] = [],
+        isContinuousCanvas: Bool = false
     ) {
         self._text = text
         self._richTextData = richTextData
@@ -1289,6 +1322,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
         self.isContinuation = isContinuation
         self.hoveredCommentId = hoveredCommentId
         self.onSelectionChanged = onSelectionChanged
+        self.isContinuousCanvas = isContinuousCanvas
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -1356,9 +1390,19 @@ public struct TextKit2EditorView: NSViewRepresentable {
         textView.textContainer?.lineFragmentPadding = 4.0
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.exclusionPaths = exclusionPaths
-        textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = false
-        textView.autoresizingMask = [.width, .height]
+
+        let isContinuous = isContinuousCanvas || sliceRange == nil
+        textView.isContinuousCanvas = isContinuous
+        if isContinuous {
+            textView.isVerticallyResizable = true
+            textView.isHorizontallyResizable = false
+            textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            textView.autoresizingMask = [.width]
+        } else {
+            textView.isHorizontallyResizable = false
+            textView.isVerticallyResizable = false
+            textView.autoresizingMask = [.width, .height]
+        }
 
         context.coordinator.isUpdatingProgrammatically = true
         if let attrText = attributedText, !attrText.string.isEmpty {
@@ -1788,6 +1832,7 @@ public struct TextKit2EditorView: NSViewRepresentable {
 
         public func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView, !isUpdatingProgrammatically else { return }
+            textView.invalidateIntrinsicContentSize()
             let string = textView.string
             let oldSliceRange = self.parent.sliceRange
             let oldRawFullText = self.parent.rawFullText

@@ -24,6 +24,7 @@ public struct MainEditorView: View {
     @State private var lintIssues: [StyleLintMatch] = []
     @State private var toastMessage: String? = nil
     @State private var zoomScale: Double = 1.0
+    @AppStorage("editor_is_continuous_canvas_mode") private var isContinuousCanvasMode: Bool = true
     @State private var showingAddSourceSheet: Bool = false
     @State private var showingCrossReferenceSheet: Bool = false
     @State private var showFindReplace: Bool = false
@@ -751,10 +752,13 @@ public struct MainEditorView: View {
                         let alignedMinW = (Int(floor(rawMinW)) % 2 == 0) ? floor(rawMinW) : floor(rawMinW) + 1
                         ScrollView([.vertical, .horizontal]) {
                             VStack(spacing: 36) {
-
-                                // Multi-Page Sheet Rendering
-                                ForEach(0..<totalPages, id: \.self) { pageIndex in
-                                    documentPageSheet(pageIndex: pageIndex)
+                                if isContinuousCanvasMode {
+                                    unifiedSanctuaryCanvas()
+                                } else {
+                                    // Multi-Page Sheet Rendering (Print Preview Slices)
+                                    ForEach(0..<totalPages, id: \.self) { pageIndex in
+                                        documentPageSheet(pageIndex: pageIndex)
+                                    }
                                 }
                             }
                             .padding(.top, 28)
@@ -3148,6 +3152,213 @@ public struct MainEditorView: View {
                     toastMessage = nil
                 }
             }
+        }
+    }
+
+    // MARK: - Unified Single-Container Canvas (Sprint 2 Architecture)
+    @ViewBuilder
+    private func unifiedSanctuaryCanvas() -> some View {
+        let printableW = max(100, currentSheetWidth - documentController.margins.left - documentController.margins.right)
+        let totalEstHeight = max(currentSheetHeight, calculateEditorHeight(for: documentController.rawText) + documentController.margins.top + documentController.margins.bottom + 80)
+        let pageCount = max(1, Int(ceil(totalEstHeight / currentSheetHeight)))
+
+        VStack(spacing: 6) {
+            // Header Page Metric & Ruler Toggle Strip
+            HStack {
+                Text("DOCUMENT FLOW • \(pageCount) PAGE\(pageCount > 1 ? "S" : "") (UNIFIED CANVAS)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                HStack(spacing: 6) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showRuler.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "ruler")
+                                .font(.system(size: 9))
+                            Text(showRuler ? "Ruler ON" : "Ruler")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(showRuler ? .accentColor : .secondary)
+
+                    Text("•")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.5))
+
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            isContinuousCanvasMode.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: isContinuousCanvasMode ? "doc.plaintext" : "doc.on.doc")
+                                .font(.system(size: 9))
+                            Text(isContinuousCanvasMode ? "Continuous Flow" : "Paged Slices")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .help("Toggle between Continuous Canvas and Print Sheet Slices")
+                }
+            }
+            .frame(width: currentSheetWidth * zoomScale)
+
+            // Interactive Horizontal Ruler
+            if showRuler {
+                StudioHorizontalRulerView(
+                    sheetWidth: currentSheetWidth,
+                    zoomScale: CGFloat(zoomScale),
+                    margins: $documentController.margins,
+                    hangingIndent: $documentController.hangingIndent,
+                    onMarginChanged: {
+                        documentController.marginPreset = .custom
+                    }
+                )
+                .frame(width: currentSheetWidth * zoomScale, height: 26)
+            }
+
+            // The Physical Paper Sheet Card
+            ZStack(alignment: .topLeading) {
+                // 1. Crisp White Sheet Background with Iris's Triple-Layer Shadow
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.white)
+                    .frame(width: currentSheetWidth, height: totalEstHeight)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(Color.black.opacity(0.10), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.04), radius: 1.5, x: 0, y: 1)
+                    .shadow(color: Color.black.opacity(0.07), radius: 12, x: 0, y: 6)
+                    .shadow(color: Color.black.opacity(0.05), radius: 28, x: 0, y: 16)
+
+                // 2. Running Header (Title & Double-Click In-Place Editor)
+                StudioHeaderView(
+                    config: $documentController.headerFooter,
+                    pageIndex: 0,
+                    totalPages: pageCount,
+                    documentTitle: documentController.title,
+                    margins: documentController.margins,
+                    sheetWidth: currentSheetWidth,
+                    fontFamily: documentController.fontFamily,
+                    isEditing: $isEditingHeaderFooter,
+                    activeTarget: $activeHeaderFooterTarget
+                )
+
+                // 3. Margin Guides Overlay
+                if showMarginGuides {
+                    PaperMarginGuidesView(
+                        width: currentSheetWidth,
+                        height: totalEstHeight,
+                        margins: documentController.margins
+                    )
+                }
+
+                // 4. Publisher Corner Crop Marks
+                if showCropMarks {
+                    PublisherCropMarksView(
+                        width: currentSheetWidth,
+                        height: totalEstHeight
+                    )
+                }
+
+                // 5. Watermark (Beneath Text Layer)
+                if !documentController.watermarkText.isEmpty {
+                    Text(documentController.watermarkText.uppercased())
+                        .font(.system(size: 140, weight: .black, design: .default))
+                        .foregroundColor(Color.gray.opacity(0.12))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.2)
+                        .rotationEffect(.degrees(-45))
+                        .frame(width: currentSheetWidth, height: totalEstHeight)
+                        .allowsHitTesting(false)
+                }
+
+                // 6. Visual Page Boundary Dividers (Google Docs / Pages Style)
+                if pageCount > 1 {
+                    ForEach(1..<pageCount, id: \.self) { pIdx in
+                        let yOffset = currentSheetHeight * CGFloat(pIdx)
+                        HStack(spacing: 8) {
+                            Rectangle()
+                                .stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                .foregroundColor(Color.secondary.opacity(0.20))
+                                .frame(height: 1)
+
+                            Text("PAGE \(pIdx + 1)")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(Color.secondary.opacity(0.50))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color(white: 0.94)))
+                        }
+                        .frame(width: printableW)
+                        .position(x: currentSheetWidth / 2, y: yOffset)
+                        .allowsHitTesting(false)
+                    }
+                }
+
+                // 7. Single Primary TextKit 2 Continuous Editor
+                VStack(alignment: .leading, spacing: 0) {
+                    TextKit2EditorView(
+                        text: $documentController.rawText,
+                        richTextData: $documentController.richTextData,
+                        selectedText: $selectedText,
+                        selectionRange: $selectionRange,
+                        rawFullText: documentController.rawText,
+                        controller: editorController,
+                        fontFamily: documentController.fontFamily,
+                        fontSize: documentController.fontSize,
+                        isBold: isBold,
+                        isItalic: isItalic,
+                        isUnderline: isUnderline,
+                        alignment: documentController.textAlignment,
+                        lineSpacing: documentController.lineSpacing,
+                        paragraphSpacing: documentController.paragraphSpacing,
+                        margins: PageMargins(),
+                        pageIndex: 0,
+                        showLineNumbers: documentController.showLineNumbers,
+                        kern: documentController.kern,
+                        hangingIndent: documentController.hangingIndent,
+                        hoveredCommentId: hoveredCommentId,
+                        onSelectionChanged: { _, _, attrs in
+                            self.selectionAttributes = attrs
+                            if let tc = attrs.textColor { self.textColorState = tc }
+                            if let hc = attrs.highlightColor { self.highlightColorState = hc }
+                        },
+                        isContinuousCanvas: true
+                    )
+                    .frame(width: printableW, alignment: .topLeading)
+                }
+                .padding(.leading, documentController.margins.left)
+                .padding(.trailing, documentController.margins.right)
+                .padding(.top, max(36, documentController.margins.top + 28))
+                .padding(.bottom, max(36, documentController.margins.bottom + 28))
+
+                // 8. Running Footer
+                VStack {
+                    Spacer()
+                    StudioFooterView(
+                        config: $documentController.headerFooter,
+                        pageIndex: 0,
+                        totalPages: pageCount,
+                        documentTitle: documentController.title,
+                        margins: documentController.margins,
+                        sheetWidth: currentSheetWidth,
+                        sheetHeight: totalEstHeight,
+                        fontFamily: documentController.fontFamily,
+                        isEditing: $isEditingHeaderFooter,
+                        activeTarget: $activeHeaderFooterTarget
+                    )
+                }
+                .frame(width: currentSheetWidth, height: totalEstHeight)
+            }
+            .environment(\.colorScheme, .light)
+            .scaleEffect(zoomScale, anchor: .top)
+            .frame(width: currentSheetWidth * zoomScale, height: totalEstHeight * zoomScale, alignment: .top)
         }
     }
 
