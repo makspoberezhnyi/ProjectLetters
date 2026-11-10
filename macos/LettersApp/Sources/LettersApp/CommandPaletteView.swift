@@ -907,7 +907,7 @@ private struct ShortcutHint: View {
 // MARK: - Preview
 
 #Preview("Command Palette") {
-    @State var isPresented = true
+    @Previewable @State var isPresented = true
     return CommandPaletteView(
         isPresented: $isPresented,
         commands: [

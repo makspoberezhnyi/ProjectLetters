@@ -40,6 +40,9 @@ public struct DocumentOutlineView: View {
     @State private var hoveredHeadingId: String? = nil
     /// Parsed once per typing pause instead of on every body evaluation (it was recomputed several times per keystroke).
     @State private var headings: [HeadingNode] = []
+    /// Edit-version token to avoid re-parsing when rawText hasn't meaningfully changed.
+    @State private var lastParsedTextVersion: Int = 0
+    @State private var lastParsedRawText: String = ""
 
     public init(
         isPresented: Binding<Bool>,
@@ -68,6 +71,11 @@ public struct DocumentOutlineView: View {
     }
 
     private func computeHeadings() -> [HeadingNode] {
+        // Fast-path: if text hasn't changed since last parse, return cached headings
+        if rawText == lastParsedRawText {
+            return headings
+        }
+        
         var rawNodes: [(id: String, title: String, level: Int, offset: Int, length: Int, colIdx: Int, pageNum: Int)] = []
         let regex = EditorPerformanceCache.shared.tocHeadingRegex
 
@@ -156,6 +164,10 @@ public struct DocumentOutlineView: View {
             ))
         }
 
+        // Update cache
+        lastParsedRawText = rawText
+        lastParsedTextVersion &+= 1
+        
         return result
     }
 
