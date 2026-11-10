@@ -24,9 +24,10 @@ public struct HeadingNode: Identifiable {
 public struct DocumentOutlineView: View {
     @Binding var isPresented: Bool
     @Binding var rawText: String
-    let pageSlices: [DocumentPageSlice]
-    let columnCount: Int
     let cursorOffset: Int
+    let pageCount: Int
+    let pageForOffset: (Int) -> Int
+    let pageSnippet: (Int) -> String
     @Binding var sources: [String: Source]
     @Binding var activeCitationStyle: CitationStyle
     var onSelectOffset: ((Int) -> Void)?
@@ -37,13 +38,16 @@ public struct DocumentOutlineView: View {
     @State private var searchFilter: String = ""
     @State private var collapsedNodes: Set<String> = []
     @State private var hoveredHeadingId: String? = nil
+    /// Parsed once per typing pause instead of on every body evaluation (it was recomputed several times per keystroke).
+    @State private var headings: [HeadingNode] = []
 
     public init(
         isPresented: Binding<Bool>,
         rawText: Binding<String>,
-        pageSlices: [DocumentPageSlice] = [],
-        columnCount: Int = 1,
         cursorOffset: Int = 0,
+        pageCount: Int = 1,
+        pageForOffset: @escaping (Int) -> Int = { _ in 1 },
+        pageSnippet: @escaping (Int) -> String = { _ in "" },
         sources: Binding<[String: Source]>,
         activeCitationStyle: Binding<CitationStyle>,
         onSelectOffset: ((Int) -> Void)? = nil,
@@ -52,9 +56,10 @@ public struct DocumentOutlineView: View {
     ) {
         self._isPresented = isPresented
         self._rawText = rawText
-        self.pageSlices = pageSlices
-        self.columnCount = max(1, columnCount)
         self.cursorOffset = cursorOffset
+        self.pageCount = max(1, pageCount)
+        self.pageForOffset = pageForOffset
+        self.pageSnippet = pageSnippet
         self._sources = sources
         self._activeCitationStyle = activeCitationStyle
         self.onSelectOffset = onSelectOffset
@@ -62,30 +67,7 @@ public struct DocumentOutlineView: View {
         self.onSelectPage = onSelectPage
     }
 
-    // Convenience initializer for backwards compatibility
-    public init(
-        isPresented: Binding<Bool>,
-        rawText: String,
-        pageSlices: [DocumentPageSlice],
-        columnCount: Int = 1,
-        sources: Binding<[String: Source]>,
-        activeCitationStyle: Binding<CitationStyle>,
-        onSelectHeading: ((Int, Int) -> Void)? = nil,
-        onSelectPage: ((Int) -> Void)? = nil
-    ) {
-        self._isPresented = isPresented
-        self._rawText = .constant(rawText)
-        self.pageSlices = pageSlices
-        self.columnCount = max(1, columnCount)
-        self.cursorOffset = 0
-        self._sources = sources
-        self._activeCitationStyle = activeCitationStyle
-        self.onSelectOffset = nil
-        self.onSelectHeading = onSelectHeading
-        self.onSelectPage = onSelectPage
-    }
-
-    public var headings: [HeadingNode] {
+    private func computeHeadings() -> [HeadingNode] {
         var rawNodes: [(id: String, title: String, level: Int, offset: Int, length: Int, colIdx: Int, pageNum: Int)] = []
         let regex = EditorPerformanceCache.shared.tocHeadingRegex
 
@@ -125,8 +107,7 @@ public struct DocumentOutlineView: View {
             }
 
             if let title = headingTitle, !title.isEmpty {
-                // Estimate page number based on running offset (~2500 chars/page)
-                let estimatedPage = max(1, (runningOffset / 2500) + 1)
+                let estimatedPage = pageForOffset(runningOffset)
                 rawNodes.append((
                     id: "h-\(lineIdx)-\(runningOffset)",
                     title: title,
@@ -197,12 +178,7 @@ public struct DocumentOutlineView: View {
         return all.filter { $0.title.lowercased().contains(query) }
     }
 
-    private var totalPages: Int {
-        if !pageSlices.isEmpty {
-            return max(1, Int(ceil(Double(pageSlices.count) / Double(columnCount))))
-        }
-        return max(1, Int(ceil(Double((rawText as NSString).length) / 2500.0)))
-    }
+    private var totalPages: Int { pageCount }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -260,6 +236,13 @@ public struct DocumentOutlineView: View {
         }
         .frame(width: 250)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear { headings = computeHeadings() }
+        .task(id: rawText) {
+            // Debounce: cancelled and restarted on every edit, so parsing only runs once typing pauses.
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            headings = computeHeadings()
+        }
     }
 
     // MARK: - Outline Tab
@@ -458,16 +441,12 @@ public struct DocumentOutlineView: View {
         ScrollView {
             VStack(spacing: 8) {
                 ForEach(0..<totalPages, id: \.self) { pageIdx in
-                    let colIdx = pageIdx * columnCount
-                    let preview = (!pageSlices.isEmpty && colIdx < pageSlices.count)
-                        ? pageSlices[colIdx].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        : "Page \(pageIdx + 1)"
+                    let colIdx = pageIdx
+                    let preview = pageSnippet(pageIdx).trimmingCharacters(in: .whitespacesAndNewlines)
 
                     Button(action: {
                         if let onSelectPage = onSelectPage {
                             onSelectPage(colIdx)
-                        } else if let onSelectOffset = onSelectOffset {
-                            onSelectOffset(pageIdx * 2500)
                         }
                     }) {
                         HStack(alignment: .top, spacing: 10) {
