@@ -36,3 +36,10 @@
   - `StudioContextualInspectorView.swift`: Built docked 3-tab inspector (`Text & Style`, `Page Setup & Layout`, `Citations & Research`) with optical size indicators, 1.25x line height steppers, Block vs Academic indent modes, 4-axis margin steppers, and bibliography citation tools.
   - `MainEditorView.swift`: Retired floating HUD modal sheets (`StudioPageDesignView`) in favor of docked left outline pane and docked right inspector in standard macOS 3-pane layout. Connected `sidebar.left` toolbar button directly to Navigator.
   - Verified `swift build`: 0 errors, 0 warnings. `swift test`: all suites passed.
+* **Sprint 4 (Ambient AI Co-Authoring & Editorial Intelligence)**: Completed!
+  - `InlineAICanvasEditorView.swift`: Floating `Cmd+K` selection-anchored transform capsule with instant chips (`Make Concise`, `Academic Tone`, `Fix Grammar`, `Polish Flow`, `Expand`), word count delta badge, and real-time word-level diff preview with single-key accept (`Return`) and reject (`Esc`).
+  - Contextual Hotkey Dispatch: `Cmd+K` contextually opens inline AI transform when text is selected, or global Command Palette when cursor is idle.
+  - Docked Inspector Shortcut: `⌥⌘I` directly toggles docked Contextual Inspector.
+  - Native Navigation Shortcut: `⌥⌘1` and toolbar `sidebar.left` directly toggles Outline Navigator.
+  - Style Linter Integration: Real-time academic style rules connected with track-changes atomic fixes.
+  - Zero compiler errors, zero compiler warnings, 100% pure Swift, all test suites passing.

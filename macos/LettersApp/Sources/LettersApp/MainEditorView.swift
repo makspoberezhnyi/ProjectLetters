@@ -1276,28 +1276,38 @@ public struct MainEditorView: View {
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("f", modifiers: [.command])
-                Button(action: { showCommandPalette.toggle() }) { EmptyView() }
-                    .keyboardShortcut("k", modifiers: [.command])
-                Button(action: { handleToolAction(.table) }) { EmptyView() }
-                    .keyboardShortcut("t", modifiers: [.command])
                 Button(action: {
                     if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                             showInlineAI.toggle()
                         }
                     } else {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            showAIDrawer.toggle()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showCommandPalette.toggle()
                         }
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("k", modifiers: [.command])
+                Button(action: { handleToolAction(.table) }) { EmptyView() }
+                    .keyboardShortcut("t", modifiers: [.command])
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                        showInlineAI.toggle()
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("j", modifiers: [.command])
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showIslandSidebar.toggle()
+                        showOutlineDrawer.toggle()
                     }
                 }) { EmptyView() }
                     .keyboardShortcut("1", modifiers: [.command, .option])
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showPageDesignInspector.toggle()
+                    }
+                }) { EmptyView() }
+                    .keyboardShortcut("i", modifiers: [.command, .option])
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         showDocumentHistory.toggle()
