@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let alert = NSAlert()
         alert.messageText = "Do you want to save the changes made to “\(controller.title)”?"
-        alert.informativeText = "Your changes will be lost if you don't save them. (An emergency autosave snapshot has also been backed up.)"
+        alert.informativeText = "Your changes will be lost if you don’t save them. You can still recover the latest autosave from File > Restore Last Autosave."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")

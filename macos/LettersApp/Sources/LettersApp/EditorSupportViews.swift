@@ -47,7 +47,7 @@ public struct NativeFootnoteField: NSViewRepresentable {
 
     public init(
         text: Binding<String>,
-        placeholder: String = "Footnote text...",
+        placeholder: String = "Footnote text…",
         font: NSFont,
         textColor: NSColor = .labelColor,
         isEditable: Bool = true,

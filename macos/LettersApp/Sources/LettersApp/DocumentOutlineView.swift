@@ -187,7 +187,7 @@ public struct DocumentOutlineView: View {
                 Image(systemName: "list.bullet.indent")
                     .foregroundColor(.accentColor)
                     .font(.system(size: 13, weight: .semibold))
-                Text("Navigator")
+                Text("Outline")
                     .font(.system(size: 13, weight: .bold))
                 Spacer()
                 Button {
@@ -202,7 +202,7 @@ public struct DocumentOutlineView: View {
                         .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("Close Navigator")
+                .help("Close the outline")
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
@@ -253,7 +253,7 @@ public struct DocumentOutlineView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
-                TextField("Filter Headings...", text: $searchFilter)
+                TextField("Filter headings…", text: $searchFilter)
                     .textFieldStyle(.plain)
                     .font(.system(size: 11.5))
                 if !searchFilter.isEmpty {
@@ -280,12 +280,12 @@ public struct DocumentOutlineView: View {
                             Image(systemName: "text.alignleft")
                                 .font(.system(size: 24))
                                 .foregroundColor(.secondary.opacity(0.6))
-                            Text(searchFilter.isEmpty ? "No headings found" : "No matches")
+                            Text(searchFilter.isEmpty ? "No headings yet" : "No matching headings")
                                 .font(.caption.bold())
                                 .foregroundColor(.secondary)
                             Text(searchFilter.isEmpty
-                                 ? "Add # Heading 1, ## Heading 2, or numbered sections (1. Intro) to structure your document."
-                                 : "Try a different search query.")
+                                 ? "Style text as a heading, or start a line with # or ## to build an outline you can navigate."
+                                 : "Try a different word, or clear the filter.")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -348,7 +348,8 @@ public struct DocumentOutlineView: View {
 
                     // Section word count badge
                     if item.wordCount > 0 {
-                        Text("\(item.wordCount) w")
+                        Text("\(item.wordCount)")
+                            .help(Copy.count(item.wordCount, "word"))
                             .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 4)
@@ -367,7 +368,7 @@ public struct DocumentOutlineView: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(index == 0)
-                            .help("Move Section Up")
+                            .help("Move section up")
 
                             Button(action: { moveSection(at: index, direction: 1) }) {
                                 Image(systemName: "arrow.down")
@@ -377,7 +378,7 @@ public struct DocumentOutlineView: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(index == filteredHeadings.count - 1)
-                            .help("Move Section Down")
+                            .help("Move section down")
                         }
                     }
                 }

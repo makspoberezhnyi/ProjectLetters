@@ -146,7 +146,7 @@ public struct StudioDocumentHistoryView: View {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 32))
                 .foregroundColor(.secondary.opacity(0.5))
-            Text("No milestones recorded.")
+            Text("No milestones yet. Pin a version to keep it here.")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundColor(.secondary)
         }

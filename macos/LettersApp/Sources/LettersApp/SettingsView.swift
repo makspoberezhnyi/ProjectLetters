@@ -21,10 +21,10 @@ public struct SettingsView: View {
     @State private var ollamaEndpoint: String = "http://127.0.0.1:11434"
 
     public enum SettingsTab: String, CaseIterable, Identifiable {
-        case ai = "AI Copilot"
+        case ai = "Assistant"
         case typography = "Typography"
         case citations = "Citations"
-        case page = "Page & Guides"
+        case page = "Page"
 
         public var id: String { rawValue }
 
@@ -120,7 +120,7 @@ public struct SettingsView: View {
 
             // Footer
             HStack {
-                Text("Letters Settings • Changes persist across documents")
+                Text("Settings apply to all your documents.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -147,14 +147,14 @@ public struct SettingsView: View {
 
     private var aiSettingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Universal BYOK & Local AI Copilot")
+            Text("Assistant")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 10) {
                 // Anthropic
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Label("Anthropic Claude (3.5 / 3.7 Sonnet)", systemImage: "sparkles")
+                        Label("Anthropic (Claude)", systemImage: "sparkles")
                             .font(.caption.bold())
                         Spacer()
                         Button("Save") {
@@ -169,7 +169,7 @@ public struct SettingsView: View {
                 // OpenAI
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Label("OpenAI (GPT-4o / o3-mini)", systemImage: "sparkles")
+                        Label("OpenAI", systemImage: "sparkles")
                             .font(.caption.bold())
                         Spacer()
                         Button("Save") {
@@ -184,7 +184,7 @@ public struct SettingsView: View {
                 // Google Gemini
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Label("Google Gemini (Gemini 2.0 Flash)", systemImage: "sparkles")
+                        Label("Google (Gemini)", systemImage: "sparkles")
                             .font(.caption.bold())
                         Spacer()
                         Button("Save") {
@@ -198,11 +198,11 @@ public struct SettingsView: View {
 
                 // Local Ollama
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("Ollama (Local / Offline LLM)", systemImage: "desktopcomputer")
+                    Label("Ollama (on your Mac)", systemImage: "desktopcomputer")
                         .font(.caption.bold())
                     TextField("http://127.0.0.1:11434", text: $ollamaEndpoint)
                         .textFieldStyle(.roundedBorder)
-                    Text("No API key required. Runs completely offline.")
+                    Text("No API key needed. Ollama runs on your Mac and works offline.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -212,7 +212,7 @@ public struct SettingsView: View {
 
     private var typographySettingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Default Typography Engine")
+            Text("Typography")
                 .font(.headline)
 
             HStack {
@@ -230,7 +230,7 @@ public struct SettingsView: View {
             }
 
             HStack {
-                Text("Default Body Font Size")
+                Text("Body Text Size")
                 Spacer()
                 HStack(spacing: 8) {
                     Button("-") {
@@ -249,17 +249,17 @@ public struct SettingsView: View {
 
     private var citationsSettingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Bibliographic Standard & Citation Style")
+            Text("Citations")
                 .font(.headline)
 
-            Picker("Active Citation Style", selection: $citationStyle) {
+            Picker("Citation Style", selection: $citationStyle) {
                 ForEach(CitationStyle.allCases, id: \.self) { style in
                     Text(style.displayName).tag(style)
                 }
             }
             .pickerStyle(.radioGroup)
 
-            Text("Select 'Plain Attribution' if you wish to disable formal academic styling.")
+            Text("Choose Plain Attribution to cite sources without a formal academic style.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
@@ -267,11 +267,11 @@ public struct SettingsView: View {
 
     private var pageSettingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Default Page Setup & Guides")
+            Text("Page")
                 .font(.headline)
 
             HStack {
-                Text("Page Format Preset")
+                Text("Page Size")
                 Spacer()
                 Picker("Format", selection: $pageSize) {
                     ForEach(PageSizePreset.allCases, id: \.self) { p in
@@ -283,7 +283,7 @@ public struct SettingsView: View {
             }
 
             HStack {
-                Text("Margins Preset")
+                Text("Margins")
                 Spacer()
                 Picker("Margins", selection: $marginPreset) {
                     ForEach(MarginPreset.allCases, id: \.self) { m in
@@ -296,8 +296,8 @@ public struct SettingsView: View {
 
             Divider()
 
-            Toggle("Show Margin Guidelines on Sheet", isOn: $showMarginGuides)
-            Toggle("Show Publisher Corner Crop Marks", isOn: $showCropMarks)
+            Toggle("Show margin guides", isOn: $showMarginGuides)
+            Toggle("Show crop marks for printing", isOn: $showCropMarks)
         }
     }
 
@@ -315,6 +315,6 @@ public struct SettingsView: View {
 
     private func saveKey(provider: AIProvider, key: String) {
         try? AIGateway.shared.storeKey(provider: provider, key: key)
-        onToast?("✓ Saved \(provider.rawValue) key to Keychain")
+        onToast?("\(provider.rawValue) key saved to your Keychain")
     }
 }

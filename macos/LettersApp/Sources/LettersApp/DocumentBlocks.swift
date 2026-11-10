@@ -130,7 +130,7 @@ struct DocumentBlockView: View {
                     onDelete: {
                         document.tables.removeAll { $0.id == id }
                         removeMarker("[[table:\(id.uuidString)]]")
-                        onToast("✓ Deleted table")
+                        onToast("Table deleted")
                     },
                     onChange: { document.commitSnapshot(actionName: "Edit Table", isMilestone: false) },
                     onToast: onToast
@@ -150,9 +150,9 @@ struct DocumentBlockView: View {
                     onDelete: {
                         document.images.removeAll { $0.id == id }
                         removeMarker("[[image:\(id.uuidString)]]")
-                        onToast("✓ Deleted figure")
+                        onToast("Figure deleted")
                     },
-                    onChange: { onToast("✓ Figure updated") },
+                    onChange: { onToast("Figure updated") },
                     onToast: onToast
                 )
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -167,7 +167,7 @@ struct DocumentBlockView: View {
                 richTextData: document.richTextData,
                 onDelete: {
                     removeMarker("[[toc]]")
-                    onToast("✓ Deleted Table of Contents")
+                    onToast("Table of contents deleted")
                 },
                 onToast: onToast
             )
@@ -178,7 +178,7 @@ struct DocumentBlockView: View {
                 activeStyle: Binding(get: { document.citationStyle }, set: { document.citationStyle = $0 }),
                 onDelete: {
                     removeMarker("[[bibliography]]")
-                    onToast("✓ Deleted Bibliography section")
+                    onToast("Bibliography deleted")
                 },
                 onToast: onToast
             )
@@ -186,7 +186,7 @@ struct DocumentBlockView: View {
         case .pageBreak:
             HStack(spacing: 8) {
                 Rectangle().fill(Color.secondary.opacity(0.35)).frame(height: 1)
-                Text("PAGE BREAK")
+                Text("Page Break").textCase(.uppercase)
                     .font(.system(size: 8, weight: .bold))
                     .foregroundColor(.secondary.opacity(0.7))
                 Rectangle().fill(Color.secondary.opacity(0.35)).frame(height: 1)

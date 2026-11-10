@@ -15,14 +15,14 @@ import PDFKit
 public struct MainEditorView: View {
     @StateObject private var editorController = EditorActionController()
     @StateObject private var documentController = LettersDocumentController()
-    
+    @StateObject private var toastManager = ToastManager()
+
     @State private var selectedPage: Int = 1
     @State private var selectedText: String = ""
     @State private var selectionRange: NSRange = NSRange(location: 0, length: 0)
     @State private var showInspector: Bool = true
     @State private var showCommandPalette: Bool = false
     @State private var lintIssues: [StyleLintMatch] = []
-    @State private var toastMessage: String? = nil
     @State private var zoomScale: Double = 1.0
     @State private var showingAddSourceSheet: Bool = false
     @State private var showingCrossReferenceSheet: Bool = false
@@ -74,49 +74,49 @@ public struct MainEditorView: View {
     enum RightPane { case none, inspector, assistant, history, comments }
     @State private var rightPane: RightPane = .inspector
 
-    private func paneBinding(_ pane: RightPane) -> Binding<Bool> {
+    func paneBinding(_ pane: RightPane) -> Binding<Bool> {
         Binding(get: { rightPane == pane }, set: { rightPane = $0 ? pane : (rightPane == pane ? .none : rightPane) })
     }
-    private var showPageDesignInspector: Bool {
+    var showPageDesignInspector: Bool {
         get { rightPane == .inspector }
         nonmutating set { rightPane = newValue ? .inspector : (rightPane == .inspector ? .none : rightPane) }
     }
-    private var showAIDrawer: Bool {
+    var showAIDrawer: Bool {
         get { rightPane == .assistant }
         nonmutating set { rightPane = newValue ? .assistant : (rightPane == .assistant ? .none : rightPane) }
     }
-    private var showDocumentHistory: Bool {
+    var showDocumentHistory: Bool {
         get { rightPane == .history }
         nonmutating set { rightPane = newValue ? .history : (rightPane == .history ? .none : rightPane) }
     }
-    private var showComments: Bool {
+    var showComments: Bool {
         get { rightPane == .comments }
         nonmutating set { rightPane = newValue ? .comments : (rightPane == .comments ? .none : rightPane) }
     }
 
     public init() {}
 
-    private var wordCount: Int { stats.words }
+    var wordCount: Int { stats.words }
 
-    private var characterCount: Int { stats.characters }
+    var characterCount: Int { stats.characters }
 
-    private func refreshStats() {
+    func refreshStats() {
         stats = (EditorPerformanceCache.countWords(in: documentController.rawText), documentController.rawText.count)
     }
 
-    private var readingTimeMinutes: Int {
+    var readingTimeMinutes: Int {
         max(1, Int(ceil(Double(wordCount) / 200.0)))
     }
 
-    private var currentSheetWidth: CGFloat {
+    var currentSheetWidth: CGFloat {
         documentController.pageSize.dimensions.width
     }
 
-    private var currentSheetHeight: CGFloat {
+    var currentSheetHeight: CGFloat {
         documentController.pageSize.dimensions.height
     }
 
-    private func shortFontDisplayName(_ rawName: String) -> String {
+    func shortFontDisplayName(_ rawName: String) -> String {
         if rawName.contains("Georgia") { return "Georgia" }
         if rawName.contains("New York") { return "New York" }
         if rawName.contains("Times") { return "Times New Roman" }
@@ -132,9 +132,15 @@ public struct MainEditorView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // 1. Sleek Minimalist Glass Top Navigation Bar (Responsive across window widths)
-            HStack(spacing: 10) {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                // Toast Overlay (Sonner-style)
+                ToastOverlay(position: .bottomTrailing)
+                    .environmentObject(toastManager)
+                    .allowsHitTesting(true)
+
+                // 1. Sleek Minimalist Glass Top Navigation Bar (Responsive across window widths)
+                HStack(spacing: 10) {
                 // Left Navigator Sidebar Toggle Button
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
@@ -799,17 +805,14 @@ public struct MainEditorView: View {
             }
 
             // 3. Docked App Footer (Stats, Style Linter, Citation Standard, Zoom, AI Copilot)
-            StudioFloatingBottomBar(
+            StatusBarMetrics(
                 wordCount: wordCount,
                 characterCount: characterCount,
+                pageCount: editorController.pageCount,
                 readingTimeMinutes: readingTimeMinutes,
-                citationStyle: $documentController.citationStyle,
-                zoomScale: $zoomScale,
-                showAIDrawer: paneBinding(.assistant),
-                styleProfile: $documentController.styleProfile,
-                lintIssues: lintIssues,
-                onApplyLintFix: { issue in applyLintFix(issue) },
-                onToast: { msg in showToast(msg) }
+                citationStyle: documentController.citationStyle.displayName,
+                styleProfile: documentController.styleProfile,
+                zoomScale: zoomScale
             )
         }
         .sheet(isPresented: $showingAddSourceSheet) {
@@ -1064,8 +1067,9 @@ public struct MainEditorView: View {
             runLinter()
         }
     }
+    }
 
-    private var unreferencedTableIndices: [Int] {
+    var unreferencedTableIndices: [Int] {
         documentController.tables.indices.filter { idx in
             let idStr = documentController.tables[idx].id.uuidString
             let hasBudgetMarker = (idx == 0 && documentController.rawText.contains("[[table:budget]]"))
@@ -1073,14 +1077,14 @@ public struct MainEditorView: View {
         }
     }
 
-    private var unreferencedImageIndices: [Int] {
+    var unreferencedImageIndices: [Int] {
         documentController.images.indices.filter { idx in
             let idStr = documentController.images[idx].id.uuidString
             return !documentController.rawText.contains("[[image:\(idStr)]]")
         }
     }
 
-    private var unreferencedVideoIndices: [Int] {
+    var unreferencedVideoIndices: [Int] {
         documentController.videos.indices.filter { idx in
             let idStr = documentController.videos[idx].id.uuidString
             return !documentController.rawText.contains("[[video:\(idStr)]]")
@@ -1088,7 +1092,7 @@ public struct MainEditorView: View {
     }
 
     // MARK: - Actions
-    private func newDocumentAction() {
+    func newDocumentAction() {
         documentController.title = "Untitled Document"
         documentController.rawText = ""
         documentController.richTextData = nil
@@ -1103,11 +1107,11 @@ public struct MainEditorView: View {
         showToast("✓ Created New Document")
     }
 
-    private enum StudioTool {
+    enum StudioTool {
         case select, text, table, image, citation, style, copilot, pan
     }
 
-    private func handleToolAction(_ tool: StudioTool) {
+    func handleToolAction(_ tool: StudioTool) {
         switch tool {
         case .select:
             showToast("✓ Selection Tool active")
@@ -1147,7 +1151,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func insertImageAction() {
+    func insertImageAction() {
         StudioImageView.pickImageFromDisk { block in
             if let block = block {
                 documentController.images.append(block)
@@ -1158,29 +1162,29 @@ public struct MainEditorView: View {
         }
     }
 
-    private func insertPageBreakAction() {
+    func insertPageBreakAction() {
         editorController.insertAtCaret("\n\n---pagebreak---\n\n")
         showToast("✓ Inserted Page Break")
     }
 
-    private func insertTOCAction() {
+    func insertTOCAction() {
         let marker = "\n\n[[toc]]\n\n"
         editorController.insertAtCaret(marker)
         showToast("✓ Inserted Table of Contents")
     }
 
-    private func insertBibliographyAction() {
+    func insertBibliographyAction() {
         let marker = "\n\n[[bibliography]]\n\n"
         editorController.insertAtCaret(marker)
         showToast("✓ Inserted Bibliography / Works Cited")
     }
 
-    private func toggleStrikethroughAction() {
+    func toggleStrikethroughAction() {
         editorController.toggleStrikethrough()
         showToast("✓ Strikethrough toggled")
     }
 
-    private func applyParagraphStyleAction(_ preset: DocumentParagraphStyle) {
+    func applyParagraphStyleAction(_ preset: DocumentParagraphStyle) {
         let fam = selectionAttributes?.fontFamily ?? documentController.fontFamily
         editorController.applyParagraphStyle(
             preset,
@@ -1194,7 +1198,7 @@ public struct MainEditorView: View {
         showToast("✓ Applied Style: \(preset.rawValue)")
     }
 
-    private func insertSectionHeadingAction(level: Int = 1, customTitle: String? = nil) {
+    func insertSectionHeadingAction(level: Int = 1, customTitle: String? = nil) {
         if let customTitle = customTitle {
             let hashes = String(repeating: "#", count: max(1, min(6, level)))
             let item = "\(hashes) \(customTitle)"
@@ -1209,31 +1213,31 @@ public struct MainEditorView: View {
         applyParagraphStyleAction(preset)
     }
 
-    private func insertChecklistAction() {
+    func insertChecklistAction() {
         let item = "\n- [ ] Task item\n"
         editorController.insertAtCaret(item)
         showToast("✓ Inserted Checklist Item")
     }
 
-    private func insertBlockquoteAction() {
+    func insertBlockquoteAction() {
         let item = "\n> Quoted text block\n"
         editorController.insertAtCaret(item)
         showToast("✓ Inserted Blockquote")
     }
 
-    private func insertCodeBlockAction() {
+    func insertCodeBlockAction() {
         let item = "\n```swift\n// Code snippet\n```\n"
         editorController.insertAtCaret(item)
         showToast("✓ Inserted Code Block")
     }
 
-    private func insertDividerAction() {
+    func insertDividerAction() {
         let item = "\n\n---\n\n"
         editorController.insertAtCaret(item)
         showToast("✓ Inserted Horizontal Divider")
     }
 
-    private func insertDateTimeAction() {
+    func insertDateTimeAction() {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
@@ -1242,7 +1246,7 @@ public struct MainEditorView: View {
         showToast("✓ Inserted Date/Time: \(str)")
     }
 
-    private func transformTextSelection(mode: String) {
+    func transformTextSelection(mode: String) {
         guard !selectedText.isEmpty else {
             showToast("⚠️ Select text first to transform case")
             return
@@ -1263,29 +1267,29 @@ public struct MainEditorView: View {
         showToast("✓ Transformed Text: \(mode)")
     }
 
-    private func setLineSpacingAction(_ spacing: CGFloat) {
+    func setLineSpacingAction(_ spacing: CGFloat) {
         documentController.lineSpacing = spacing
         editorController.applyLineSpacing(spacing, paragraphSpacing: documentController.paragraphSpacing)
         showToast("✓ Line Spacing: \(String(format: "%.2g", spacing))")
     }
 
-    private func setParagraphSpacingAction(_ spacing: CGFloat) {
+    func setParagraphSpacingAction(_ spacing: CGFloat) {
         documentController.paragraphSpacing = spacing
         editorController.applyLineSpacing(documentController.lineSpacing, paragraphSpacing: spacing)
         showToast("✓ Paragraph Spacing: \(Int(spacing)) pt")
     }
 
-    private func insertBulletListAction() {
+    func insertBulletListAction() {
         editorController.toggleBulletList()
         showToast("✓ Toggled Bulleted List")
     }
 
-    private func insertNumberedListAction() {
+    func insertNumberedListAction() {
         editorController.toggleNumberedList()
         showToast("✓ Toggled Numbered List")
     }
 
-    private func toggleBoldAction() {
+    func toggleBoldAction() {
         editorController.toggleBold()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1296,22 +1300,22 @@ public struct MainEditorView: View {
         }
     }
 
-    private func setTextColorAction(_ color: NSColor) {
+    func setTextColorAction(_ color: NSColor) {
         editorController.setTextColor(color)
         showToast("✓ Text color applied")
     }
 
-    private func setTextHighlightAction(_ color: NSColor?) {
+    func setTextHighlightAction(_ color: NSColor?) {
         editorController.setTextHighlight(color)
         showToast(color == nil ? "✓ Highlight removed" : "✓ Text highlighted")
     }
 
-    private func clearFormattingAction() {
+    func clearFormattingAction() {
         editorController.clearFormatting()
         showToast("✓ Formatting cleared (Reset to Black)")
     }
 
-    private func toggleKeepLinesTogetherAction() {
+    func toggleKeepLinesTogetherAction() {
         editorController.toggleKeepLinesTogether()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1319,7 +1323,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func toggleKeepWithNextAction() {
+    func toggleKeepWithNextAction() {
         editorController.toggleKeepWithNext()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1327,7 +1331,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func toggleItalicAction() {
+    func toggleItalicAction() {
         editorController.toggleItalic()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1338,7 +1342,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func toggleUnderlineAction() {
+    func toggleUnderlineAction() {
         editorController.toggleUnderline()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1349,7 +1353,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func setAlignmentAction(_ align: TextAlignment) {
+    func setAlignmentAction(_ align: TextAlignment) {
         if selectionRange.length == 0 && (documentController.rawText as NSString).length == 0 {
             documentController.textAlignment = align
         }
@@ -1361,7 +1365,7 @@ public struct MainEditorView: View {
         showToast("✓ Alignment: \(name)")
     }
 
-    private func setFontFamilyAction(_ font: String) {
+    func setFontFamilyAction(_ font: String) {
         let sizeToApply = selectionAttributes?.fontSize ?? documentController.fontSize
         editorController.applyFontFamily(font, size: sizeToApply)
         if let attrs = editorController.currentSelectionAttributes() {
@@ -1370,7 +1374,7 @@ public struct MainEditorView: View {
         showToast("✓ Font: \(font)")
     }
 
-    private func setFontSizeAction(_ size: CGFloat) {
+    func setFontSizeAction(_ size: CGFloat) {
         editorController.applyFontSize(size)
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
@@ -1378,11 +1382,11 @@ public struct MainEditorView: View {
         showToast("✓ Font Size: \(Int(size)) pt")
     }
 
-    private func insertCitationForSelection() {
+    func insertCitationForSelection() {
         showingAddSourceSheet = true
     }
 
-    private func insertFootnote() {
+    func insertFootnote() {
         let fnNumber = documentController.footnotes.count + 1
         let footnoteId = UUID()
         let marker = "\(fnNumber)"
@@ -1404,7 +1408,7 @@ public struct MainEditorView: View {
         documentController.commitSnapshot(actionName: "Insert Footnote", isMilestone: false)
     }
 
-    private func insertCrossReference(targetId: String, type: String) {
+    func insertCrossReference(targetId: String, type: String) {
         if documentController.richTextData == nil {
             let attrStr = NSAttributedString(string: documentController.rawText)
             if let data = try? NSKeyedArchiver.archivedData(withRootObject: attrStr, requiringSecureCoding: false) {
@@ -1417,7 +1421,7 @@ public struct MainEditorView: View {
         documentController.commitSnapshot(actionName: "Insert Cross Reference", isMilestone: false)
     }
 
-    private func insertSideNote() {
+    func insertSideNote() {
         let snNumber = documentController.sideNotes.count + 1
         let snId = UUID()
         let marker = "note:\(snNumber)"
@@ -1449,7 +1453,7 @@ public struct MainEditorView: View {
         showToast("💬 Added comment on selection")
     }
 
-    private func executeDirectCLICommand(_ query: String) -> Bool {
+    func executeDirectCLICommand(_ query: String) -> Bool {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let lower = trimmed.lowercased()
@@ -1578,90 +1582,90 @@ public struct MainEditorView: View {
         return true
     }
 
-    private var paletteCommands: [CommandItem] {
+    var paletteCommands: [CommandItem] {
         [
             // === File & Document Operations ===
-            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document archive", icon: "tray.and.arrow.down.fill", category: .file, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
+            CommandItem(title: "Save Native .letters Package", subtitle: "Lossless Project Letters document archive", icon: "tray.and.arrow.down.fill", category: .document, shortcut: "⌘S", keywords: ["save", "native", "package", "store"]) {
                 saveDocumentAsLetters()
             },
-            CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md file from disk", icon: "folder", category: .file, shortcut: "⌘O", keywords: ["open", "import", "browse", "load"]) {
+            CommandItem(title: "Open Existing Document", subtitle: "Open .letters, .docx, or .md file from disk", icon: "folder", category: .document, shortcut: "⌘O", keywords: ["open", "import", "browse", "load"]) {
                 openDocument()
             },
-            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word document", icon: "doc.fill", category: .file, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
+            CommandItem(title: "Export as Word Document (.docx)", subtitle: "Generate native lossless Microsoft Word document", icon: "doc.fill", category: .document, shortcut: "⌘⇧S", keywords: ["export", "word", "docx", "microsoft"]) {
                 saveDocumentAsDocx()
             },
-            CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF ready for printing", icon: "arrow.down.doc", category: .file, shortcut: "⌘⌥E", keywords: ["pdf", "vector", "export", "print"]) {
+            CommandItem(title: "Export as Vector PDF (.pdf)", subtitle: "High resolution publication PDF ready for printing", icon: "arrow.down.doc", category: .document, shortcut: "⌘⌥E", keywords: ["pdf", "vector", "export", "print"]) {
                 exportDocumentAsPDF()
             },
-            CommandItem(title: "Print Document", subtitle: "Open native macOS Print setup & pagination dialog", icon: "printer", category: .file, shortcut: "⌘P", keywords: ["print", "paper", "dialog"]) {
+            CommandItem(title: "Print Document", subtitle: "Open native macOS Print setup & pagination dialog", icon: "printer", category: .document, shortcut: "⌘P", keywords: ["print", "paper", "dialog"]) {
                 printDocument()
             },
-            CommandItem(title: "Document Statistics & Word Count", subtitle: "\(wordCount) words, \(characterCount) chars, \(editorController.pageCount) pages", icon: "chart.bar.doc.horizontal", category: .file, shortcut: "⌘I", keywords: ["stats", "words", "count", "info"]) {
+            CommandItem(title: "Document Statistics & Word Count", subtitle: "\(wordCount) words, \(characterCount) chars, \(editorController.pageCount) pages", icon: "chart.bar.doc.horizontal", category: .document, shortcut: "⌘I", keywords: ["stats", "words", "count", "info"]) {
                 showToast("📊 \(wordCount) words • \(characterCount) chars • \(editorController.pageCount) pages")
             },
-            CommandItem(title: "Clear Document (New File)", subtitle: "Reset text, tables, figures, and sources", icon: "trash", category: .file, keywords: ["clear", "reset", "empty", "new"]) {
+            CommandItem(title: "Clear Document (New File)", subtitle: "Reset text, tables, figures, and sources", icon: "trash", category: .document, keywords: ["clear", "reset", "empty", "new"]) {
                 newDocumentAction()
             },
 
             // === Formatting & Typography ===
-            CommandItem(title: "Toggle Bold", subtitle: "Make selected text bold", icon: "bold", category: .format, shortcut: "⌘B", keywords: ["bold", "weight", "heavy"]) {
+            CommandItem(title: "Toggle Bold", subtitle: "Make selected text bold", icon: "bold", category: .formatting, shortcut: "⌘B", keywords: ["bold", "weight", "heavy"]) {
                 toggleBoldAction()
             },
-            CommandItem(title: "Toggle Italic", subtitle: "Make selected text italic", icon: "italic", category: .format, shortcut: "⌘I", keywords: ["italic", "oblique", "slant"]) {
+            CommandItem(title: "Toggle Italic", subtitle: "Make selected text italic", icon: "italic", category: .formatting, shortcut: "⌘I", keywords: ["italic", "oblique", "slant"]) {
                 toggleItalicAction()
             },
-            CommandItem(title: "Toggle Underline", subtitle: "Underline selected text", icon: "underline", category: .format, shortcut: "⌘U", keywords: ["underline"]) {
+            CommandItem(title: "Toggle Underline", subtitle: "Underline selected text", icon: "underline", category: .formatting, shortcut: "⌘U", keywords: ["underline"]) {
                 toggleUnderlineAction()
             },
-            CommandItem(title: "Toggle Strikethrough", subtitle: "Cross out selected text", icon: "strikethrough", category: .format, shortcut: "⇧⌘X", keywords: ["strike", "strikethrough", "cross"]) {
+            CommandItem(title: "Toggle Strikethrough", subtitle: "Cross out selected text", icon: "strikethrough", category: .formatting, shortcut: "⇧⌘X", keywords: ["strike", "strikethrough", "cross"]) {
                 toggleStrikethroughAction()
             },
-            CommandItem(title: "Align Left", subtitle: "Set text alignment to leading edge", icon: "text.alignleft", category: .format, shortcut: "⌘{", keywords: ["align", "left", "leading"]) {
+            CommandItem(title: "Align Left", subtitle: "Set text alignment to leading edge", icon: "text.alignleft", category: .formatting, shortcut: "⌘{", keywords: ["align", "left", "leading"]) {
                 setAlignmentAction(.leading)
             },
-            CommandItem(title: "Align Center", subtitle: "Center text horizontally", icon: "text.aligncenter", category: .format, shortcut: "⌘|", keywords: ["align", "center"]) {
+            CommandItem(title: "Align Center", subtitle: "Center text horizontally", icon: "text.aligncenter", category: .formatting, shortcut: "⌘|", keywords: ["align", "center"]) {
                 setAlignmentAction(.center)
             },
-            CommandItem(title: "Align Right", subtitle: "Set text alignment to trailing edge", icon: "text.alignright", category: .format, shortcut: "⌘}", keywords: ["align", "right", "trailing"]) {
+            CommandItem(title: "Align Right", subtitle: "Set text alignment to trailing edge", icon: "text.alignright", category: .formatting, shortcut: "⌘}", keywords: ["align", "right", "trailing"]) {
                 setAlignmentAction(.trailing)
             },
-            CommandItem(title: "Line Spacing: 1.0 (Single)", subtitle: "Compact single line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "single", "leading"]) {
+            CommandItem(title: "Line Spacing: 1.0 (Single)", subtitle: "Compact single line spacing", icon: "arrow.up.and.down.text.horizontal", category: .formatting, keywords: ["spacing", "single", "leading"]) {
                 setLineSpacingAction(1.0)
             },
-            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern document spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "standard", "leading"]) {
+            CommandItem(title: "Line Spacing: 1.15 (Standard)", subtitle: "Default modern document spacing", icon: "arrow.up.and.down.text.horizontal", category: .formatting, keywords: ["spacing", "standard", "leading"]) {
                 setLineSpacingAction(1.15)
             },
-            CommandItem(title: "Line Spacing: 1.5 (1.5x)", subtitle: "Academic 1.5x line spacing", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "academic", "leading"]) {
+            CommandItem(title: "Line Spacing: 1.5 (1.5x)", subtitle: "Academic 1.5x line spacing", icon: "arrow.up.and.down.text.horizontal", category: .formatting, keywords: ["spacing", "academic", "leading"]) {
                 setLineSpacingAction(1.5)
             },
-            CommandItem(title: "Line Spacing: 2.0 (Double)", subtitle: "Double line spacing for manuscripts", icon: "arrow.up.and.down.text.horizontal", category: .format, keywords: ["spacing", "double", "leading"]) {
+            CommandItem(title: "Line Spacing: 2.0 (Double)", subtitle: "Double line spacing for manuscripts", icon: "arrow.up.and.down.text.horizontal", category: .formatting, keywords: ["spacing", "double", "leading"]) {
                 setLineSpacingAction(2.0)
             },
-            CommandItem(title: "Font: Georgia (Default Serif)", subtitle: "Classic editorial serif typeface", icon: "textformat", category: .format, keywords: ["font", "georgia", "serif"]) {
+            CommandItem(title: "Font: Georgia (Default Serif)", subtitle: "Classic editorial serif typeface", icon: "textformat", category: .formatting, keywords: ["font", "georgia", "serif"]) {
                 setFontFamilyAction("Default Serif (Georgia)")
             },
-            CommandItem(title: "Font: SF Pro (San Francisco)", subtitle: "Clean modern Apple sans-serif", icon: "textformat", category: .format, keywords: ["font", "sf pro", "sans"]) {
+            CommandItem(title: "Font: SF Pro (San Francisco)", subtitle: "Clean modern Apple sans-serif", icon: "textformat", category: .formatting, keywords: ["font", "sf pro", "sans"]) {
                 setFontFamilyAction("SF Pro")
             },
-            CommandItem(title: "Font: Times New Roman", subtitle: "Standard academic journal typeface", icon: "textformat", category: .format, keywords: ["font", "times", "academic"]) {
+            CommandItem(title: "Font: Times New Roman", subtitle: "Standard academic journal typeface", icon: "textformat", category: .formatting, keywords: ["font", "times", "academic"]) {
                 setFontFamilyAction("Times New Roman")
             },
-            CommandItem(title: "Font: Helvetica Neue", subtitle: "Swiss modernist sans-serif", icon: "textformat", category: .format, keywords: ["font", "helvetica", "swiss"]) {
+            CommandItem(title: "Font: Helvetica Neue", subtitle: "Swiss modernist sans-serif", icon: "textformat", category: .formatting, keywords: ["font", "helvetica", "swiss"]) {
                 setFontFamilyAction("Helvetica")
             },
-            CommandItem(title: "Font: Charter", subtitle: "High readability Bitstream serif", icon: "textformat", category: .format, keywords: ["font", "charter", "serif"]) {
+            CommandItem(title: "Font: Charter", subtitle: "High readability Bitstream serif", icon: "textformat", category: .formatting, keywords: ["font", "charter", "serif"]) {
                 setFontFamilyAction("Charter")
             },
-            CommandItem(title: "Font: Menlo Monospace", subtitle: "Fixed-width code and tabular font", icon: "character.textbox", category: .format, keywords: ["font", "menlo", "mono", "code"]) {
+            CommandItem(title: "Font: Menlo Monospace", subtitle: "Fixed-width code and tabular font", icon: "character.textbox", category: .formatting, keywords: ["font", "menlo", "mono", "code"]) {
                 setFontFamilyAction("Menlo (Monospace)")
             },
-            CommandItem(title: "Transform to UPPERCASE", subtitle: "Convert selection to uppercase letters", icon: "textformat.size.larger", category: .format, keywords: ["case", "upper", "capitalize"]) {
+            CommandItem(title: "Transform to UPPERCASE", subtitle: "Convert selection to uppercase letters", icon: "textformat.size.larger", category: .formatting, keywords: ["case", "upper", "capitalize"]) {
                 transformTextSelection(mode: "upper")
             },
-            CommandItem(title: "Transform to lowercase", subtitle: "Convert selection to lowercase letters", icon: "textformat.size.smaller", category: .format, keywords: ["case", "lower"]) {
+            CommandItem(title: "Transform to lowercase", subtitle: "Convert selection to lowercase letters", icon: "textformat.size.smaller", category: .formatting, keywords: ["case", "lower"]) {
                 transformTextSelection(mode: "lower")
             },
-            CommandItem(title: "Transform to Title Case", subtitle: "Capitalize first letter of each word", icon: "textformat", category: .format, keywords: ["case", "title", "capitalize"]) {
+            CommandItem(title: "Transform to Title Case", subtitle: "Capitalize first letter of each word", icon: "textformat", category: .formatting, keywords: ["case", "title", "capitalize"]) {
                 transformTextSelection(mode: "capitalized")
             },
 
@@ -1832,7 +1836,7 @@ public struct MainEditorView: View {
         ]
     }
 
-    private func buildDocumentAIContext() -> String {
+    func buildDocumentAIContext() -> String {
         var context = "=== DOCUMENT METADATA ===\n"
         context += "Title: \(documentController.title)\n"
         context += "Page Format: \(documentController.pageSize.rawValue) (\(Int(currentSheetWidth))x\(Int(currentSheetHeight)) pt)\n"
@@ -1893,7 +1897,7 @@ public struct MainEditorView: View {
         return context
     }
 
-    private func runLinter() {
+    func runLinter() {
         guard documentController.styleProfile != "none" else {
             lintIssues = []
             return
@@ -1902,7 +1906,7 @@ public struct MainEditorView: View {
     }
 
     // MARK: - Native .letters / .ltt Lossless Package Save & Open
-    public func saveDocumentAsLetters() {
+    func saveDocumentAsLetters() {
         let bundle = documentController.createBundle()
 
         guard let data = try? bundle.encodeToData() else {
@@ -1944,7 +1948,7 @@ public struct MainEditorView: View {
         }
     }
 
-    public func restoreAutosaveAction() {
+    func restoreAutosaveAction() {
         let shadowURL = LettersDocumentController.autosaveShadowURL
         guard FileManager.default.fileExists(atPath: shadowURL.path) else {
             showToast("⚠️ No autosave recovery snapshot found yet")
@@ -1960,7 +1964,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func extractImagesFromAttributedString(_ inputAttr: NSAttributedString) -> (NSAttributedString, [StudioImageBlock]) {
+    func extractImagesFromAttributedString(_ inputAttr: NSAttributedString) -> (NSAttributedString, [StudioImageBlock]) {
         let mutable = NSMutableAttributedString(attributedString: inputAttr)
         var extractedImages: [StudioImageBlock] = []
         var attachmentRanges: [(NSRange, StudioImageBlock)] = []
@@ -2005,7 +2009,7 @@ public struct MainEditorView: View {
         return (mutable, extractedImages)
     }
 
-    public func openDocument() {
+    func openDocument() {
         let panel = NSOpenPanel()
         panel.title = "Open Document"
         panel.allowsMultipleSelection = false
@@ -2023,7 +2027,7 @@ public struct MainEditorView: View {
         }
     }
 
-    public func openDocumentFromURL(_ url: URL) {
+    func openDocumentFromURL(_ url: URL) {
         do {
             let ext = url.pathExtension.lowercased()
             if ext == "letters" || ext == "ltt" {
@@ -2058,7 +2062,7 @@ public struct MainEditorView: View {
         }
     }
 
-    public func importWordOrPDF() {
+    func importWordOrPDF() {
         let panel = NSOpenPanel()
         panel.title = "Import Word or PDF"
         panel.allowsMultipleSelection = false
@@ -2073,7 +2077,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func importFileNatively(url: URL) {
+    func importFileNatively(url: URL) {
         let ext = url.pathExtension.lowercased()
         do {
             if ext == "docx" {
@@ -2133,7 +2137,7 @@ public struct MainEditorView: View {
         }
 
     // MARK: - Word, PDF & Print
-    private func buildExpandedMarkdownExport() -> String {
+    func buildExpandedMarkdownExport() -> String {
         var text = documentController.rawText
         var referencedTables = Set<UUID>()
         var referencedImages = Set<UUID>()
@@ -2232,12 +2236,12 @@ public struct MainEditorView: View {
 
     /// Vector PDF of the live canvas: one page per sheet, with the same fonts, headers and footers
     /// the writer sees (guides and seam labels are suppressed while exporting).
-    private func renderMultiPagePDFData() -> Data? {
+    func renderMultiPagePDFData() -> Data? {
         editorController.flushPendingEdits()
         return editorController.textView?.exportPDFData()
     }
 
-    private func buildRichAttributedStringForDocxExport() -> NSAttributedString {
+    func buildRichAttributedStringForDocxExport() -> NSAttributedString {
         let baseFont = resolveFontNamed(family: documentController.fontFamily, size: documentController.fontSize, bold: isBold, italic: isItalic)
         let baseParaStyle = NSMutableParagraphStyle()
         switch documentController.textAlignment {
@@ -2332,7 +2336,7 @@ public struct MainEditorView: View {
         return attrStr
     }
 
-    private func buildNativeTextTableAttributedString(from tableData: StudioTableData, baseFont: NSFont) -> NSAttributedString {
+    func buildNativeTextTableAttributedString(from tableData: StudioTableData, baseFont: NSFont) -> NSAttributedString {
         let numCols = max(1, tableData.headers.count)
         let textTable = NSTextTable()
         textTable.numberOfColumns = numCols
@@ -2379,7 +2383,7 @@ public struct MainEditorView: View {
         return result
     }
 
-    public func saveDocumentAsDocx() {
+    func saveDocumentAsDocx() {
         let richAttr = buildRichAttributedStringForDocxExport()
         let fullRange = NSRange(location: 0, length: richAttr.length)
 
@@ -2420,7 +2424,7 @@ public struct MainEditorView: View {
         }
     }
 
-    public func exportDocumentAsPDF() {
+    func exportDocumentAsPDF() {
         let panel = NSSavePanel()
         panel.title = "Export Vector PDF"
         panel.nameFieldStringValue = "\(documentController.title.replacingOccurrences(of: " ", with: "_")).pdf"
@@ -2443,7 +2447,7 @@ public struct MainEditorView: View {
         }
     }
 
-    public func printDocument() {
+    func printDocument() {
         let paperSize = NSSize(width: currentSheetWidth, height: currentSheetHeight)
         let printInfo = NSPrintInfo.shared
         printInfo.paperSize = paperSize
@@ -2470,7 +2474,7 @@ public struct MainEditorView: View {
         op.run()
     }
 
-    public func saveDocumentAsMarkdown() {
+    func saveDocumentAsMarkdown() {
         let fullExport = buildExpandedMarkdownExport()
 
         let panel = NSSavePanel()
@@ -2490,20 +2494,22 @@ public struct MainEditorView: View {
         }
     }
 
-    private func showToast(_ msg: String) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            toastMessage = msg
+    /// Shows a transient confirmation using the new ToastManager (Sonner-style).
+    func showToast(_ rawMessage: String) {
+        var msg = rawMessage
+        let isWarning = msg.hasPrefix("⚠️")
+        for prefix in ["✓ ", "⚠️ ", "✨ ", "💬 ", "📊 "] where msg.hasPrefix(prefix) {
+            msg.removeFirst(prefix.count)
+            break
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            withAnimation(.easeOut(duration: 0.25)) {
-                if toastMessage == msg {
-                    toastMessage = nil
-                }
-            }
+        if isWarning {
+            toastManager.show(.warning(msg))
+        } else {
+            toastManager.show(.success(msg))
         }
     }
 
-    private func marginCommentCard(sn: StudioSideNote) -> some View {
+    func marginCommentCard(sn: StudioSideNote) -> some View {
         let binding = Binding(
             get: { sn.text },
             set: { newText in
@@ -2625,7 +2631,7 @@ public struct MainEditorView: View {
         }
     }
 
-    private func onPaperRevisionCard(rev: StudioTrackedRevision) -> some View {
+    func onPaperRevisionCard(rev: StudioTrackedRevision) -> some View {
         let isInsertion = rev.kind == .insertion
         let accentColor = isInsertion ? Color.green : Color.red
 
@@ -2705,7 +2711,7 @@ public struct MainEditorView: View {
         .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1.5)
     }
 
-    private var reviewToolbarStrip: some View {
+    var reviewToolbarStrip: some View {
         HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Circle()
@@ -2788,7 +2794,7 @@ public struct MainEditorView: View {
         )
     }
 
-    private var revisionsPopoverContent: some View {
+    var revisionsPopoverContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "pencil.and.outline")
@@ -2877,7 +2883,7 @@ public struct MainEditorView: View {
         .frame(width: 320)
     }
 
-    private var pasteSpecialSheetView: some View {
+    var pasteSpecialSheetView: some View {
         VStack(spacing: 16) {
             HStack(spacing: 10) {
                 Image(systemName: "doc.on.clipboard")
@@ -2948,7 +2954,7 @@ public struct MainEditorView: View {
         .frame(width: 460)
     }
 
-    private var headerFooterToolbarStrip: some View {
+    var headerFooterToolbarStrip: some View {
         HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: activeHeaderFooterTarget == .header ? "arrow.up.to.line" : "arrow.down.to.line")
@@ -3146,7 +3152,7 @@ public struct MainEditorView: View {
         )
     }
 
-    private func appendHeaderFooterToken(_ token: String) {
+    func appendHeaderFooterToken(_ token: String) {
         if activeHeaderFooterTarget == .header {
             documentController.headerFooter.headerRightText += (documentController.headerFooter.headerRightText.isEmpty ? "" : " ") + token
         } else {
@@ -3154,11 +3160,11 @@ public struct MainEditorView: View {
         }
     }
 
-    private func figureNumber(for imgId: UUID) -> Int {
+    func figureNumber(for imgId: UUID) -> Int {
         (documentController.images.firstIndex(where: { $0.id == imgId }) ?? 0) + 1
     }
 
-    private func replaceSelection(with newText: String) {
+    func replaceSelection(with newText: String) {
         if documentController.isTrackChangesEnabled {
             documentController.recordRevision(
                 kind: .insertion,
@@ -3180,7 +3186,7 @@ public struct MainEditorView: View {
         showToast("✓ Applied AI changes to canvas")
     }
 
-    private func insertBelowSelection(newText: String) {
+    func insertBelowSelection(newText: String) {
         if documentController.isTrackChangesEnabled {
             documentController.recordRevision(
                 kind: .insertion,
@@ -3205,7 +3211,7 @@ public struct MainEditorView: View {
         showToast("✓ Inserted AI content below selection")
     }
 
-    private func applyLintFix(_ issue: StyleLintMatch) {
+    func applyLintFix(_ issue: StyleLintMatch) {
         guard let suggestion = issue.suggestion, !suggestion.isEmpty else { return }
         let ns = documentController.rawText as NSString
         guard issue.spanStart >= 0, issue.spanEnd <= ns.length, issue.spanStart <= issue.spanEnd else { return }
@@ -3255,24 +3261,24 @@ struct StudioHorizontalRulerView: View {
     @State private var rightDragStart: CGFloat? = nil
     @State private var indentDragStart: CGFloat? = nil
 
-    private var isMetric: Bool {
+    var isMetric: Bool {
         rulerUnitString == "cm"
     }
 
     // Conversion: 72 pt = 1 inch, 28.3464567 pt = 1 cm
-    private var ptPerUnit: CGFloat {
+    var ptPerUnit: CGFloat {
         isMetric ? 28.3464567 : 72.0
     }
 
-    private var subdivisions: Int {
+    var subdivisions: Int {
         isMetric ? 2 : 4 // cm: 0.5 cm ticks; in: 1/4 in ticks
     }
 
-    private var minorStep: CGFloat {
+    var minorStep: CGFloat {
         ptPerUnit / CGFloat(subdivisions)
     }
 
-    private func snapCoordinate(_ val: CGFloat, isShift: Bool) -> CGFloat {
+    func snapCoordinate(_ val: CGFloat, isShift: Bool) -> CGFloat {
         if isShift {
             // Snaps to exact whole unit (1.0 in or 1.0 cm)
             return round(val / ptPerUnit) * ptPerUnit
@@ -3284,7 +3290,7 @@ struct StudioHorizontalRulerView: View {
         return round(val)
     }
 
-    private func formatUnit(_ pt: CGFloat) -> String {
+    func formatUnit(_ pt: CGFloat) -> String {
         if isMetric {
             let cm = Double(pt) / 28.3464567
             return String(format: "%.1f cm", cm)
@@ -3577,7 +3583,7 @@ struct EditorViewNotificationsModifier: ViewModifier {
 
 
 
-public enum SnapshotActor: String, Codable, Equatable, Sendable {
+enum SnapshotActor: String, Codable, Equatable, Sendable {
     case user
     case ai
 }
@@ -3585,14 +3591,14 @@ public enum SnapshotActor: String, Codable, Equatable, Sendable {
 public struct HistoryNode: Identifiable, Equatable {
     public let id: UUID
     public let parentId: UUID?
-    public let timestamp: Date
-    public var actionName: String
-    public var diffSummary: String?
-    public let actor: SnapshotActor
-    public var isMilestone: Bool
-    public var isPinned: Bool
-    public var customName: String?
-    public let bundle: LettersDocumentBundle
+    let timestamp: Date
+    var actionName: String
+    var diffSummary: String?
+    let actor: SnapshotActor
+    var isMilestone: Bool
+    var isPinned: Bool
+    var customName: String?
+    let bundle: LettersDocumentBundle
 
     nonisolated public static func == (lhs: HistoryNode, rhs: HistoryNode) -> Bool {
         lhs.id == rhs.id
@@ -3649,11 +3655,11 @@ public class LettersDocumentController: ObservableObject {
     @Published public var lastAutosaveDate: Date? = nil
     
     /// Installed by the canvas: archives the live text view into `richTextData` before the model is read.
-    public var flushEditor: (() -> Void)?
+    var flushEditor: (() -> Void)?
 
-    private var isReverting: Bool = false
-    private var cancellables = Set<AnyCancellable>()
-    private var backupBundleForPeek: LettersDocumentBundle? = nil
+    var isReverting: Bool = false
+    var cancellables = Set<AnyCancellable>()
+    var backupBundleForPeek: LettersDocumentBundle? = nil
     
     public static var autosaveShadowURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -3663,7 +3669,7 @@ public class LettersDocumentController: ObservableObject {
         return dir.appendingPathComponent("AutosaveRecovery.letters")
     }
 
-    public func performAutosave() {
+    func performAutosave() {
         guard !isReverting, !isPeeking else { return }
         let bundle = createBundle()
         guard let data = try? bundle.encodeToData() else { return }
@@ -3681,7 +3687,7 @@ public class LettersDocumentController: ObservableObject {
         lastAutosaveDate = Date()
     }
 
-    public func markSaved(url: URL) {
+    func markSaved(url: URL) {
         currentFileURL = url
         isDirty = false
         lastAutosaveDate = Date()
@@ -3837,7 +3843,7 @@ public class LettersDocumentController: ObservableObject {
             .store(in: &cancellables)
     }
     
-    public func createBundle() -> LettersDocumentBundle {
+    func createBundle() -> LettersDocumentBundle {
         flushEditor?()
         let alignStr: String
         switch textAlignment {
@@ -3879,7 +3885,7 @@ public class LettersDocumentController: ObservableObject {
         )
     }
     
-    public func loadBundle(_ bundle: LettersDocumentBundle) {
+    func loadBundle(_ bundle: LettersDocumentBundle) {
         self.title = bundle.title
         self.tables = bundle.tables
         self.images = bundle.images
@@ -3916,7 +3922,7 @@ public class LettersDocumentController: ObservableObject {
     }
 
     // MARK: - Track Changes & Revisions Engine
-    public func recordRevision(
+    func recordRevision(
         kind: StudioTrackedRevision.RevisionKind,
         text: String,
         originalText: String? = nil,
@@ -3970,7 +3976,7 @@ public class LettersDocumentController: ObservableObject {
         commitSnapshot(actionName: "Track Change (\(kind.rawValue))", isMilestone: false)
     }
 
-    public func acceptRevision(id: UUID) {
+    func acceptRevision(id: UUID) {
         guard let rev = revisions.first(where: { $0.id == id }) else { return }
         if rev.kind == .deletion, let orig = rev.originalText, !orig.isEmpty {
             rawText = rawText.replacingOccurrences(of: orig, with: "")
@@ -3979,7 +3985,7 @@ public class LettersDocumentController: ObservableObject {
         commitSnapshot(actionName: "Accept Change", isMilestone: false)
     }
 
-    public func rejectRevision(id: UUID) {
+    func rejectRevision(id: UUID) {
         guard let rev = revisions.first(where: { $0.id == id }) else { return }
         if rev.kind == .insertion {
             rawText = rawText.replacingOccurrences(of: rev.text, with: rev.originalText ?? "")
@@ -3998,7 +4004,7 @@ public class LettersDocumentController: ObservableObject {
         commitSnapshot(actionName: "Reject Change", isMilestone: false)
     }
 
-    public func acceptAllRevisions() {
+    func acceptAllRevisions() {
         for rev in revisions {
             if rev.kind == .deletion, let orig = rev.originalText ?? (rev.text.isEmpty ? nil : rev.text) {
                 rawText = rawText.replacingOccurrences(of: orig, with: "")
@@ -4008,7 +4014,7 @@ public class LettersDocumentController: ObservableObject {
         commitSnapshot(actionName: "Accept All Changes", isMilestone: false)
     }
 
-    public func rejectAllRevisions() {
+    func rejectAllRevisions() {
         for rev in revisions.reversed() {
             if rev.kind == .insertion {
                 rawText = rawText.replacingOccurrences(of: rev.text, with: rev.originalText ?? "")
@@ -4030,7 +4036,7 @@ public class LettersDocumentController: ObservableObject {
     
     // MARK: - DAG Engine Methods
     
-    private func generateDiffSummary(old: LettersDocumentBundle, new: LettersDocumentBundle) -> String? {
+    func generateDiffSummary(old: LettersDocumentBundle, new: LettersDocumentBundle) -> String? {
         var diffs = [String]()
         
         let oldWords = old.rawText.split(whereSeparator: { $0.isWhitespace }).count
@@ -4047,7 +4053,7 @@ public class LettersDocumentController: ObservableObject {
         return diffs.isEmpty ? nil : diffs.joined(separator: ", ")
     }
     
-    public func commitSnapshot(actionName: String, actor: SnapshotActor = .user, isMilestone: Bool = false) {
+    func commitSnapshot(actionName: String, actor: SnapshotActor = .user, isMilestone: Bool = false) {
         if isReverting || isPeeking { return }
         
         let newBundle = createBundle()
@@ -4086,7 +4092,7 @@ public class LettersDocumentController: ObservableObject {
         }
     }
     
-    private func garbageCollectOldestNode() {
+    func garbageCollectOldestNode() {
         let sorted = historyNodes.values
             .filter { !$0.isPinned && $0.parentId == nil } // Try to kill roots first
             .sorted { $0.timestamp < $1.timestamp }
@@ -4098,14 +4104,14 @@ public class LettersDocumentController: ObservableObject {
     
     // MARK: - Time Travel & Peek
     
-    public func setAsMainBranch(nodeId: UUID) {
+    func setAsMainBranch(nodeId: UUID) {
         mainBranchHeadId = nodeId
         if currentSnapshotId != nodeId {
             revertTo(id: nodeId)
         }
     }
 
-    public func revertTo(id: UUID) {
+    func revertTo(id: UUID) {
         guard let node = historyNodes[id] else { return }
         isReverting = true
         currentSnapshotId = id
@@ -4113,7 +4119,7 @@ public class LettersDocumentController: ObservableObject {
         isReverting = false
     }
     
-    public func startPeek(id: UUID) {
+    func startPeek(id: UUID) {
         guard !isPeeking, let node = historyNodes[id] else { return }
         isPeeking = true
         backupBundleForPeek = createBundle()
@@ -4123,7 +4129,7 @@ public class LettersDocumentController: ObservableObject {
         }
     }
     
-    public func endPeek() {
+    func endPeek() {
         guard isPeeking, let backup = backupBundleForPeek else { return }
         withAnimation(.easeInOut(duration: 0.2)) {
             loadBundle(backup)
@@ -4132,18 +4138,18 @@ public class LettersDocumentController: ObservableObject {
         isPeeking = false
     }
     
-    public func togglePin(id: UUID) {
+    func togglePin(id: UUID) {
         historyNodes[id]?.isPinned.toggle()
     }
     
     // MARK: - Micro Undo/Redo (Linear path resolution)
     
-    public func undo() {
+    func undo() {
         guard let current = currentSnapshotId, let node = historyNodes[current], let parentId = node.parentId else { return }
         revertTo(id: parentId)
     }
     
-    public func redo() {
+    func redo() {
         // Redo follows the most recently created child of the current node
         guard let current = currentSnapshotId else { return }
         let children = historyNodes.values.filter { $0.parentId == current }.sorted { $0.timestamp > $1.timestamp }
@@ -4154,7 +4160,7 @@ public class LettersDocumentController: ObservableObject {
 
     // MARK: - Tables API (Migrated to Snapshot Engine)
     
-    public func mutateTable(id: UUID, actionName: String? = nil, mutation: (inout StudioTableData) -> Void) {
+    func mutateTable(id: UUID, actionName: String? = nil, mutation: (inout StudioTableData) -> Void) {
         guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
         var newTable = tables[index]
         mutation(&newTable)
@@ -4165,18 +4171,18 @@ public class LettersDocumentController: ObservableObject {
         }
     }
     
-    public func addTable(_ table: StudioTableData) {
+    func addTable(_ table: StudioTableData) {
         tables.append(table)
         commitSnapshot(actionName: "Insert Table", isMilestone: true)
     }
     
-    public func removeTable(id: UUID) {
+    func removeTable(id: UUID) {
         guard let index = tables.firstIndex(where: { $0.id == id }) else { return }
         tables.remove(at: index)
         commitSnapshot(actionName: "Delete Table", isMilestone: true)
     }
     
-    public func insertTable(_ table: StudioTableData, at index: Int) {
+    func insertTable(_ table: StudioTableData, at index: Int) {
         tables.insert(table, at: index)
         commitSnapshot(actionName: "Insert Table", isMilestone: true)
     }
@@ -4184,7 +4190,7 @@ public class LettersDocumentController: ObservableObject {
 
 // MARK: - Workspace composition (canvas column, HUD, comments pane)
 extension MainEditorView {
-    private var canvasConfig: CanvasConfig {
+    var canvasConfig: CanvasConfig {
         CanvasConfig(
             geometry: SheetGeometry(
                 sheetSize: CGSize(width: currentSheetWidth, height: currentSheetHeight),
@@ -4251,24 +4257,10 @@ extension MainEditorView {
         .overlay(alignment: .bottom) { transientHUD }
     }
 
-    /// Toast, inline AI and find & replace. Only the visible cards take clicks; empty space passes straight through to the page.
+    /// Inline AI and find & replace. Only the visible cards take clicks; empty space passes straight through to the page.
     @ViewBuilder
-    private var transientHUD: some View {
+    var transientHUD: some View {
         VStack(spacing: 10) {
-            if let msg = toastMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                    Text(msg).font(.subheadline.bold())
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.green.opacity(0.3), lineWidth: 1))
-                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 5)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .allowsHitTesting(false)
-            }
-
             if showInlineAI && !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 InlineAICanvasEditorView(
                     selectedText: selectedText,
@@ -4303,7 +4295,7 @@ extension MainEditorView {
         .padding(.bottom, 16)
     }
 
-    private var footnotesSection: some View {
+    var footnotesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("FOOTNOTES")
                 .font(.system(size: 9, weight: .bold))

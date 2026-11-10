@@ -62,7 +62,7 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         appMenu.addItem(withTitle: "About Letters", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
         
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(handleMenuAction(_:)), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(handleMenuAction(_:)), keyEquivalent: ",")
         settingsItem.target = AppCommandCenter.shared
         settingsItem.representedObject = Notification.Name.lettersOpenSettings
         appMenu.addItem(settingsItem)
@@ -89,22 +89,22 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         let fileMenu = NSMenu(title: "File")
         
         addMenuItem(to: fileMenu, title: "New Document", notification: .lettersNewDocument, keyEquivalent: "n")
-        addMenuItem(to: fileMenu, title: "Open...", notification: .lettersOpenDocument, keyEquivalent: "o")
+        addMenuItem(to: fileMenu, title: "Open…", notification: .lettersOpenDocument, keyEquivalent: "o")
         addMenuItem(to: fileMenu, title: "Restore Last Autosave", notification: .lettersRestoreAutosave, keyEquivalent: "r", modifiers: [.command, .option])
-        addMenuItem(to: fileMenu, title: "Import Word or PDF...", notification: .lettersImportWordOrPDF, keyEquivalent: "i", modifiers: [.command, .shift])
+        addMenuItem(to: fileMenu, title: "Import Word or PDF…", notification: .lettersImportWordOrPDF, keyEquivalent: "i", modifiers: [.command, .shift])
         fileMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: fileMenu, title: "Save .letters", notification: .lettersSaveDocument, keyEquivalent: "s")
+        addMenuItem(to: fileMenu, title: "Save", notification: .lettersSaveDocument, keyEquivalent: "s")
         
         let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
         let exportMenu = NSMenu(title: "Export")
-        addMenuItem(to: exportMenu, title: "Export as Word Document (.docx)...", notification: .lettersExportDocx, keyEquivalent: "S", modifiers: [.command, .shift])
-        addMenuItem(to: exportMenu, title: "Export as Vector PDF (.pdf)...", notification: .lettersExportPDF, keyEquivalent: "e", modifiers: [.command, .shift])
-        addMenuItem(to: exportMenu, title: "Export as Markdown (.md)...", notification: .lettersExportMarkdown, keyEquivalent: "m", modifiers: [.command, .shift])
+        addMenuItem(to: exportMenu, title: "Word Document (.docx)…", notification: .lettersExportDocx, keyEquivalent: "S", modifiers: [.command, .shift])
+        addMenuItem(to: exportMenu, title: "PDF…", notification: .lettersExportPDF, keyEquivalent: "e", modifiers: [.command, .shift])
+        addMenuItem(to: exportMenu, title: "Markdown (.md)…", notification: .lettersExportMarkdown, keyEquivalent: "m", modifiers: [.command, .shift])
         exportItem.submenu = exportMenu
         fileMenu.addItem(exportItem)
         
         fileMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: fileMenu, title: "Print...", notification: .lettersPrintDocument, keyEquivalent: "p")
+        addMenuItem(to: fileMenu, title: "Print…", notification: .lettersPrintDocument, keyEquivalent: "p")
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenuItem.submenu = fileMenu
         mainMenu.addItem(fileMenuItem)
@@ -121,13 +121,13 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         addMenuItem(to: editMenu, title: "Paste and Match Style", notification: .lettersPasteAndMatchStyle, keyEquivalent: "V", modifiers: [.command, .option, .shift])
-        addMenuItem(to: editMenu, title: "Paste Special...", notification: .lettersPasteSpecial, keyEquivalent: "v", modifiers: [.command, .option])
+        addMenuItem(to: editMenu, title: "Paste Special…", notification: .lettersPasteSpecial, keyEquivalent: "v", modifiers: [.command, .option])
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: editMenu, title: "Find & Replace...", notification: .lettersToggleFindReplace, keyEquivalent: "f")
-        addMenuItem(to: editMenu, title: "Command Palette...", notification: .lettersToggleCommandPalette, keyEquivalent: "k")
+        addMenuItem(to: editMenu, title: "Find and Replace…", notification: .lettersToggleFindReplace, keyEquivalent: "f")
+        addMenuItem(to: editMenu, title: "Command Palette…", notification: .lettersToggleCommandPalette, keyEquivalent: "k")
         editMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: editMenu, title: "Track Changes (Review Mode)", notification: .lettersToggleTrackChanges, keyEquivalent: "k", modifiers: [.command, .option])
+        addMenuItem(to: editMenu, title: "Track Changes", notification: .lettersToggleTrackChanges, keyEquivalent: "k", modifiers: [.command, .option])
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
@@ -147,15 +147,15 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         // 5. Insert Menu
         let insertMenuItem = NSMenuItem()
         let insertMenu = NSMenu(title: "Insert")
-        addMenuItem(to: insertMenu, title: "Smart Calculation Table", notification: .lettersInsertTable, keyEquivalent: "t")
-        addMenuItem(to: insertMenu, title: "Figure / Image...", notification: .lettersInsertImage, keyEquivalent: "")
-        addMenuItem(to: insertMenu, title: "Video Embed Card...", notification: .lettersInsertVideo, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Table", notification: .lettersInsertTable, keyEquivalent: "t")
+        addMenuItem(to: insertMenu, title: "Image…", notification: .lettersInsertImage, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Video…", notification: .lettersInsertVideo, keyEquivalent: "")
         insertMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: insertMenu, title: "Linked Bibliographic Citation...", notification: .lettersInsertCitation, keyEquivalent: "c", modifiers: [.command, .option])
+        addMenuItem(to: insertMenu, title: "Citation Source…", notification: .lettersInsertCitation, keyEquivalent: "c", modifiers: [.command, .option])
         addMenuItem(to: insertMenu, title: "Footnote", notification: .lettersInsertFootnote, keyEquivalent: "")
-        addMenuItem(to: insertMenu, title: "Margin Side Note", notification: .lettersInsertSideNote, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Margin Note", notification: .lettersInsertSideNote, keyEquivalent: "")
         addMenuItem(to: insertMenu, title: "Table of Contents", notification: .lettersInsertTOC, keyEquivalent: "")
-        addMenuItem(to: insertMenu, title: "Dynamic Bibliography", notification: .lettersInsertBibliography, keyEquivalent: "")
+        addMenuItem(to: insertMenu, title: "Bibliography", notification: .lettersInsertBibliography, keyEquivalent: "")
         insertMenu.addItem(NSMenuItem.separator())
         addMenuItem(to: insertMenu, title: "Page Break", notification: .lettersInsertPageBreak, keyEquivalent: "\r")
         insertMenuItem.submenu = insertMenu
@@ -166,13 +166,13 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         let viewMenu = NSMenu(title: "View")
         addMenuItem(to: viewMenu, title: "Zoom In", notification: .lettersZoomIn, keyEquivalent: "=")
         addMenuItem(to: viewMenu, title: "Zoom Out", notification: .lettersZoomOut, keyEquivalent: "-")
-        addMenuItem(to: viewMenu, title: "Actual Size (100%)", notification: .lettersZoomReset, keyEquivalent: "0")
+        addMenuItem(to: viewMenu, title: "Actual Size", notification: .lettersZoomReset, keyEquivalent: "0")
         viewMenu.addItem(NSMenuItem.separator())
-        addMenuItem(to: viewMenu, title: "Show / Hide Ruler", notification: .lettersToggleRuler, keyEquivalent: "r")
-        addMenuItem(to: viewMenu, title: "Toggle Outline & Sources", notification: .lettersToggleOutline, keyEquivalent: "1", modifiers: [.command, .option])
-        addMenuItem(to: viewMenu, title: "Toggle Page Design Inspector", notification: .lettersTogglePageDesign, keyEquivalent: "d", modifiers: [.command, .option])
-        addMenuItem(to: viewMenu, title: "Toggle Reading Flow Timeline", notification: .lettersToggleDocumentHistory, keyEquivalent: "t", modifiers: [.command, .option])
-        addMenuItem(to: viewMenu, title: "Toggle AI Copilot Companion", notification: .lettersToggleAIDrawer, keyEquivalent: "j")
+        addMenuItem(to: viewMenu, title: "Show or Hide Ruler", notification: .lettersToggleRuler, keyEquivalent: "r")
+        addMenuItem(to: viewMenu, title: "Show or Hide Outline", notification: .lettersToggleOutline, keyEquivalent: "1", modifiers: [.command, .option])
+        addMenuItem(to: viewMenu, title: "Show or Hide Inspector", notification: .lettersTogglePageDesign, keyEquivalent: "d", modifiers: [.command, .option])
+        addMenuItem(to: viewMenu, title: "Show or Hide Version History", notification: .lettersToggleDocumentHistory, keyEquivalent: "t", modifiers: [.command, .option])
+        addMenuItem(to: viewMenu, title: "Show or Hide Assistant", notification: .lettersToggleAIDrawer, keyEquivalent: "j")
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
 
@@ -187,7 +187,7 @@ public final class AppCommandCenter: NSObject, NSMenuItemValidation {
         // 8. Help Menu
         let helpMenuItem = NSMenuItem()
         let helpMenu = NSMenu(title: "Help")
-        helpMenu.addItem(withTitle: "Letters Studio Documentation", action: nil, keyEquivalent: "")
+        helpMenu.addItem(withTitle: "Letters Help", action: nil, keyEquivalent: "")
         helpMenuItem.submenu = helpMenu
         mainMenu.addItem(helpMenuItem)
 

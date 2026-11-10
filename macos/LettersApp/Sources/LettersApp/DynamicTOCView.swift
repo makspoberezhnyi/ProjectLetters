@@ -86,7 +86,7 @@ public struct DynamicTOCView: View {
 
                 Spacer()
 
-                Text("Live Outline")
+                Text("Updates as you write")
                     .font(.system(size: 10, weight: .medium))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -100,7 +100,7 @@ public struct DynamicTOCView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Remove Table of Contents")
+                .help("Remove table of contents")
             }
             .padding(.bottom, 2)
 
@@ -112,7 +112,7 @@ public struct DynamicTOCView: View {
                     Image(systemName: "info.circle")
                         .foregroundColor(.secondary)
                         .font(.system(size: 12))
-                    Text("No headings found. Add headings (e.g. \"# Heading\" or \"1. Section\") to populate this table.")
+                    Text("No headings yet. Add headings to your document and they will appear here.")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .italic()

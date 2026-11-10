@@ -62,7 +62,7 @@ public struct DynamicBibliographyView: View {
                     ForEach(CitationStyle.allCases, id: \.self) { style in
                         Button(style.displayName) {
                             activeStyle = style
-                            onToast?("✓ Switched bibliography to \(style.displayName)")
+                            onToast?("Bibliography now uses \(style.displayName)")
                         }
                     }
                 } label: {
@@ -86,7 +86,7 @@ public struct DynamicBibliographyView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Remove Bibliography Section")
+                .help("Remove bibliography")
             }
             .padding(.bottom, 2)
 
@@ -98,7 +98,7 @@ public struct DynamicBibliographyView: View {
                     Image(systemName: "info.circle")
                         .foregroundColor(.secondary)
                         .font(.system(size: 12))
-                    Text("No linked sources yet. Insert citations via ⌥⌘C or the left rail to populate automatically.")
+                    Text("No sources cited yet. Add a citation source (⌥⌘C) and it will appear here.")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .italic()

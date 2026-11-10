@@ -685,7 +685,7 @@ public struct SmartTableView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.accentColor)
 
-            TextField("Table Title (e.g. Table 1: Financial Summary)", text: Binding(
+            TextField("Table 1: Quarterly revenue", text: Binding(
                 get: { tableData.title },
                 set: { val in store.mutateTable(id: tableId) { $0.title = val } }
             ))
@@ -701,7 +701,7 @@ public struct SmartTableView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.mini)
-            .help("Add Row at Bottom")
+            .help("Add a row below")
 
             Button(action: addColumn) {
                 Label("Column", systemImage: "plus")
@@ -709,7 +709,7 @@ public struct SmartTableView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.mini)
-            .help("Add Column at Right")
+            .help("Add a column on the right")
 
             Menu {
                 tableContextMenu()
@@ -727,7 +727,7 @@ public struct SmartTableView: View {
                         .foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Delete Table")
+                .help("Delete table")
             }
         }
         .padding(.horizontal, 8)
@@ -1152,7 +1152,7 @@ public struct SmartTableView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(tableData.toTSV(), forType: .string)
-        onToast?("✓ Copied table to clipboard for Excel / Sheets")
+        onToast?("Table copied. Paste it into Excel or Sheets")
     }
 
     private func pasteFromExcel() {
@@ -1167,7 +1167,7 @@ public struct SmartTableView: View {
                 data.rows = parsed.rows
             }
             onChange?()
-            onToast?("✓ Imported table from Excel clipboard")
+            onToast?("Table pasted from your clipboard")
         } else {
             onToast?("⚠️ Could not parse spreadsheet data")
         }
@@ -1184,7 +1184,7 @@ public struct SmartTableView: View {
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 try tableData.toCSV().write(to: url, atomically: true, encoding: .utf8)
-                onToast?("✓ Exported CSV to \(url.lastPathComponent)")
+                onToast?("Exported “\(url.lastPathComponent)”")
             } catch {
                 onToast?("⚠️ Failed to export CSV: \(error.localizedDescription)")
             }
@@ -1198,7 +1198,7 @@ public struct SmartTableView: View {
         let activeC = colIdx ?? (selectedRect?.minCol ?? 0)
         let colLetter = TableFormulaEvaluator.columnLetter(for: activeC)
 
-        Section("Row & Column") {
+        Section("Rows and Columns") {
             Button {
                 insertRow(at: activeR)
             } label: {
@@ -1266,23 +1266,23 @@ public struct SmartTableView: View {
             }
         }
 
-        Section("Data & Clipboard") {
+        Section("Data") {
             Button {
                 copyTableForExcel()
             } label: {
-                Label("Copy Table (TSV for Excel / Sheets)", systemImage: "doc.on.doc")
+                Label("Copy for Excel or Sheets", systemImage: "doc.on.doc")
             }
 
             Button {
                 pasteFromExcel()
             } label: {
-                Label("Paste from Excel / Sheets", systemImage: "doc.on.clipboard")
+                Label("Paste from Excel or Sheets", systemImage: "doc.on.clipboard")
             }
 
             Button {
                 exportTableAsCSV()
             } label: {
-                Label("Export as CSV...", systemImage: "arrow.down.doc")
+                Label("Export as CSV…", systemImage: "arrow.down.doc")
             }
 
             Button {
@@ -1294,14 +1294,14 @@ public struct SmartTableView: View {
         }
 
         Section("Table Layout") {
-            Button("Auto-Fit Columns Evenly") {
+            Button("Distribute Columns Evenly") {
                 store.mutateTable(id: tableId) {
                     $0.columnWidths = nil
                 }
                 liveColWidths = nil
                 dragBaseColWidths = nil
                 onChange?()
-                onToast?("✓ Auto-fitted table columns evenly")
+                onToast?("Columns distributed evenly")
             }
 
             Button("Reset Table Size") {
@@ -1317,7 +1317,7 @@ public struct SmartTableView: View {
                 dragBaseTableHeight = nil
                 dragBaseColWidths = nil
                 onChange?()
-                onToast?("✓ Reset table to default size")
+                onToast?("Table size reset")
             }
 
             if let onMoveUp = onMoveUp {

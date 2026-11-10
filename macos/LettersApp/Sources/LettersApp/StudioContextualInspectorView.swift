@@ -134,7 +134,7 @@ public struct StudioContextualInspectorView: View {
                         .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("Close Inspector")
+                .help("Close the inspector")
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
@@ -180,12 +180,12 @@ public struct StudioContextualInspectorView: View {
         VStack(alignment: .leading, spacing: 18) {
             // Section: Typography
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("TYPOGRAPHY")
+                sectionHeader("Typography")
 
                 // Font Family Quick Selector
                 HStack(spacing: 6) {
                     Button(action: { fontFamily = "New York" }) {
-                        Text("New York (Serif)")
+                        Text("New York")
                             .font(.system(size: 11, weight: fontFamily.contains("New York") ? .semibold : .regular, design: .serif))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
@@ -200,7 +200,7 @@ public struct StudioContextualInspectorView: View {
                     .buttonStyle(.plain)
 
                     Button(action: { fontFamily = "SF Pro" }) {
-                        Text("SF Pro (Sans)")
+                        Text("SF Pro")
                             .font(.system(size: 11, weight: fontFamily.contains("SF Pro") || fontFamily == "System" ? .semibold : .regular))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
@@ -291,7 +291,7 @@ public struct StudioContextualInspectorView: View {
 
                 // Paragraph Preset Menu
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Paragraph Preset")
+                    Text("Paragraph Style")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundColor(.secondary)
 
@@ -328,17 +328,17 @@ public struct StudioContextualInspectorView: View {
 
             // Section: Spacing & Rhythm
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("SPACING & RHYTHM")
+                sectionHeader("Spacing")
 
                 // Line Height Multiplier
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Line Height Multiplier")
+                        Text("Line Spacing")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
                         Spacer()
                         let ratio = 1.0 + (lineSpacing / max(12, currentFontSize))
-                        Text(String(format: "%.2fx (%.1f pt)", ratio, currentFontSize * ratio))
+                        Text(String(format: "%.2f× · %.1f pt", ratio, currentFontSize * ratio))
                             .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                             .foregroundColor(.accentColor)
                     }
@@ -349,7 +349,7 @@ public struct StudioContextualInspectorView: View {
                                 let targetLeading = currentFontSize * CGFloat(mult - 1.0)
                                 lineSpacing = max(2, targetLeading)
                             }) {
-                                Text(String(format: "%.2fx", mult))
+                                Text(String(format: "%.2f×", mult))
                                     .font(.system(size: 10, weight: .medium))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 5)
@@ -362,7 +362,7 @@ public struct StudioContextualInspectorView: View {
 
                 // Paragraph Indent Modes (Block vs Academic)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Indent Mode")
+                    Text("Paragraph Layout")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
 
@@ -372,9 +372,9 @@ public struct StudioContextualInspectorView: View {
                             paragraphSpacing = 8
                         }) {
                             VStack(spacing: 2) {
-                                Text("Block Style")
+                                Text("Spaced")
                                     .font(.system(size: 11, weight: hangingIndent == 0 ? .semibold : .regular))
-                                Text("0pt indent, 8pt after")
+                                Text("No indent, space between")
                                     .font(.system(size: 9))
                                     .foregroundColor(.secondary)
                             }
@@ -395,9 +395,9 @@ public struct StudioContextualInspectorView: View {
                             paragraphSpacing = 0
                         }) {
                             VStack(spacing: 2) {
-                                Text("Academic")
+                                Text("Indented")
                                     .font(.system(size: 11, weight: hangingIndent > 0 ? .semibold : .regular))
-                                Text("0.33\" first line")
+                                Text("First line indented")
                                     .font(.system(size: 9))
                                     .foregroundColor(.secondary)
                             }
@@ -436,7 +436,7 @@ public struct StudioContextualInspectorView: View {
         VStack(alignment: .leading, spacing: 18) {
             // Paper Dimensions
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("PAPER GEOMETRY")
+                sectionHeader("Paper")
 
                 Picker("Page Size", selection: $pageSize) {
                     ForEach(PageSizePreset.allCases, id: \.self) { size in
@@ -447,8 +447,8 @@ public struct StudioContextualInspectorView: View {
 
                 // Column Count
                 Picker("Columns", selection: $columnCount) {
-                    Text("Single Column (1 Col)").tag(1)
-                    Text("Two Columns (2 Col)").tag(2)
+                    Text("One Column").tag(1)
+                    Text("Two Columns").tag(2)
                 }
                 .pickerStyle(.menu)
             }
@@ -457,9 +457,9 @@ public struct StudioContextualInspectorView: View {
 
             // Margins
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("MARGINS (INCHES)")
+                sectionHeader("Margins")
 
-                Picker("Margin Preset", selection: $marginPreset) {
+                Picker("Margins", selection: $marginPreset) {
                     ForEach(MarginPreset.allCases, id: \.self) { preset in
                         Text(preset.rawValue).tag(preset)
                     }
@@ -488,13 +488,13 @@ public struct StudioContextualInspectorView: View {
 
             // Canvas & Layout Guides
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("LAYOUT GUIDES")
+                sectionHeader("Page Guides")
 
-                Toggle("Show Margin Guides", isOn: $showMarginGuides)
+                Toggle("Show margin guides", isOn: $showMarginGuides)
                     .toggleStyle(.switch)
                     .font(.system(size: 12))
 
-                Toggle("Show Line Numbers", isOn: $showLineNumbers)
+                Toggle("Show line numbers", isOn: $showLineNumbers)
                     .toggleStyle(.switch)
                     .font(.system(size: 12))
             }
@@ -506,7 +506,7 @@ public struct StudioContextualInspectorView: View {
         VStack(alignment: .leading, spacing: 18) {
             // Citation Style
             VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("CITATION STYLE")
+                sectionHeader("Citation Style")
 
                 Picker("", selection: $citationStyle) {
                     ForEach(CitationStyle.allCases, id: \.self) { style in
@@ -522,12 +522,12 @@ public struct StudioContextualInspectorView: View {
             // Linked Sources
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    sectionHeader("LINKED SOURCES (\(sources.count))")
+                    sectionHeader("Sources (\(sources.count))")
                     Spacer()
                     Button(action: { onAddSource?() }) {
                         HStack(spacing: 4) {
                             Image(systemName: "plus")
-                            Text("Add")
+                            Text("Add Source")
                         }
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.accentColor)
@@ -540,10 +540,10 @@ public struct StudioContextualInspectorView: View {
                         Image(systemName: "books.vertical")
                             .font(.system(size: 20))
                             .foregroundColor(.secondary.opacity(0.6))
-                        Text("No sources added yet")
+                        Text("No sources yet")
                             .font(.caption.bold())
                             .foregroundColor(.secondary)
-                        Text("Add bibliography entries to cite them with APA, MLA, or Chicago format.")
+                        Text("Add a source to cite it in APA, MLA, Chicago, and more.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -561,11 +561,11 @@ public struct StudioContextualInspectorView: View {
                 // Insert / Refresh Bibliography Action
                 Button(action: {
                     onInsertBibliography?()
-                    onToast?("✓ Bibliography inserted at document end")
+                    onToast?("Bibliography added at the end of the document")
                 }) {
                     HStack {
                         Image(systemName: "arrow.down.doc")
-                        Text("Insert / Refresh Bibliography")
+                        Text("Insert Bibliography")
                     }
                     .font(.system(size: 11.5, weight: .semibold))
                     .frame(maxWidth: .infinity)
@@ -581,8 +581,8 @@ public struct StudioContextualInspectorView: View {
 
     private func sourceRow(source: Source) -> some View {
         let isComplete = !source.authors.isEmpty && !source.title.isEmpty && source.year != nil
-        let authorsText = source.authors.isEmpty ? "Unknown" : source.authors.joined(separator: ", ")
-        let yearText = source.year != nil ? "\(source.year!)" : "n.d."
+        let authorsText = source.authors.isEmpty ? "No author" : source.authors.joined(separator: ", ")
+        let yearText = source.year != nil ? "\(source.year!)" : "No date"
 
         return HStack(alignment: .top, spacing: 8) {
             Image(systemName: isComplete ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
@@ -591,12 +591,12 @@ public struct StudioContextualInspectorView: View {
                 .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(source.title.isEmpty ? "Untitled Source" : source.title)
+                Text(source.title.isEmpty ? "Untitled source" : source.title)
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
 
-                Text("\(authorsText) • \(yearText)")
+                Text("\(authorsText) · \(yearText)")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -617,6 +617,7 @@ public struct StudioContextualInspectorView: View {
         Text(title)
             .font(.system(size: 10, weight: .bold))
             .foregroundColor(.secondary)
+            .textCase(.uppercase)
             .tracking(0.8)
     }
 

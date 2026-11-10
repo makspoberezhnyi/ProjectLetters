@@ -187,7 +187,7 @@ public struct StudioImageView: View {
                                     .shadow(color: Color.black.opacity(0.1), radius: 1, y: 1)
                                     .offset(x: -28)
                                     .allowsHitTesting(false)
-                                    .help("Anchored to paragraph (Word-style)")
+                                    .help("Anchored to its paragraph")
                                     .transition(.opacity)
                             }
                         }
@@ -206,7 +206,7 @@ public struct StudioImageView: View {
                                         .overlay(Circle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))
                                         .shadow(color: Color.black.opacity(0.15), radius: 2, y: 1)
                                         .contentShape(Circle())
-                                        .help("Drag to rotate figure (\(Int(effectiveAngle))°)")
+                                        .help("Drag to rotate (\(Int(effectiveAngle))°)")
                                         .onHover { hovering in
                                             if hovering { NSCursor.crosshair.push() } else { NSCursor.pop() }
                                         }
@@ -273,7 +273,7 @@ public struct StudioImageView: View {
                         }
 
                         // Editable Caption (aligned and moved with figure)
-                        TextField("Figure caption...", text: $imageBlock.caption)
+                        TextField("Add a caption…", text: $imageBlock.caption)
                             .textFieldStyle(.plain)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
@@ -309,7 +309,7 @@ public struct StudioImageView: View {
                             Image(systemName: "photo.badge.exclamationmark")
                                 .font(.title2)
                                 .foregroundColor(.secondary)
-                            Text("No Image Loaded")
+                            Text("Image unavailable")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -407,7 +407,7 @@ public struct StudioImageView: View {
     // MARK: - Word-style Layout Options Button
     private var layoutOptionsButton: some View {
         Menu {
-            Section("Text Wrapping (Word-Style)") {
+            Section("Text Wrapping") {
                 ForEach(StudioImageBlock.ImageWrapMode.allCases, id: \.self) { mode in
                     Button {
                         imageBlock.wrapMode = mode
@@ -416,7 +416,7 @@ public struct StudioImageView: View {
                             imageBlock.offsetY = 0
                         }
                         onChange?()
-                        onToast?("✓ Wrap Mode: \(mode.rawValue)")
+                        onToast?("Text wrap: \(mode.rawValue)")
                     } label: {
                         if imageBlock.wrapMode == mode {
                             Label(mode.rawValue, systemImage: "checkmark")
@@ -427,20 +427,20 @@ public struct StudioImageView: View {
                 }
             }
 
-            Section("Alignment & Position") {
+            Section("Alignment and Position") {
                 if isBlockMode {
                     if let onMoveUp = onMoveUp {
                         Button {
                             onMoveUp()
                         } label: {
-                            Label("Move Above Paragraph (Up)", systemImage: "arrow.up")
+                            Label("Move Above Paragraph", systemImage: "arrow.up")
                         }
                     }
                     if let onMoveDown = onMoveDown {
                         Button {
                             onMoveDown()
                         } label: {
-                            Label("Move Below Paragraph (Down)", systemImage: "arrow.down")
+                            Label("Move Below Paragraph", systemImage: "arrow.down")
                         }
                     }
                 }
@@ -459,14 +459,14 @@ public struct StudioImageView: View {
                     imageBlock.offsetX = 0
                     onChange?()
                 }
-                Button("Center / Reset Position") {
+                Button("Reset Position") {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         imageBlock.offsetX = 0
                         imageBlock.offsetY = 0
                         imageBlock.alignment = .center
                     }
                     onChange?()
-                    onToast?("✓ Reset figure position to center")
+                    onToast?("Figure centered")
                 }
             }
 
@@ -484,12 +484,12 @@ public struct StudioImageView: View {
                     imageBlock.rotationAngle = (imageBlock.rotationAngle + 90.0).truncatingRemainder(dividingBy: 360.0)
                     onChange?()
                 }
-                Button("Rotate 90° Counter-Clockwise") {
+                Button("Rotate 90° Counterclockwise") {
                     imageBlock.rotationAngle = (imageBlock.rotationAngle - 90.0 + 360.0).truncatingRemainder(dividingBy: 360.0)
                     onChange?()
                 }
                 if imageBlock.rotationAngle != 0 {
-                    Button("Reset Rotation (0°)") {
+                    Button("Reset Rotation") {
                         imageBlock.rotationAngle = 0
                         onChange?()
                     }
@@ -510,7 +510,7 @@ public struct StudioImageView: View {
             .shadow(color: Color.black.opacity(0.12), radius: 2, y: 1)
         }
         .menuStyle(.borderlessButton)
-        .help("Layout Options: Text wrapping and positioning")
+        .help("Layout options")
     }
 
     // MARK: - Native Context Menu Content
@@ -525,7 +525,7 @@ public struct StudioImageView: View {
                         imageBlock.offsetY = 0
                     }
                     onChange?()
-                    onToast?("✓ Wrap Mode: \(mode.rawValue)")
+                    onToast?("Text wrap: \(mode.rawValue)")
                 } label: {
                     if imageBlock.wrapMode == mode {
                         Label(mode.rawValue, systemImage: "checkmark")
@@ -536,12 +536,12 @@ public struct StudioImageView: View {
             }
         }
 
-        Menu("Rotate & Flip") {
+        Menu("Rotate and Flip") {
             Button("Rotate 90° Clockwise") {
                 imageBlock.rotationAngle = (imageBlock.rotationAngle + 90.0).truncatingRemainder(dividingBy: 360.0)
                 onChange?()
             }
-            Button("Rotate 90° Counter-Clockwise") {
+            Button("Rotate 90° Counterclockwise") {
                 imageBlock.rotationAngle = (imageBlock.rotationAngle - 90.0 + 360.0).truncatingRemainder(dividingBy: 360.0)
                 onChange?()
             }
@@ -551,22 +551,22 @@ public struct StudioImageView: View {
             }
             if imageBlock.rotationAngle != 0 {
                 Divider()
-                Button("Reset Rotation (\(Int(imageBlock.rotationAngle))° -> 0°)") {
+                Button("Reset Rotation") {
                     imageBlock.rotationAngle = 0
                     onChange?()
                 }
             }
         }
 
-        Menu("Position & Move") {
-            Button("Center / Reset Position") {
+        Menu("Position") {
+            Button("Reset Position") {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     imageBlock.offsetX = 0
                     imageBlock.offsetY = 0
                     imageBlock.alignment = .center
                 }
                 onChange?()
-                onToast?("✓ Reset figure position to center")
+                onToast?("Figure centered")
             }
 
             Divider()
@@ -614,14 +614,14 @@ public struct StudioImageView: View {
                     Button {
                         onMoveUp()
                     } label: {
-                        Label("Move Above Paragraph (Up)", systemImage: "arrow.up")
+                        Label("Move Above Paragraph", systemImage: "arrow.up")
                     }
                 }
                 if let onMoveDown = onMoveDown {
                     Button {
                         onMoveDown()
                     } label: {
-                        Label("Move Below Paragraph (Down)", systemImage: "arrow.down")
+                        Label("Move Below Paragraph", systemImage: "arrow.down")
                     }
                 }
             } else {
@@ -676,19 +676,19 @@ public struct StudioImageView: View {
             }
         }
 
-        Menu("Compress Quality") {
-            Button("Maximum Quality (Original)") { compressImage(factor: 1.0) }
-            Button("Optimized Print / Web (85%)") { compressImage(factor: 0.85) }
-            Button("Compact / Email (60%)") { compressImage(factor: 0.60) }
+        Menu("Image Quality") {
+            Button("Original Quality") { compressImage(factor: 1.0) }
+            Button("Balanced, for Print and Web (85%)") { compressImage(factor: 0.85) }
+            Button("Small File, for Email (60%)") { compressImage(factor: 0.60) }
         }
 
         if imageBlock.compressedByteSize > 0 {
             let kb = formatByteSize(imageBlock.compressedByteSize)
             if imageBlock.originalByteSize > imageBlock.compressedByteSize {
                 let percent = Int((1.0 - Double(imageBlock.compressedByteSize) / Double(imageBlock.originalByteSize)) * 100.0)
-                Text("Size: \(kb) (-\(percent)%)")
+                Text("File size: \(kb) (\(percent)% smaller)")
             } else {
-                Text("Size: \(kb)")
+                Text("File size: \(kb)")
             }
         }
 
@@ -710,7 +710,7 @@ public struct StudioImageView: View {
         }
 
         if factor >= 1.0 {
-            onToast?("✓ Using full original image quality")
+            onToast?("Using the original image")
             return
         }
 
@@ -726,7 +726,7 @@ public struct StudioImageView: View {
         onChange?()
 
         let savedPct = Int((1.0 - Double(compressedData.count) / Double(max(1, imageBlock.originalByteSize))) * 100.0)
-        onToast?("✓ Compressed image: Saved \(savedPct)% (\(formatByteSize(compressedData.count)))")
+        onToast?("Image compressed: \(savedPct)% smaller (\(formatByteSize(compressedData.count)))")
     }
 
     private func formatByteSize(_ bytes: Int) -> String {

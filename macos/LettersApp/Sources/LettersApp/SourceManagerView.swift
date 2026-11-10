@@ -21,7 +21,7 @@ public struct SourceManagerView: View {
         VStack(spacing: 0) {
             // Style Profile Picker
             VStack(alignment: .leading, spacing: 6) {
-                Text("Active Citation Style")
+                Text("Citation Style")
                     .font(.caption.bold())
                     .foregroundColor(.secondary)
                 Picker("Style", selection: $activeStyle) {
@@ -39,7 +39,7 @@ public struct SourceManagerView: View {
             // Source list
             List {
                 Section(header: HStack {
-                    Text("Linked Sources (\(sources.count))")
+                    Text("Sources (\(sources.count))")
                     Spacer()
                     Button {
                         showingAddSheet = true
@@ -49,7 +49,7 @@ public struct SourceManagerView: View {
                     .buttonStyle(.plain)
                 }) {
                     if sources.isEmpty {
-                        Text("No sources added yet. Click + to link a source.")
+                        Text("No sources yet. Click + to add one.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     } else {
@@ -82,13 +82,13 @@ public struct SourceManagerView: View {
         }
         .sheet(isPresented: $showingAddSheet) {
             VStack(spacing: 16) {
-                Text("Add Linked Source")
+                Text("Add Citation Source")
                     .font(.headline)
 
                 Form {
-                    TextField("Title", text: $newSourceTitle)
-                    TextField("Author(s) (comma separated)", text: $newSourceAuthor)
-                    TextField("Year", text: $newSourceYear)
+                    TextField("Title", text: $newSourceTitle, prompt: Text("The Structure of Scientific Revolutions"))
+                    TextField("Authors", text: $newSourceAuthor, prompt: Text("Thomas Kuhn, Ian Hacking"))
+                    TextField("Year", text: $newSourceYear, prompt: Text("1962"))
                     Picker("Source Type", selection: $newSourceType) {
                         ForEach(SourceType.allCases, id: \.self) { st in
                             Text(st.rawValue.capitalized).tag(st)
