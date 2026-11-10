@@ -173,6 +173,18 @@ public class EditorActionController: ObservableObject {
         }
     }
 
+    public func jumpToCharacterOffset(_ offset: Int) {
+        DispatchQueue.main.async {
+            guard let tv = self.activeTextView ?? self.pageViews[0] ?? (self.textView as? StudioTextView) ?? self.pageViews.values.first else { return }
+            tv.window?.makeFirstResponder(tv)
+            self.textView = tv
+            let length = (tv.string as NSString).length
+            let safeLoc = max(0, min(offset, length))
+            tv.setSelectedRange(NSRange(location: safeLoc, length: 0))
+            tv.scrollRangeToVisible(NSRange(location: safeLoc, length: 0))
+        }
+    }
+
     public func focusPage(_ pageIndex: Int, at cursorLoc: Int = 0, retries: Int = 8) {
         DispatchQueue.main.async {
             if let tv = self.activeTextView ?? self.pageViews[pageIndex] {

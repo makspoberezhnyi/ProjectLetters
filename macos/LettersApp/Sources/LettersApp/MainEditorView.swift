@@ -208,23 +208,23 @@ public struct MainEditorView: View {
             }
             // 1. Sleek Minimalist Glass Top Navigation Bar (Responsive across window widths)
             HStack(spacing: 10) {
-                // Left Island Sidebar Toggle Button
+                // Left Navigator Sidebar Toggle Button
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                        showIslandSidebar.toggle()
+                        showOutlineDrawer.toggle()
                     }
                 }) {
                     Image(systemName: "sidebar.left")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(showIslandSidebar ? .accentColor : .primary.opacity(0.75))
+                        .foregroundColor(showOutlineDrawer ? .accentColor : .primary.opacity(0.75))
                         .frame(width: 30, height: 30)
-                        .background(showIslandSidebar ? Color.accentColor.opacity(0.15) : Color.clear)
+                        .background(showOutlineDrawer ? Color.accentColor.opacity(0.15) : Color.clear)
                         .cornerRadius(7)
-                        .symbolEffect(.bounce, value: showIslandSidebar)
+                        .symbolEffect(.bounce, value: showOutlineDrawer)
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
-                .help("Toggle Instruments Toolbar (⌥⌘1)")
+                .help("Toggle Outline Navigator (⌥⌘1)")
 
                 // Document Title & Live Autosave Status Badge
                 HStack(spacing: 6) {
@@ -745,6 +745,31 @@ public struct MainEditorView: View {
 
             // 2. Wide Main Workspace Canvas with Floating Islands & Timeline
             HStack(spacing: 0) {
+                // Docked Left Outline Navigator
+                if showOutlineDrawer {
+                    DocumentOutlineView(
+                        isPresented: $showOutlineDrawer,
+                        rawText: $documentController.rawText,
+                        pageSlices: documentPageSlices,
+                        columnCount: documentController.columnCount,
+                        cursorOffset: selectionRange.location,
+                        sources: $documentController.document.sources,
+                        activeCitationStyle: $documentController.citationStyle,
+                        onSelectOffset: { offset in
+                            editorController.jumpToCharacterOffset(offset)
+                        },
+                        onSelectHeading: { colIdx, offset in
+                            editorController.jumpToCharacterOffset(offset)
+                        },
+                        onSelectPage: { colIdx in
+                            editorController.focusPage(colIdx, at: 0)
+                        }
+                    )
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+
+                    Divider()
+                }
+
                 // Center Canvas & Multi-Page Viewport
                 GeometryReader { geometry in
                     ZStack(alignment: .topLeading) {
@@ -768,53 +793,33 @@ public struct MainEditorView: View {
                         .background(StudioTheme.canvasBackground)
 
                         // Floating Left Island Sidebar Overlay
-                        if showIslandSidebar || showOutlineDrawer {
+                        if showIslandSidebar {
                             HStack(alignment: .top, spacing: 12) {
-                                if showIslandSidebar {
-                                    StudioFloatingSidebar(
-                                        isPresented: $showIslandSidebar,
-                                        rawText: $documentController.rawText,
-                                        documentPages: documentPages,
-                                        selectedPage: $selectedPage,
-                                        sources: $documentController.document.sources,
-                                        tables: $documentController.tables,
-                                        images: $documentController.images,
-                                        videos: $documentController.videos,
-                                        showAIDrawer: $showAIDrawer,
-                                        showCommandPalette: $showCommandPalette,
-                                        showPageDesignInspector: $showPageDesignInspector,
-                                        onInsertSection: { handleToolAction(.text) },
-                                        onInsertTable: { handleToolAction(.table) },
-                                        onInsertImage: { handleToolAction(.image) },
-                                        onAddSource: { showingAddSourceSheet = true },
-                                        onInsertPageBreak: { insertPageBreakAction() },
-                                        onTogglePageDesign: { showPageDesignInspector.toggle() },
-                                        onToggleOutline: {
-                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                                                showOutlineDrawer.toggle()
-                                            }
-                                        },
-                                        onToast: { msg in showToast(msg) }
-                                    )
-                                }
-
-                                if showOutlineDrawer {
-                                    DocumentOutlineView(
-                                        isPresented: $showOutlineDrawer,
-                                        rawText: documentController.rawText,
-                                        pageSlices: documentPageSlices,
-                                        columnCount: documentController.columnCount,
-                                        sources: $documentController.document.sources,
-                                        activeCitationStyle: $documentController.citationStyle,
-                                        onSelectHeading: { colIdx, offset in
-                                            editorController.focusPage(colIdx, at: offset)
-                                        },
-                                        onSelectPage: { colIdx in
-                                            editorController.focusPage(colIdx, at: 0)
+                                StudioFloatingSidebar(
+                                    isPresented: $showIslandSidebar,
+                                    rawText: $documentController.rawText,
+                                    documentPages: documentPages,
+                                    selectedPage: $selectedPage,
+                                    sources: $documentController.document.sources,
+                                    tables: $documentController.tables,
+                                    images: $documentController.images,
+                                    videos: $documentController.videos,
+                                    showAIDrawer: $showAIDrawer,
+                                    showCommandPalette: $showCommandPalette,
+                                    showPageDesignInspector: $showPageDesignInspector,
+                                    onInsertSection: { handleToolAction(.text) },
+                                    onInsertTable: { handleToolAction(.table) },
+                                    onInsertImage: { handleToolAction(.image) },
+                                    onAddSource: { showingAddSourceSheet = true },
+                                    onInsertPageBreak: { insertPageBreakAction() },
+                                    onTogglePageDesign: { showPageDesignInspector.toggle() },
+                                    onToggleOutline: {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                            showOutlineDrawer.toggle()
                                         }
-                                    )
-                                    .transition(.move(edge: .leading).combined(with: .opacity))
-                                }
+                                    },
+                                    onToast: { msg in showToast(msg) }
+                                )
                             }
                             .padding(.leading, 16)
                             .padding(.top, 16)
@@ -990,6 +995,39 @@ public struct MainEditorView: View {
                         .zIndex(25)
                     }
                 }
+
+                // Docked Right Contextual Inspector
+                if showPageDesignInspector {
+                    Divider()
+
+                    StudioContextualInspectorView(
+                        isPresented: $showPageDesignInspector,
+                        fontFamily: $documentController.fontFamily,
+                        fontSize: $documentController.fontSize,
+                        lineSpacing: $documentController.lineSpacing,
+                        paragraphSpacing: $documentController.paragraphSpacing,
+                        hangingIndent: $documentController.hangingIndent,
+                        textAlignment: $documentController.textAlignment,
+                        pageSize: $documentController.pageSize,
+                        marginPreset: $documentController.marginPreset,
+                        margins: $documentController.margins,
+                        columnCount: $documentController.columnCount,
+                        showLineNumbers: $documentController.showLineNumbers,
+                        showMarginGuides: $showMarginGuides,
+                        citationStyle: $documentController.citationStyle,
+                        sources: $documentController.document.sources,
+                        selectionAttributes: selectionAttributes,
+                        onToggleBold: { toggleBoldAction() },
+                        onToggleItalic: { toggleItalicAction() },
+                        onToggleUnderline: { toggleUnderlineAction() },
+                        onToggleStrikethrough: { toggleStrikethroughAction() },
+                        onApplyParagraphStyle: { style in applyParagraphStyleAction(style) },
+                        onAddSource: { showingAddSourceSheet = true },
+                        onInsertBibliography: { insertBibliographyAction() },
+                        onToast: { msg in showToast(msg) }
+                    )
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
 
             // 3. Docked App Footer (Stats, Style Linter, Citation Standard, Zoom, AI Copilot)
@@ -1119,28 +1157,6 @@ public struct MainEditorView: View {
         }
         .sheet(isPresented: $showingPasteSpecialSheet) {
             pasteSpecialSheetView
-        }
-        .sheet(isPresented: $showPageDesignInspector) {
-            StudioPageDesignView(
-                isPresented: $showPageDesignInspector,
-                coverBannerConfig: $documentController.coverBanner,
-                pageSize: $documentController.pageSize,
-                columnCount: $documentController.columnCount,
-                showLineNumbers: $documentController.showLineNumbers,
-                watermarkText: $documentController.watermarkText,
-                kern: $documentController.kern,
-                hangingIndent: $documentController.hangingIndent,
-                marginPreset: $documentController.marginPreset,
-                margins: $documentController.margins,
-                fontFamily: $documentController.fontFamily,
-                fontSize: $documentController.fontSize,
-                lineSpacing: $documentController.lineSpacing,
-                paragraphSpacing: $documentController.paragraphSpacing,
-                activeCitationStyle: $documentController.citationStyle,
-                showMarginGuides: $showMarginGuides,
-                showCropMarks: $showCropMarks,
-                onToast: { msg in showToast(msg) }
-            )
         }
         .modifier(EditorFileNotificationsModifier(
             onNew: newDocumentAction,

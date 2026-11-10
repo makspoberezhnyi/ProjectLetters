@@ -31,3 +31,8 @@
 ## 🚀 Resolved Milestones
 * **Sprint 1 (De-Bloat & Pure-Swift Consolidation)**: Excised JavaScriptCore from `SmartTableView`, removed video embeds and Notion cover banners. Pure Foundation math evaluation.
 * **Sprint 2 (The Unified Canvas)**: Implemented continuous single-container TextKit 2 canvas (`unifiedSanctuaryCanvas`) with Pages-style triple-layer compound shadow, dynamic visual page dividers (`Page X of Y`), resizable `StudioTextView` intrinsic content sizing, and zero-latency cursor focus. All tests pass with zero warnings.
+* **Sprint 3 (Document Model & Navigation Rigor)**: Completed!
+  - `DocumentOutlineView.swift`: Implemented persistent Navigator with direct heading AST parsing from `rawText`, real-time scroll-spy active indicator beacon (accent vertical pill), live section word count badges (`180 w`), instant search filter, and atomic move/reorganize section controls.
+  - `StudioContextualInspectorView.swift`: Built docked 3-tab inspector (`Text & Style`, `Page Setup & Layout`, `Citations & Research`) with optical size indicators, 1.25x line height steppers, Block vs Academic indent modes, 4-axis margin steppers, and bibliography citation tools.
+  - `MainEditorView.swift`: Retired floating HUD modal sheets (`StudioPageDesignView`) in favor of docked left outline pane and docked right inspector in standard macOS 3-pane layout. Connected `sidebar.left` toolbar button directly to Navigator.
+  - Verified `swift build`: 0 errors, 0 warnings. `swift test`: all suites passed.
