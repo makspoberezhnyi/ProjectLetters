@@ -329,7 +329,7 @@ public struct StudioFloatingBottomBar: View {
             Divider()
                 .frame(height: 16)
 
-            // 4. AI Copilot Companion Button
+            // 4. AI Assistant Companion Button
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     showAIDrawer.toggle()

@@ -126,8 +126,6 @@ public struct MainEditorView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            EditorToastHost(toasts: toastManager)
-
             StudioTopToolbarView(
                 documentController: documentController,
                 format: formatStore,
@@ -149,6 +147,9 @@ public struct MainEditorView: View {
             workspace
 
             statusBar
+        }
+        .overlay(alignment: .bottomTrailing) {
+            EditorToastHost(toasts: toastManager)
         }
         .modifier(EditorSheetsModifier(host: self))
         .modifier(EditorFileNotificationsModifier(

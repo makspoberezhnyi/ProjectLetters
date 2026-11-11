@@ -86,7 +86,7 @@ extension MainEditorView {
             showToast("✓ Scanned style rules: \(lintIssues.count) notices found")
         case .copilot:
             showAIDrawer.toggle()
-            showToast("✓ AI Copilot toggled")
+            showToast("✓ AI Assistant toggled")
         case .pan:
             showToast("✓ Hand Pan tool active")
         }
@@ -404,7 +404,7 @@ extension MainEditorView {
                 kind: .insertion,
                 text: newText,
                 originalText: selectedText.isEmpty ? nil : selectedText,
-                author: "AI Copilot"
+                author: "AI Assistant"
             )
         }
         if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {
@@ -426,7 +426,7 @@ extension MainEditorView {
                 kind: .insertion,
                 text: newText,
                 originalText: nil,
-                author: "AI Copilot"
+                author: "AI Assistant"
             )
         }
         if selectionRange.length > 0 && selectionRange.location + selectionRange.length <= (documentController.rawText as NSString).length {

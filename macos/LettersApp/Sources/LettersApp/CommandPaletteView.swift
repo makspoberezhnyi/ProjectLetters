@@ -176,7 +176,7 @@ public struct CommandPaletteView: View {
         if lower.hasPrefix("ai ") || lower.hasPrefix("ask ") || lower.hasPrefix("write ") || lower.hasPrefix("explain ") {
             return CommandItem(
                 title: "Ask AI: \"\(trimmed)\"",
-                subtitle: "Run prompt with AI Copilot",
+                subtitle: "Run prompt with the AI Assistant",
                 icon: "sparkles",
                 category: .ai,
                 shortcut: "↵"
@@ -188,7 +188,7 @@ public struct CommandPaletteView: View {
         // Default Fallback Dynamic Prompt if no exact match found
         if filteredCommands.isEmpty {
             return CommandItem(
-                title: "Execute / Ask Copilot: \"\(trimmed)\"",
+                title: "Execute / Ask Assistant: \"\(trimmed)\"",
                 subtitle: "Natural language instruction or search",
                 icon: "arrow.right.circle.fill",
                 category: .ai,

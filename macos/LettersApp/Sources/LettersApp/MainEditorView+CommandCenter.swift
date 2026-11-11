@@ -135,7 +135,7 @@ extension MainEditorView {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             showAIDrawer = true
         }
-        showToast("✨ AI Copilot prompted: \"\(trimmed)\"")
+        showToast("✨ AI Assistant prompted: \"\(trimmed)\"")
         return true
     }
 
@@ -157,8 +157,8 @@ extension MainEditorView {
             CommandItem(title: "Print Document", subtitle: "Open native macOS Print setup & pagination dialog", icon: "printer", category: .document, shortcut: "⌘P", keywords: ["print", "paper", "dialog"]) {
                 printDocument()
             },
-            CommandItem(title: "Document Statistics & Word Count", subtitle: "\(wordCount) words, \(characterCount) chars, \(editorController.pageCount) pages", icon: "chart.bar.doc.horizontal", category: .document, shortcut: "⌘I", keywords: ["stats", "words", "count", "info"]) {
-                showToast("📊 \(wordCount) words • \(characterCount) chars • \(editorController.pageCount) pages")
+            CommandItem(title: "Document Statistics & Word Count", subtitle: "\(wordCount) words, \(characterCount) characters, \(editorController.pageCount) pages", icon: "chart.bar.doc.horizontal", category: .document, shortcut: "⌘I", keywords: ["stats", "words", "count", "info"]) {
+                showToast("📊 \(wordCount) words • \(characterCount) characters • \(editorController.pageCount) pages")
             },
             CommandItem(title: "Clear Document (New File)", subtitle: "Reset text, tables, figures, and sources", icon: "trash", category: .document, keywords: ["clear", "reset", "empty", "new"]) {
                 newDocumentAction()
@@ -336,13 +336,13 @@ extension MainEditorView {
                 showToast(documentController.headerFooter.differentFirstPage ? "✓ Different First Page Enabled" : "Different First Page Disabled")
             },
 
-            // === AI Copilot & Intelligent Assistant ===
-            CommandItem(title: "Toggle AI Copilot Assistant", subtitle: "Open native BYOK intelligence drawer", icon: "sparkles", category: .ai, shortcut: "⌘J", keywords: ["ai", "copilot", "chat", "assistant"]) {
+            // === AI Assistant ===
+            CommandItem(title: "Toggle AI Assistant", subtitle: "Open native BYOK intelligence drawer", icon: "sparkles", category: .ai, shortcut: "⌘J", keywords: ["ai", "chat", "assistant"]) {
                 showAIDrawer.toggle()
             },
             CommandItem(title: "AI Polish Tone & Academic Flow", subtitle: "Refine phrasing and eliminate passive voice", icon: "wand.and.stars", category: .ai, keywords: ["polish", "academic", "tone", "flow", "refine"]) {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showAIDrawer = true }
-                showToast("✨ AI Copilot ready to polish")
+                showToast("✨ AI Assistant ready to polish")
             },
             CommandItem(title: "AI Instant Translation", subtitle: "Translate selected passage into target language", icon: "translate", category: .ai, keywords: ["translate", "language", "offline", "bilingual"]) {
                 Task {
@@ -357,7 +357,7 @@ extension MainEditorView {
             },
             CommandItem(title: "AI Explain Selected Concept", subtitle: "Get an in-depth breakdown of selected text", icon: "brain.head.profile", category: .ai, keywords: ["explain", "understand", "summary", "concept"]) {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showAIDrawer = true }
-                showToast("✨ AI Copilot explaining selection")
+                showToast("✨ AI Assistant explaining selection")
             },
             CommandItem(title: "AI Generate Table of Contents", subtitle: "Analyze document and build hierarchical TOC", icon: "sparkles.rectangle.stack", category: .ai, keywords: ["ai", "toc", "structure", "outline"]) {
                 insertTOCAction()

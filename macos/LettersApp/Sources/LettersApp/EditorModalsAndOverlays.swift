@@ -17,9 +17,7 @@ struct EditorToastHost: View {
     let toasts: ToastManager
 
     var body: some View {
-        ToastOverlay(position: .bottomTrailing)
-            .environmentObject(toasts)
-            .allowsHitTesting(true)
+        ToastOverlay(manager: toasts, position: .bottomTrailing)
     }
 }
 
@@ -353,7 +351,7 @@ struct EditorStatusBarHost: View {
             wordCount: counts.words,
             characterCount: counts.characters,
             pageCount: counts.pages,
-            readingTimeMinutes: max(1, Int(ceil(Double(counts.words) / 200.0))),
+            readingTimeMinutes: counts.words == 0 ? 0 : max(1, Int(ceil(Double(counts.words) / 200.0))),
             citationStyle: labels.value.citationStyle,
             styleProfile: labels.value.styleProfile,
             zoomScale: zoomScale

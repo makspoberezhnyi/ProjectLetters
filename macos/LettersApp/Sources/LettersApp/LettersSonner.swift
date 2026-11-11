@@ -357,6 +357,8 @@ public struct ToastStackView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+        // An empty stack must never swallow clicks meant for the canvas or status bar.
+        .allowsHitTesting(!manager.toasts.isEmpty)
         .onHover { hovering in
             if !hovering && manager.isExpanded {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -370,17 +372,17 @@ public struct ToastStackView: View {
 // MARK: - Global Toast Overlay (for app-wide usage)
 
 public struct ToastOverlay: View {
-    @StateObject private var manager = ToastManager()
+    @ObservedObject var manager: ToastManager
     let position: ToastStackView.Position
 
-    public init(position: ToastStackView.Position = .bottomTrailing) {
+    public init(manager: ToastManager, position: ToastStackView.Position = .bottomTrailing) {
+        self.manager = manager
         self.position = position
     }
 
     public var body: some View {
         ToastStackView(manager: manager, position: position)
             .environmentObject(manager)
-            .allowsHitTesting(true)
     }
 }
 
@@ -407,10 +409,9 @@ public extension EnvironmentValues {
 // MARK: - View Extension for Easy Toast Presentation
 
 public extension View {
-    func withToasts(position: ToastStackView.Position = .bottomTrailing) -> some View {
-        ZStack(alignment: position == .bottomTrailing || position == .bottomCenter ? .bottomTrailing : .topTrailing) {
-            self
-            ToastOverlay(position: position)
+    func withToasts(_ manager: ToastManager, position: ToastStackView.Position = .bottomTrailing) -> some View {
+        overlay(alignment: position == .bottomTrailing || position == .bottomCenter ? .bottomTrailing : .topTrailing) {
+            ToastOverlay(manager: manager, position: position)
         }
     }
 

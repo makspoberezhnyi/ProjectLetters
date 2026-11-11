@@ -597,7 +597,7 @@ struct StudioTopToolbarView: View {
 
                 Divider().frame(height: 16)
                 
-                // AI Copilot Toggle
+                // AI Assistant Toggle
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         rightPane = rightPane.toggled(.assistant)
@@ -606,7 +606,7 @@ struct StudioTopToolbarView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 12, weight: .semibold))
-                        Text("Copilot")
+                        Text("Assistant")
                             .font(.system(size: 12, weight: .semibold))
                             .lineLimit(1)
                     }

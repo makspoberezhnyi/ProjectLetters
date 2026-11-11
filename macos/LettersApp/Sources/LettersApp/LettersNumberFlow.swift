@@ -243,7 +243,7 @@ public struct StatusBarMetrics: View {
         HStack(spacing: 8) {
             // Word Count
             LabeledNumberFlow(
-                label: "words",
+                label: wordCount == 1 ? "word" : "words",
                 value: wordCount,
                 icon: "doc.text",
                 iconColor: .blue,
@@ -254,7 +254,7 @@ public struct StatusBarMetrics: View {
 
             // Page Count
             LabeledNumberFlow(
-                label: "pages",
+                label: pageCount == 1 ? "page" : "pages",
                 value: pageCount,
                 icon: "doc.on.doc",
                 iconColor: .green,
@@ -265,7 +265,7 @@ public struct StatusBarMetrics: View {
 
             // Character Count
             LabeledNumberFlow(
-                label: "chars",
+                label: characterCount == 1 ? "character" : "characters",
                 value: characterCount,
                 icon: "character",
                 iconColor: .orange,
@@ -287,7 +287,7 @@ public struct StatusBarMetrics: View {
                 )
                 .foregroundColor(.primary)
 
-                Text(readingTimeMinutes == 1 ? "min read" : "min read")
+                Text("min read")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
             }
@@ -393,9 +393,9 @@ public struct CompactStatusBarMetrics: View {
 
     public var body: some View {
         HStack(spacing: 12) {
-            MetricPill(icon: "doc.text", value: wordCount, label: "words", color: .blue, format: .withCommas)
-            MetricPill(icon: "doc.on.doc", value: pageCount, label: "pages", color: .green, format: .plain)
-            MetricPill(icon: "character", value: characterCount, label: "chars", color: .orange, format: .withCommas)
+            MetricPill(icon: "doc.text", value: wordCount, label: wordCount == 1 ? "word" : "words", color: .blue, format: .withCommas)
+            MetricPill(icon: "doc.on.doc", value: pageCount, label: pageCount == 1 ? "page" : "pages", color: .green, format: .plain)
+            MetricPill(icon: "character", value: characterCount, label: characterCount == 1 ? "character" : "characters", color: .orange, format: .withCommas)
             MetricPill(icon: "clock", value: readingTimeMinutes, label: readingTimeMinutes == 1 ? "min" : "mins", color: .purple, format: .plain)
         }
     }
