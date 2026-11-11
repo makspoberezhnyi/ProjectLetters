@@ -245,12 +245,13 @@ public struct ToastView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .frame(width: 320)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(backgroundColor)
+                .fill(Color(nsColor: .windowBackgroundColor))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(borderColor, lineWidth: 1)
+                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
                 )
         )
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)

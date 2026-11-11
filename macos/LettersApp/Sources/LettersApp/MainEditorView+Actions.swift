@@ -217,50 +217,41 @@ extension MainEditorView {
     func setParagraphSpacingAction(_ spacing: CGFloat) {
         documentController.paragraphSpacing = spacing
         editorController.applyLineSpacing(documentController.lineSpacing, paragraphSpacing: spacing)
-        showToast("✓ Paragraph Spacing: \(Int(spacing)) pt")
     }
 
     func insertBulletListAction() {
         editorController.toggleBulletList()
-        showToast("✓ Toggled Bulleted List")
     }
 
     func insertNumberedListAction() {
         editorController.toggleNumberedList()
-        showToast("✓ Toggled Numbered List")
     }
 
     func toggleBoldAction() {
         editorController.toggleBold()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
-            showToast(attrs.isBold ? "✓ Bold enabled" : "Bold disabled")
         } else {
             isBold.toggle()
-            showToast(isBold ? "✓ Bold enabled" : "Bold disabled")
         }
     }
 
     func setTextColorAction(_ color: NSColor) {
         editorController.setTextColor(color)
-        showToast("✓ Text color applied")
     }
 
     func setTextHighlightAction(_ color: NSColor?) {
         editorController.setTextHighlight(color)
-        showToast(color == nil ? "✓ Highlight removed" : "✓ Text highlighted")
     }
 
     func clearFormattingAction() {
         editorController.clearFormatting()
-        showToast("✓ Formatting cleared (Reset to Black)")
     }
 
     func toggleKeepLinesTogetherAction() {
         editorController.toggleKeepLinesTogether()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
-            showToast(attrs.isKeepLinesTogether ? "✓ Keep Lines Together enabled" : "Keep Lines Together disabled")
         }
     }
 
@@ -268,7 +259,6 @@ extension MainEditorView {
         editorController.toggleKeepWithNext()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
-            showToast(attrs.isKeepWithNext ? "✓ Keep With Next enabled" : "Keep With Next disabled")
         }
     }
 
@@ -276,10 +266,8 @@ extension MainEditorView {
         editorController.toggleItalic()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
-            showToast(attrs.isItalic ? "✓ Italic enabled" : "Italic disabled")
         } else {
             isItalic.toggle()
-            showToast(isItalic ? "✓ Italic enabled" : "Italic disabled")
         }
     }
 
@@ -287,10 +275,8 @@ extension MainEditorView {
         editorController.toggleUnderline()
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
-            showToast(attrs.isUnderline ? "✓ Underline enabled" : "Underline disabled")
         } else {
             isUnderline.toggle()
-            showToast(isUnderline ? "✓ Underline enabled" : "Underline disabled")
         }
     }
 
@@ -302,8 +288,6 @@ extension MainEditorView {
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
         }
-        let name = align == .leading ? "Left" : align == .center ? "Center" : "Right"
-        showToast("✓ Alignment: \(name)")
     }
 
     func setFontFamilyAction(_ font: String) {
@@ -312,7 +296,6 @@ extension MainEditorView {
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
         }
-        showToast("✓ Font: \(font)")
     }
 
     func setFontSizeAction(_ size: CGFloat) {
@@ -320,7 +303,6 @@ extension MainEditorView {
         if let attrs = editorController.currentSelectionAttributes() {
             self.selectionAttributes = attrs
         }
-        showToast("✓ Font Size: \(Int(size)) pt")
     }
 
     func insertCitationForSelection() {

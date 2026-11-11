@@ -321,6 +321,12 @@ public struct MainEditorView: View {
             msg.removeFirst(prefix.count)
             break
         }
+        let lower = msg.lowercased()
+        if lower.hasPrefix("font") || lower.hasPrefix("bold") || lower.hasPrefix("italic") ||
+           lower.hasPrefix("underline") || lower.hasPrefix("alignment") || lower.hasPrefix("zoom") ||
+           lower.hasPrefix("paragraph spacing") || lower.hasPrefix("line spacing") {
+            return
+        }
         if isWarning {
             toastManager.show(.warning(msg))
         } else {
