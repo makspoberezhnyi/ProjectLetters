@@ -18,14 +18,69 @@ import LettersKit
 //   * `EditorCaretStore`        – selection range / text (changes on every caret move).
 //   * `EditorFormatStore`       – formatting under the caret (changes only on format edits).
 
-/// Which single pane is docked on the right-hand side of the canvas.
-enum EditorRightPane: Equatable {
-    case none, inspector, assistant, history, comments
+/// The three tabs of the unified right-hand inspector.
+enum InspectorTab: String, CaseIterable, Identifiable {
+    case document, review, assistant
 
-    /// Toggling a pane that is already open closes it; otherwise it replaces whatever is open.
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .document: return "Document"
+        case .review: return "Review"
+        case .assistant: return "Assistant"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .document: return "doc.plaintext"
+        case .review: return "bubble.left.and.bubble.right"
+        case .assistant: return "sparkles"
+        }
+    }
+}
+
+/// Which pane is docked on the right-hand side of the canvas: nothing, or one tab of the inspector.
+enum EditorRightPane: Equatable {
+    case none, document, review, assistant
+
+    init(_ tab: InspectorTab) {
+        switch tab {
+        case .document: self = .document
+        case .review: self = .review
+        case .assistant: self = .assistant
+        }
+    }
+
+    /// The inspector tab that is showing, if the pane is open.
+    var tab: InspectorTab? {
+        switch self {
+        case .none: return nil
+        case .document: return .document
+        case .review: return .review
+        case .assistant: return .assistant
+        }
+    }
+
+    /// Toggling the pane that is already open closes it; otherwise it switches to that tab.
     func toggled(_ pane: EditorRightPane) -> EditorRightPane {
         self == pane ? .none : pane
     }
+}
+
+/// Sub-filter of the Review tab.
+enum ReviewSegment: String, CaseIterable, Identifiable {
+    case comments, revisions, history
+
+    var id: String { rawValue }
+}
+
+/// Sub-filter of the Assistant tab.
+enum AssistantSegment: String, CaseIterable, Identifiable {
+    case assistant, citations
+
+    var id: String { rawValue }
 }
 
 /// Selection geometry and text. Observed by the outline (cursor highlight) and the transient HUD.
@@ -55,7 +110,6 @@ final class EditorFormatStore: ObservableObject {
 final class EditorContext: ObservableObject {
     let document = LettersDocumentController()
     let editor = EditorActionController()
-    let toasts = ToastManager()
     let caret = EditorCaretStore()
     let format = EditorFormatStore()
     /// Latest linter output. Read on demand (CLI, AI context, toasts); never rendered directly.

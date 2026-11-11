@@ -3,688 +3,512 @@ import SwiftUI
 import LettersKit
 #endif
 
-public enum InspectorTab: String, CaseIterable {
-    case text = "Text"
-    case page = "Page"
-    case citations = "Citations"
+// MARK: - Unified right inspector
+//
+// One docked pane with three tabs, switched from the toolbar:
+//   Document  – page geometry, canvas guides, typography rhythm, header & footer, reading health
+//   Review    – comments, tracked changes and version history (InspectorReviewTab)
+//   Assistant – AI writing help and citations & sources (InspectorAssistantTab)
+//
+// This file holds the shell and the Document tab; the other two tabs live next door.
 
-    public var icon: String {
-        switch self {
-        case .text: return "textformat"
-        case .page: return "doc.plaintext"
-        case .citations: return "book.closed"
+/// Chrome shared by all three tabs: header with the active tab's name and a close button, then the tab body.
+struct StudioContextualInspectorView<DocumentTab: View, ReviewTab: View, AssistantTab: View>: View {
+    static var width: CGFloat { 320 }
+
+    let tab: InspectorTab
+    let onClose: () -> Void
+    @ViewBuilder let documentTab: () -> DocumentTab
+    @ViewBuilder let reviewTab: () -> ReviewTab
+    @ViewBuilder let assistantTab: () -> AssistantTab
+
+    private var subtitle: String {
+        switch tab {
+        case .document: return "Page, type and layout"
+        case .review: return "Comments, changes and history"
+        case .assistant: return "Writing help and sources"
         }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider().opacity(0.6)
+
+            Group {
+                switch tab {
+                case .document: documentTab()
+                case .review: reviewTab()
+                case .assistant: assistantTab()
+                }
+            }
+            .id(tab)
+            .transition(.opacity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: Self.width)
+        .frame(maxHeight: .infinity)
+        .background(VisualEffectBackground(material: .sidebar))
+        .animation(.easeOut(duration: 0.16), value: tab)
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: tab.icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.accentColor)
+                .frame(width: 26, height: 26)
+                .background(Color.accentColor.opacity(0.13), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(tab.title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 10.5))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 4)
+
+            Button(action: onClose) {
+                Image(systemName: "sidebar.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(StudioHoverButtonStyle(cornerRadius: 6))
+            .help("Hide the inspector")
+            .accessibilityLabel("Hide the inspector")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 
-public struct StudioContextualInspectorView: View {
-    @Binding var isPresented: Bool
+// MARK: - Fonts
 
-    // Document Properties
-    @Binding var fontFamily: String
-    @Binding var fontSize: CGFloat
-    @Binding var lineSpacing: CGFloat
-    @Binding var paragraphSpacing: CGFloat
-    @Binding var hangingIndent: CGFloat
-    @Binding var textAlignment: TextAlignment
-    @Binding var pageSize: PageSizePreset
-    @Binding var marginPreset: MarginPreset
-    @Binding var margins: PageMargins
-    @Binding var columnCount: Int
-    @Binding var showLineNumbers: Bool
+/// The families the document can be set in, with short display names.
+enum StudioFontCatalog {
+    static let families = [
+        "New York", "SF Pro", "Georgia", "Helvetica Neue", "Times New Roman",
+        "Menlo", "Courier New", "Avenir Next", "Baskerville", "Palatino", "Charter"
+    ]
+
+    static func displayName(_ raw: String) -> String {
+        if raw.contains("Georgia") { return "Georgia" }
+        if raw.contains("New York") { return "New York" }
+        if raw.contains("Times") { return "Times New Roman" }
+        if raw.contains("Menlo") || raw.contains("Mono") { return "Menlo" }
+        if raw.contains("SF Pro") || raw.contains("Sans") || raw == "System" { return "SF Pro" }
+        if let paren = raw.firstIndex(of: "(") {
+            let prefix = raw[..<paren].trimmingCharacters(in: .whitespaces)
+            if !prefix.isEmpty { return prefix }
+        }
+        return raw
+    }
+
+    static func isSelected(_ family: String, current: String) -> Bool {
+        displayName(current) == displayName(family)
+    }
+
+    /// Curated heading + body looks. The document has one family that drives both, so a pairing sets that family.
+    struct Pairing: Identifiable {
+        let name: String
+        let family: String
+        let design: Font.Design
+        var id: String { name }
+    }
+
+    static let pairings: [Pairing] = [
+        Pairing(name: "Editorial", family: "New York", design: .serif),
+        Pairing(name: "Modern", family: "SF Pro", design: .default),
+        Pairing(name: "Classic", family: "Georgia", design: .serif),
+        Pairing(name: "Academic", family: "Times New Roman", design: .serif)
+    ]
+}
+
+// MARK: - Document tab
+
+struct InspectorDocumentTab: View {
+    @ObservedObject var document: LettersDocumentController
     @Binding var showMarginGuides: Bool
-    @Binding var citationStyle: CitationStyle
-    @Binding var sources: [String: Source]
+    @Binding var showRuler: Bool
+    var isEditingHeaderFooter: Bool
+    var activeHeaderFooterTarget: HeaderFooterTarget
+    var onEditHeaderFooter: (HeaderFooterTarget) -> Void
 
-    // Selection Attributes
-    var selectionAttributes: EditorSelectionAttributes? = nil
+    @State private var analytics = DocumentAnalytics()
 
-    // Actions
-    var onToggleBold: (() -> Void)? = nil
-    var onToggleItalic: (() -> Void)? = nil
-    var onToggleUnderline: (() -> Void)? = nil
-    var onToggleStrikethrough: (() -> Void)? = nil
-    var onApplyParagraphStyle: ((DocumentParagraphStyle) -> Void)? = nil
-    var onAddSource: (() -> Void)? = nil
-    var onInsertBibliography: (() -> Void)? = nil
-    var onToast: ((String) -> Void)? = nil
-
-    @State private var activeTab: InspectorTab = .text
-
-    public init(
-        isPresented: Binding<Bool>,
-        fontFamily: Binding<String>,
-        fontSize: Binding<CGFloat>,
-        lineSpacing: Binding<CGFloat>,
-        paragraphSpacing: Binding<CGFloat>,
-        hangingIndent: Binding<CGFloat>,
-        textAlignment: Binding<TextAlignment>,
-        pageSize: Binding<PageSizePreset>,
-        marginPreset: Binding<MarginPreset>,
-        margins: Binding<PageMargins>,
-        columnCount: Binding<Int>,
-        showLineNumbers: Binding<Bool>,
-        showMarginGuides: Binding<Bool>,
-        citationStyle: Binding<CitationStyle>,
-        sources: Binding<[String: Source]>,
-        selectionAttributes: EditorSelectionAttributes? = nil,
-        onToggleBold: (() -> Void)? = nil,
-        onToggleItalic: (() -> Void)? = nil,
-        onToggleUnderline: (() -> Void)? = nil,
-        onToggleStrikethrough: (() -> Void)? = nil,
-        onApplyParagraphStyle: ((DocumentParagraphStyle) -> Void)? = nil,
-        onAddSource: (() -> Void)? = nil,
-        onInsertBibliography: (() -> Void)? = nil,
-        onToast: ((String) -> Void)? = nil
-    ) {
-        self._isPresented = isPresented
-        self._fontFamily = fontFamily
-        self._fontSize = fontSize
-        self._lineSpacing = lineSpacing
-        self._paragraphSpacing = paragraphSpacing
-        self._hangingIndent = hangingIndent
-        self._textAlignment = textAlignment
-        self._pageSize = pageSize
-        self._marginPreset = marginPreset
-        self._margins = margins
-        self._columnCount = columnCount
-        self._showLineNumbers = showLineNumbers
-        self._showMarginGuides = showMarginGuides
-        self._citationStyle = citationStyle
-        self._sources = sources
-        self.selectionAttributes = selectionAttributes
-        self.onToggleBold = onToggleBold
-        self.onToggleItalic = onToggleItalic
-        self.onToggleUnderline = onToggleUnderline
-        self.onToggleStrikethrough = onToggleStrikethrough
-        self.onApplyParagraphStyle = onApplyParagraphStyle
-        self.onAddSource = onAddSource
-        self.onInsertBibliography = onInsertBibliography
-        self.onToast = onToast
-    }
-
-    private var currentFontSize: CGFloat {
-        selectionAttributes?.fontSize ?? fontSize
-    }
-
-    private var opticalSizeBadge: String {
-        let size = currentFontSize
-        if size <= 10.5 { return "Small" }
-        if size <= 14.5 { return "Medium" }
-        if size <= 24.5 { return "Large" }
-        return "Expanded"
-    }
-
-    public var body: some View {
-        VStack(spacing: 0) {
-            // Inspector Header
-            HStack(spacing: 8) {
-                Text("Inspector")
-                    .font(.system(size: 13, weight: .bold))
-                Spacer()
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                        isPresented = false
-                    }
-                } label: {
-                    Image(systemName: "sidebar.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24, height: 24)
-                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .help("Close the inspector")
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                pageSection
+                guidesSection
+                typographySection
+                headerFooterSection
+                analyticsSection
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
-            // Segmented Tab Picker
-            Picker("", selection: $activeTab) {
-                ForEach(InspectorTab.allCases, id: \.self) { tab in
-                    HStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                        Text(tab.rawValue)
-                    }
-                    .tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    switch activeTab {
-                    case .text:
-                        textTabContent
-                    case .page:
-                        pageTabContent
-                    case .citations:
-                        citationsTabContent
-                    }
-                }
-                .padding(14)
-            }
+            .padding(14)
         }
-        .frame(width: 280)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
-
-    // MARK: - Tab 1: Text & Style
-    private var textTabContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Section: Typography
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Typography")
-
-                // Font Family Quick Selector
-                HStack(spacing: 6) {
-                    Button(action: { fontFamily = "New York" }) {
-                        Text("New York")
-                            .font(.system(size: 11, weight: fontFamily.contains("New York") ? .semibold : .regular, design: .serif))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(
-                                fontFamily.contains("New York")
-                                    ? Color.accentColor.opacity(0.15)
-                                    : Color.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            )
-                            .foregroundColor(fontFamily.contains("New York") ? .accentColor : .primary)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: { fontFamily = "SF Pro" }) {
-                        Text("SF Pro")
-                            .font(.system(size: 11, weight: fontFamily.contains("SF Pro") || fontFamily == "System" ? .semibold : .regular))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(
-                                (fontFamily.contains("SF Pro") || fontFamily == "System")
-                                    ? Color.accentColor.opacity(0.15)
-                                    : Color.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            )
-                            .foregroundColor((fontFamily.contains("SF Pro") || fontFamily == "System") ? .accentColor : .primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // System Font Picker Dropdown
-                Menu {
-                    ForEach(["New York", "SF Pro", "Georgia", "Helvetica Neue", "Times New Roman", "Menlo", "Courier New", "Avenir Next", "Baskerville", "Palatino", "Charter"], id: \.self) { fam in
-                        Button(fam) {
-                            fontFamily = fam
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Text(fontFamily)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                // Font Size Stepper & Optical Size Badge
-                HStack(spacing: 8) {
-                    HStack(spacing: 2) {
-                        Button(action: { fontSize = max(8, currentFontSize - 1) }) {
-                            Image(systemName: "minus")
-                                .font(.system(size: 10, weight: .bold))
-                                .frame(width: 24, height: 26)
-                                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
-                        }
-                        .buttonStyle(.plain)
-
-                        Text("\(Int(currentFontSize)) pt")
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                            .frame(width: 48, alignment: .center)
-
-                        Button(action: { fontSize = min(72, currentFontSize + 1) }) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .bold))
-                                .frame(width: 24, height: 26)
-                                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Spacer()
-
-                    // Optical Size Indicator Badge
-                    Text(opticalSizeBadge)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.accentColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.accentColor.opacity(0.12), in: Capsule())
-                }
-
-                // Formatting Toggle Buttons (B, I, U, S)
-                HStack(spacing: 6) {
-                    formatToggleButton(title: "bold", isActive: selectionAttributes?.isBold ?? false) {
-                        onToggleBold?()
-                    }
-                    formatToggleButton(title: "italic", isActive: selectionAttributes?.isItalic ?? false) {
-                        onToggleItalic?()
-                    }
-                    formatToggleButton(title: "underline", isActive: selectionAttributes?.isUnderline ?? false) {
-                        onToggleUnderline?()
-                    }
-                    formatToggleButton(title: "strikethrough", isActive: false) {
-                        onToggleStrikethrough?()
-                    }
-                }
-
-                // Paragraph Preset Menu
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Paragraph Style")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(.secondary)
-
-                    Menu {
-                        ForEach(DocumentParagraphStyle.allCases) { preset in
-                            Button {
-                                onApplyParagraphStyle?(preset)
-                            } label: {
-                                if (selectionAttributes?.paragraphStylePreset ?? .body) == preset {
-                                    Label("\(preset.rawValue) (\(Int(preset.fontSize)) pt)", systemImage: "checkmark")
-                                } else {
-                                    Text("\(preset.rawValue) (\(Int(preset.fontSize)) pt)")
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Text((selectionAttributes?.paragraphStylePreset ?? .body).rawValue)
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Divider()
-
-            // Section: Spacing & Rhythm
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Spacing")
-
-                // Line Height Multiplier
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Line Spacing")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        let ratio = 1.0 + (lineSpacing / max(12, currentFontSize))
-                        Text(String(format: "%.2f× · %.1f pt", ratio, currentFontSize * ratio))
-                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.accentColor)
-                    }
-
-                    HStack(spacing: 4) {
-                        ForEach([1.15, 1.20, 1.25, 1.50, 2.00], id: \.self) { mult in
-                            Button(action: {
-                                let targetLeading = currentFontSize * CGFloat(mult - 1.0)
-                                lineSpacing = max(2, targetLeading)
-                            }) {
-                                Text(String(format: "%.2f×", mult))
-                                    .font(.system(size: 10, weight: .medium))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 5)
-                                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                // Paragraph Indent Modes (Block vs Academic)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Paragraph Layout")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-
-                    HStack(spacing: 6) {
-                        Button(action: {
-                            hangingIndent = 0
-                            paragraphSpacing = 8
-                        }) {
-                            VStack(spacing: 2) {
-                                Text("Spaced")
-                                    .font(.system(size: 11, weight: hangingIndent == 0 ? .semibold : .regular))
-                                Text("No indent, space between")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(
-                                hangingIndent == 0
-                                    ? Color.accentColor.opacity(0.12)
-                                    : Color.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            )
-                            .foregroundColor(hangingIndent == 0 ? .accentColor : .primary)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button(action: {
-                            hangingIndent = 24 // 0.33 in
-                            paragraphSpacing = 0
-                        }) {
-                            VStack(spacing: 2) {
-                                Text("Indented")
-                                    .font(.system(size: 11, weight: hangingIndent > 0 ? .semibold : .regular))
-                                Text("First line indented")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(
-                                hangingIndent > 0
-                                    ? Color.accentColor.opacity(0.12)
-                                    : Color.primary.opacity(0.04),
-                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            )
-                            .foregroundColor(hangingIndent > 0 ? .accentColor : .primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                // Alignment
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Alignment")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-
-                    HStack(spacing: 4) {
-                        alignmentButton(icon: "text.alignleft", align: .leading)
-                        alignmentButton(icon: "text.aligncenter", align: .center)
-                        alignmentButton(icon: "text.alignright", align: .trailing)
-                    }
-                }
-            }
+        .task(id: document.rawText) {
+            // Quiet-period debounce; restarted on every keystroke, computed off the main thread.
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            let text = document.rawText
+            let next = await Task.detached(priority: .utility) { DocumentAnalytics.compute(text) }.value
+            guard !Task.isCancelled else { return }
+            if next != analytics { analytics = next }
         }
     }
 
-    // MARK: - Tab 2: Page Setup & Layout
-    private var pageTabContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Paper Dimensions
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Paper")
+    // MARK: Page geometry
 
-                Picker("Page Size", selection: $pageSize) {
-                    ForEach(PageSizePreset.allCases, id: \.self) { size in
-                        Text("\(size.rawValue) (\(size.subtitle))").tag(size)
+    private var pageSection: some View {
+        StudioFormSection(title: "Page", icon: "doc") {
+            StudioFormRow(label: "Paper size", detail: document.pageSize.subtitle) {
+                StudioMenuValue(value: document.pageSize.rawValue) {
+                    Picker("Paper size", selection: $document.pageSize) {
+                        ForEach(PageSizePreset.allCases, id: \.self) { size in
+                            Text("\(size.rawValue) · \(size.subtitle)").tag(size)
+                        }
                     }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                 }
-                .pickerStyle(.menu)
-
-                // Column Count
-                Picker("Columns", selection: $columnCount) {
-                    Text("One Column").tag(1)
-                    Text("Two Columns").tag(2)
-                }
-                .pickerStyle(.menu)
             }
-
-            Divider()
-
-            // Margins
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Margins")
-
-                Picker("Margins", selection: $marginPreset) {
-                    ForEach(MarginPreset.allCases, id: \.self) { preset in
-                        Text(preset.rawValue).tag(preset)
+            StudioRowDivider()
+            StudioFormRow(label: "Orientation") {
+                StudioSegmentedControl(
+                    segments: [
+                        StudioSegment(tag: false, title: "Portrait", icon: "rectangle.portrait", help: "Portrait"),
+                        StudioSegment(tag: true, title: "Landscape", icon: "rectangle", help: "Landscape")
+                    ],
+                    selected: document.isLandscape,
+                    height: 26,
+                    showsIcons: false,
+                    onSelect: { document.isLandscape = $0 }
+                )
+                .frame(width: 164)
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Columns") {
+                StudioSegmentedControl(
+                    segments: [1, 2, 3].map { StudioSegment(tag: $0, title: "\($0)", help: $0 == 1 ? "One column" : "\($0) columns") },
+                    selected: document.columnCount,
+                    height: 26,
+                    showsIcons: false,
+                    onSelect: { document.columnCount = $0 }
+                )
+                .frame(width: 112)
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Margins", detail: marginSummary) {
+                StudioMenuValue(value: marginMenuTitle) {
+                    Picker("Margins", selection: $document.marginPreset) {
+                        ForEach(MarginPreset.allCases, id: \.self) { preset in
+                            Text(preset.rawValue).tag(preset)
+                        }
                     }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                 }
-                .pickerStyle(.menu)
-                .onChange(of: marginPreset) { _, newPreset in
-                    if newPreset != .custom {
-                        margins = newPreset.margins
-                    }
-                }
-
-                // 4-Axis Margin Steppers
+            }
+            if document.marginPreset == .custom {
+                StudioRowDivider()
                 Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                     GridRow {
-                        marginStepperRow(label: "Top", value: $margins.top)
-                        marginStepperRow(label: "Bottom", value: $margins.bottom)
+                        marginStepper(label: "Top", value: $document.margins.top)
+                        marginStepper(label: "Bottom", value: $document.margins.bottom)
                     }
                     GridRow {
-                        marginStepperRow(label: "Left", value: $margins.left)
-                        marginStepperRow(label: "Right", value: $margins.right)
+                        marginStepper(label: "Left", value: $document.margins.left)
+                        marginStepper(label: "Right", value: $document.margins.right)
                     }
                 }
-            }
-
-            Divider()
-
-            // Canvas & Layout Guides
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Page Guides")
-
-                Toggle("Show margin guides", isOn: $showMarginGuides)
-                    .toggleStyle(.switch)
-                    .font(.system(size: 12))
-
-                Toggle("Show line numbers", isOn: $showLineNumbers)
-                    .toggleStyle(.switch)
-                    .font(.system(size: 12))
+                .padding(10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(.easeOut(duration: 0.18), value: document.marginPreset)
     }
 
-    // MARK: - Tab 3: Citations & Research
-    private var citationsTabContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Citation Style
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader("Citation Style")
+    private var marginMenuTitle: String {
+        // "Normal (1.0")" -> "Normal"
+        document.marginPreset.rawValue.components(separatedBy: " (").first ?? document.marginPreset.rawValue
+    }
 
-                Picker("", selection: $citationStyle) {
-                    ForEach(CitationStyle.allCases, id: \.self) { style in
-                        Text(style.rawValue).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-
-            Divider()
-
-            // Linked Sources
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    sectionHeader("Sources (\(sources.count))")
-                    Spacer()
-                    Button(action: { onAddSource?() }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus")
-                            Text("Add Source")
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if sources.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "books.vertical")
-                            .font(.system(size: 20))
-                            .foregroundColor(.secondary.opacity(0.6))
-                        Text("No sources yet")
-                            .font(.caption.bold())
-                            .foregroundColor(.secondary)
-                        Text("Add a source to cite it in APA, MLA, Chicago, and more.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-                } else {
-                    VStack(spacing: 6) {
-                        ForEach(Array(sources.values), id: \.id) { source in
-                            sourceRow(source: source)
-                        }
-                    }
-                }
-
-                // Insert / Refresh Bibliography Action
-                Button(action: {
-                    onInsertBibliography?()
-                    onToast?("Bibliography added at the end of the document")
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.down.doc")
-                        Text("Insert Bibliography")
-                    }
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 6)
-            }
+    private var marginSummary: String {
+        let m = document.margins
+        func inches(_ v: CGFloat) -> String { String(format: "%.2g", v / 72.0) }
+        if m.top == m.bottom && m.left == m.right && m.top == m.left {
+            return "\(inches(m.top))\" on all sides"
         }
+        return "\(inches(m.top))\" × \(inches(m.left))\""
     }
 
-    private func sourceRow(source: Source) -> some View {
-        let isComplete = !source.authors.isEmpty && !source.title.isEmpty && source.year != nil
-        let authorsText = source.authors.isEmpty ? "No author" : source.authors.joined(separator: ", ")
-        let yearText = source.year != nil ? "\(source.year!)" : "No date"
-
-        return HStack(alignment: .top, spacing: 8) {
-            Image(systemName: isComplete ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .foregroundColor(isComplete ? .green : .orange)
-                .font(.system(size: 11))
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(source.title.isEmpty ? "Untitled source" : source.title)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-
-                Text("\(authorsText) · \(yearText)")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Text("[\(source.id)]")
-                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+    private func marginStepper(label: String, value: Binding<CGFloat>) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 10.5, weight: .medium))
                 .foregroundColor(.secondary)
+            HStack(spacing: 2) {
+                stepButton("minus", help: "Decrease \(label.lowercased()) margin") {
+                    document.marginPreset = .custom
+                    value.wrappedValue = max(18, value.wrappedValue - 9)
+                }
+                Text(String(format: "%.2f\"", value.wrappedValue / 72.0))
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .frame(width: 44)
+                stepButton("plus", help: "Increase \(label.lowercased()) margin") {
+                    document.marginPreset = .custom
+                    value.wrappedValue = min(216, value.wrappedValue + 9)
+                }
+            }
         }
-        .padding(8)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Helpers
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .bold))
-            .foregroundColor(.secondary)
-            .textCase(.uppercase)
-            .tracking(0.8)
-    }
-
-    private func formatToggleButton(title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func stepButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: title)
-                .font(.system(size: 12, weight: .bold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(
-                    isActive ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.04),
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                )
-                .foregroundColor(isActive ? .accentColor : .primary)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func alignmentButton(icon: String, align: TextAlignment) -> some View {
-        let isSelected = (textAlignment == align)
-        return Button(action: { textAlignment = align }) {
             Image(systemName: icon)
-                .font(.system(size: 12))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(
-                    isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.04),
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                )
-                .foregroundColor(isSelected ? .accentColor : .primary)
+                .font(.system(size: 9, weight: .bold))
+                .frame(width: 22, height: 22)
+                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StudioHoverButtonStyle(cornerRadius: 5))
+        .help(help)
     }
 
-    private func marginStepperRow(label: String, value: Binding<CGFloat>) -> some View {
+    // MARK: Canvas guides
+
+    private var guidesSection: some View {
+        StudioFormSection(title: "Canvas guides", icon: "ruler") {
+            toggleRow("Margin guides", isOn: $showMarginGuides)
+            StudioRowDivider()
+            toggleRow("Ruler", isOn: $showRuler)
+            StudioRowDivider()
+            toggleRow("Line numbers", isOn: $document.showLineNumbers)
+        }
+    }
+
+    private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        StudioFormRow(label: title) {
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+        }
+    }
+
+    // MARK: Typography rhythm
+
+    private var typographySection: some View {
+        StudioFormSection(title: "Typography", icon: "textformat") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Heading & body pairing")
+                    .font(.system(size: 12))
+                HStack(spacing: 6) {
+                    ForEach(StudioFontCatalog.pairings) { pairing in
+                        pairingChip(pairing)
+                    }
+                }
+            }
+            .padding(10)
+
+            StudioRowDivider()
+            StudioFormRow(label: "Body font") {
+                StudioMenuValue(value: StudioFontCatalog.displayName(document.fontFamily)) {
+                    ForEach(StudioFontCatalog.families, id: \.self) { family in
+                        Button {
+                            document.fontFamily = family
+                        } label: {
+                            if StudioFontCatalog.isSelected(family, current: document.fontFamily) {
+                                Label(family, systemImage: "checkmark")
+                            } else {
+                                Text(family)
+                            }
+                        }
+                    }
+                }
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Size") {
+                HStack(spacing: 2) {
+                    stepButton("minus", help: "Smaller") { document.fontSize = max(8, document.fontSize - 1) }
+                    Text("\(Int(document.fontSize)) pt")
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .frame(width: 46)
+                    stepButton("plus", help: "Larger") { document.fontSize = min(72, document.fontSize + 1) }
+                }
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Line spacing") {
+                StudioSegmentedControl(
+                    segments: [1.0, 1.15, 1.5, 2.0].map {
+                        StudioSegment(tag: $0, title: lineSpacingTitle($0), help: "\(lineSpacingTitle($0))× line spacing")
+                    },
+                    selected: [1.0, 1.15, 1.5, 2.0].first { abs(Double(document.lineSpacing) - $0) < 0.02 },
+                    height: 26,
+                    showsIcons: false,
+                    onSelect: { document.lineSpacing = CGFloat($0) }
+                )
+                .frame(width: 150)
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Paragraph spacing") {
+                StudioSegmentedControl(
+                    segments: [0, 6, 12, 18].map {
+                        StudioSegment(tag: $0, title: "\($0)", help: "\($0) pt after each paragraph")
+                    },
+                    selected: [0, 6, 12, 18].first { abs(Int(document.paragraphSpacing) - $0) <= 1 },
+                    height: 26,
+                    showsIcons: false,
+                    onSelect: { document.paragraphSpacing = CGFloat($0) }
+                )
+                .frame(width: 132)
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Paragraphs") {
+                StudioSegmentedControl(
+                    segments: [
+                        StudioSegment(tag: false, title: "Spaced", help: "No indent, space between paragraphs"),
+                        StudioSegment(tag: true, title: "Indented", help: "First line indented, no space between")
+                    ],
+                    selected: document.hangingIndent > 0,
+                    height: 26,
+                    showsIcons: false,
+                    onSelect: { indented in
+                        document.hangingIndent = indented ? 24 : 0
+                        document.paragraphSpacing = indented ? 0 : 8
+                    }
+                )
+                .frame(width: 160)
+            }
+        }
+    }
+
+    private func lineSpacingTitle(_ value: Double) -> String {
+        value == 1.0 || value == 2.0 ? String(format: "%.1f", value) : String(format: "%.2f", value)
+    }
+
+    private func pairingChip(_ pairing: StudioFontCatalog.Pairing) -> some View {
+        let isSelected = StudioFontCatalog.isSelected(pairing.family, current: document.fontFamily)
+        return Button {
+            document.fontFamily = pairing.family
+        } label: {
+            VStack(spacing: 2) {
+                Text("Aa")
+                    .font(.system(size: 17, weight: .semibold, design: pairing.design))
+                Text(pairing.name)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundColor(isSelected ? .accentColor : .primary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(pairing.name): \(pairing.family)")
+        .accessibilityLabel("\(pairing.name) pairing")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    // MARK: Header & footer
+
+    private var headerFooterSection: some View {
+        StudioFormSection(title: "Header & footer", icon: "rectangle.split.1x2") {
+            StudioFormRow(label: "Header") {
+                HStack(spacing: 8) {
+                    editButton(.header)
+                    Toggle("", isOn: $document.headerFooter.isHeaderVisible)
+                        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                }
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Footer") {
+                HStack(spacing: 8) {
+                    editButton(.footer)
+                    Toggle("", isOn: $document.headerFooter.isFooterVisible)
+                        .toggleStyle(.switch).controlSize(.small).labelsHidden()
+                }
+            }
+            StudioRowDivider()
+            StudioFormRow(label: "Page numbers") {
+                StudioMenuValue(value: pageNumberTitle) {
+                    Picker("Page numbers", selection: $document.headerFooter.pageNumberPosition) {
+                        ForEach(PageNumberPosition.allCases, id: \.self) { position in
+                            Text(position.rawValue).tag(position)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+            StudioRowDivider()
+            toggleRow("Different first page", isOn: $document.headerFooter.differentFirstPage)
+        }
+    }
+
+    private var pageNumberTitle: String {
+        document.headerFooter.pageNumberPosition.rawValue.components(separatedBy: " (").first
+            ?? document.headerFooter.pageNumberPosition.rawValue
+    }
+
+    private func editButton(_ target: HeaderFooterTarget) -> some View {
+        let editing = isEditingHeaderFooter && activeHeaderFooterTarget == target
+        return Button {
+            onEditHeaderFooter(target)
+        } label: {
+            Text(editing ? "Editing" : "Edit")
+        }
+        .buttonStyle(StudioPillButtonStyle(prominent: editing))
+        .help("Edit the \(target.rawValue.lowercased()) on the page")
+    }
+
+    // MARK: Reading & health
+
+    private var analyticsSection: some View {
+        StudioFormSection(title: "Reading & health", icon: "waveform.path.ecg") {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
+                GridRow {
+                    stat("Words", analytics.words.formatted())
+                    stat("Characters", analytics.characters.formatted())
+                }
+                GridRow {
+                    stat("Reading time", analytics.readingTimeLabel)
+                    stat("Reading level", analytics.gradeLabel, caption: analytics.gradeDescription)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func stat(_ label: String, _ value: String, caption: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 10.5, weight: .medium))
                 .foregroundColor(.secondary)
-
-            HStack(spacing: 2) {
-                Button(action: {
-                    marginPreset = .custom
-                    value.wrappedValue = max(18, value.wrappedValue - 9) // 1/8 inch
-                }) {
-                    Image(systemName: "minus")
-                        .font(.system(size: 8, weight: .bold))
-                        .frame(width: 18, height: 20)
-                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
-                }
-                .buttonStyle(.plain)
-
-                Text(String(format: "%.2f\"", value.wrappedValue / 72.0))
-                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                    .frame(width: 38, alignment: .center)
-
-                Button(action: {
-                    marginPreset = .custom
-                    value.wrappedValue = min(216, value.wrappedValue + 9) // 1/8 inch
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 8, weight: .bold))
-                        .frame(width: 18, height: 20)
-                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
-                }
-                .buttonStyle(.plain)
+            Text(value)
+                .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit())
+                .contentTransition(.numericText())
+            if let caption {
+                Text(caption)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeOut(duration: 0.2), value: value)
     }
 }

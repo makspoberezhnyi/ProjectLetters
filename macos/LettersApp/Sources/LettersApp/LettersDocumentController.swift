@@ -47,6 +47,8 @@ public class LettersDocumentController: ObservableObject {
     @Published public var citationStyle: CitationStyle
     
     @Published public var pageSize: PageSizePreset
+    /// `true` rotates the sheet so the long edge runs horizontally.
+    @Published public var isLandscape: Bool = false
     @Published public var marginPreset: MarginPreset
     @Published public var margins: PageMargins
     @Published public var coverBanner: CoverBannerConfig
@@ -228,6 +230,17 @@ public class LettersDocumentController: ObservableObject {
             self.isDirty = false
         }
         
+        // Picking a margin preset from anywhere (inspector, settings, command center, assistant) resizes the
+        // margins. "Custom" keeps whatever the user dragged or stepped to.
+        $marginPreset
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] preset in
+                guard let self = self, !self.isReverting, !self.isPeeking, preset != .custom else { return }
+                self.margins = preset.margins
+            }
+            .store(in: &cancellables)
+
         $rawText
             .dropFirst()
             .sink { [weak self] _ in
@@ -290,6 +303,7 @@ public class LettersDocumentController: ObservableObject {
             sources: document.sources,
             citationStyle: citationStyle,
             pageSizePreset: pageSize,
+            isLandscape: isLandscape,
             marginPreset: marginPreset,
             margins: margins,
             fontFamily: fontFamily,
@@ -323,6 +337,7 @@ public class LettersDocumentController: ObservableObject {
         self.document.sources = bundle.sources
         self.citationStyle = bundle.citationStyle
         self.pageSize = bundle.pageSizePreset
+        self.isLandscape = bundle.isLandscape
         self.marginPreset = bundle.marginPreset
         self.margins = bundle.margins
         switch bundle.textAlignmentString {
@@ -563,6 +578,15 @@ public class LettersDocumentController: ObservableObject {
         isPeeking = false
     }
     
+    /// Keeps the document as it is now as a pinned milestone. If nothing changed since the last
+    /// snapshot, that snapshot is promoted instead of being duplicated.
+    func saveMilestone(name: String = "Saved version") {
+        commitSnapshot(actionName: name, isMilestone: true)
+        guard let id = currentSnapshotId else { return }
+        historyNodes[id]?.isMilestone = true
+        historyNodes[id]?.isPinned = true
+    }
+
     func togglePin(id: UUID) {
         historyNodes[id]?.isPinned.toggle()
     }

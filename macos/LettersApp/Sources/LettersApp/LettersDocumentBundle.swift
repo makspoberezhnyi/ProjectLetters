@@ -201,6 +201,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     public var sources: [String: Source]
     public var citationStyle: CitationStyle
     public var pageSizePreset: PageSizePreset
+    public var isLandscape: Bool
     public var marginPreset: MarginPreset
     public var margins: PageMargins
     public var fontFamily: String
@@ -234,6 +235,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
         sources: [String: Source] = [:],
         citationStyle: CitationStyle = .apa7,
         pageSizePreset: PageSizePreset = .letter,
+        isLandscape: Bool = false,
         marginPreset: MarginPreset = .normal,
         margins: PageMargins = PageMargins(),
         fontFamily: String = "Default Serif (Georgia)",
@@ -265,6 +267,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.sources = sources
         self.citationStyle = citationStyle
         self.pageSizePreset = pageSizePreset
+        self.isLandscape = isLandscape
         self.marginPreset = marginPreset
         self.margins = margins
         self.fontFamily = fontFamily
@@ -287,7 +290,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case version, title, rawText, richTextData, tables, images, videos, floatingElements, footnotes, sideNotes, sources, citationStyle, pageSizePreset, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, columnCount, showLineNumbers, watermarkText, kern, hangingIndent, headerFooter, coverBanner, isTrackChangesEnabled, revisions, styleProfile, createdAt, modifiedAt
+        case version, title, rawText, richTextData, tables, images, videos, floatingElements, footnotes, sideNotes, sources, citationStyle, pageSizePreset, isLandscape, marginPreset, margins, fontFamily, fontSize, lineSpacing, paragraphSpacing, textAlignmentString, columnCount, showLineNumbers, watermarkText, kern, hangingIndent, headerFooter, coverBanner, isTrackChangesEnabled, revisions, styleProfile, createdAt, modifiedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -305,6 +308,7 @@ public struct LettersDocumentBundle: Codable, Sendable {
         self.sources = try container.decodeIfPresent([String: Source].self, forKey: .sources) ?? [:]
         self.citationStyle = try container.decodeIfPresent(CitationStyle.self, forKey: .citationStyle) ?? .apa7
         self.pageSizePreset = try container.decodeIfPresent(PageSizePreset.self, forKey: .pageSizePreset) ?? .letter
+        self.isLandscape = try container.decodeIfPresent(Bool.self, forKey: .isLandscape) ?? false
         self.marginPreset = try container.decodeIfPresent(MarginPreset.self, forKey: .marginPreset) ?? .normal
         self.margins = try container.decodeIfPresent(PageMargins.self, forKey: .margins) ?? PageMargins()
         self.fontFamily = try container.decodeIfPresent(String.self, forKey: .fontFamily) ?? "Default Serif (Georgia)"
@@ -360,6 +364,21 @@ public extension NSAttributedString.Key {
     static let keepWithNext = NSAttributedString.Key("LettersKeepWithNext")
 }
 
+/// A threaded reply under a margin comment.
+public struct StudioNoteReply: Identifiable, Codable, Sendable, Hashable {
+    public var id: UUID
+    public var author: String
+    public var text: String
+    public var createdAt: Date
+
+    public init(id: UUID = UUID(), author: String, text: String, createdAt: Date = Date()) {
+        self.id = id
+        self.author = author
+        self.text = text
+        self.createdAt = createdAt
+    }
+}
+
 public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var referenceMarker: String
@@ -370,6 +389,7 @@ public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
     public var author: String
     public var createdAt: Date
     public var isResolved: Bool
+    public var replies: [StudioNoteReply]
 
     public init(
         id: UUID = UUID(),
@@ -380,7 +400,8 @@ public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
         rangeLength: Int? = nil,
         author: String = "Reviewer",
         createdAt: Date = Date(),
-        isResolved: Bool = false
+        isResolved: Bool = false,
+        replies: [StudioNoteReply] = []
     ) {
         self.id = id
         self.referenceMarker = referenceMarker
@@ -391,6 +412,7 @@ public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
         self.author = author
         self.createdAt = createdAt
         self.isResolved = isResolved
+        self.replies = replies
     }
 
     public init(from decoder: Decoder) throws {
@@ -404,10 +426,11 @@ public struct StudioSideNote: Identifiable, Codable, Sendable, Hashable {
         self.author = try container.decodeIfPresent(String.self, forKey: .author) ?? "Reviewer"
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.isResolved = try container.decodeIfPresent(Bool.self, forKey: .isResolved) ?? false
+        self.replies = try container.decodeIfPresent([StudioNoteReply].self, forKey: .replies) ?? []
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, referenceMarker, text, anchorText, rangeLocation, rangeLength, author, createdAt, isResolved
+        case id, referenceMarker, text, anchorText, rangeLocation, rangeLength, author, createdAt, isResolved, replies
     }
 }
 

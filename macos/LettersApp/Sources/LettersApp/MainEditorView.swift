@@ -3,6 +3,7 @@ import AppKit
 import Combine
 import UniformTypeIdentifiers
 import PDFKit
+import OSLog
 #if canImport(LettersKit)
 import LettersKit
 #endif
@@ -23,7 +24,6 @@ public struct MainEditorView: View {
 
     var documentController: LettersDocumentController { context.document }
     var editorController: EditorActionController { context.editor }
-    var toastManager: ToastManager { context.toasts }
     var caretStore: EditorCaretStore { context.caret }
     var formatStore: EditorFormatStore { context.format }
 
@@ -55,29 +55,27 @@ public struct MainEditorView: View {
     @State var activeHeaderFooterTarget: HeaderFooterTarget = .header
 
     @State var showOutlineDrawer: Bool = true
-    @State var showRevisionsPopover: Bool = false
 
-    /// The right-hand pane is a single choice, not several booleans kept mutually exclusive by hand.
-    @State var rightPane: EditorRightPane = .inspector
+    /// The right-hand inspector is one pane with three tabs (Document, Review, Assistant) or closed.
+    @State var rightPane: EditorRightPane = .document
+    /// Which sub-filter each tab shows. Kept here so the toolbar badge and menu commands can steer them.
+    @State var reviewSegment: ReviewSegment = .comments
+    @State var assistantSegment: AssistantSegment = .assistant
 
-    func paneBinding(_ pane: EditorRightPane) -> Binding<Bool> {
-        Binding(get: { rightPane == pane }, set: { rightPane = $0 ? pane : (rightPane == pane ? .none : rightPane) })
-    }
-    var showPageDesignInspector: Bool {
-        get { rightPane == .inspector }
-        nonmutating set { rightPane = newValue ? .inspector : (rightPane == .inspector ? .none : rightPane) }
-    }
+    /// True while the Assistant tab is showing; setting it opens or closes that tab.
     var showAIDrawer: Bool {
         get { rightPane == .assistant }
         nonmutating set { rightPane = newValue ? .assistant : (rightPane == .assistant ? .none : rightPane) }
     }
-    var showDocumentHistory: Bool {
-        get { rightPane == .history }
-        nonmutating set { rightPane = newValue ? .history : (rightPane == .history ? .none : rightPane) }
-    }
-    var showComments: Bool {
-        get { rightPane == .comments }
-        nonmutating set { rightPane = newValue ? .comments : (rightPane == .comments ? .none : rightPane) }
+
+    /// Opens the Review tab on a given sub-filter; calling it again for the visible one closes the pane.
+    func toggleReview(_ segment: ReviewSegment) {
+        if rightPane == .review && reviewSegment == segment {
+            rightPane = .none
+        } else {
+            reviewSegment = segment
+            rightPane = .review
+        }
     }
 
     // MARK: Selection / formatting state (forwarded to the granular stores)
@@ -117,11 +115,13 @@ public struct MainEditorView: View {
     var characterCount: Int { documentController.rawText.count }
 
     var currentSheetWidth: CGFloat {
-        documentController.pageSize.dimensions.width
+        let size = documentController.pageSize.dimensions
+        return documentController.isLandscape ? size.height : size.width
     }
 
     var currentSheetHeight: CGFloat {
-        documentController.pageSize.dimensions.height
+        let size = documentController.pageSize.dimensions
+        return documentController.isLandscape ? size.width : size.height
     }
 
     public var body: some View {
@@ -131,25 +131,18 @@ public struct MainEditorView: View {
                 format: formatStore,
                 showOutlineDrawer: $showOutlineDrawer,
                 rightPane: $rightPane,
+                reviewSegment: $reviewSegment,
                 actions: toolbarActions
             )
 
-            // Review strip (track changes active / pending revisions) and the docked header & footer editor.
-            Observing(documentController) { doc in
-                if doc.isTrackChangesEnabled || !doc.revisions.isEmpty {
-                    reviewToolbarStrip
-                }
-                if isEditingHeaderFooter {
-                    headerFooterToolbarStrip
-                }
+            // Docked header & footer editor. Track-changes review lives in the inspector's Review tab.
+            if isEditingHeaderFooter {
+                headerFooterToolbarStrip
             }
 
             workspace
 
             statusBar
-        }
-        .overlay(alignment: .bottomTrailing) {
-            EditorToastHost(toasts: toastManager)
         }
         .modifier(EditorSheetsModifier(host: self))
         .modifier(EditorFileNotificationsModifier(
@@ -223,20 +216,12 @@ public struct MainEditorView: View {
             },
             onPageDesign: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    showPageDesignInspector.toggle()
-                    if showPageDesignInspector {
-                        showAIDrawer = false
-                        showDocumentHistory = false
-                    }
+                    rightPane = rightPane.toggled(.document)
                 }
             },
             onDocumentHistory: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    showDocumentHistory.toggle()
-                    if showDocumentHistory {
-                        showAIDrawer = false
-                        showPageDesignInspector = false
-                    }
+                    toggleReview(.history)
                 }
             },
             onCommandPalette: {
@@ -313,24 +298,13 @@ public struct MainEditorView: View {
         )
     }
 
-    /// Shows a transient confirmation using the new ToastManager (Sonner-style).
-    func showToast(_ rawMessage: String) {
-        var msg = rawMessage
-        let isWarning = msg.hasPrefix("⚠️")
-        for prefix in ["✓ ", "⚠️ ", "✨ ", "💬 ", "📊 "] where msg.hasPrefix(prefix) {
-            msg.removeFirst(prefix.count)
-            break
-        }
-        let lower = msg.lowercased()
-        if lower.hasPrefix("font") || lower.hasPrefix("bold") || lower.hasPrefix("italic") ||
-           lower.hasPrefix("underline") || lower.hasPrefix("alignment") || lower.hasPrefix("zoom") ||
-           lower.hasPrefix("paragraph spacing") || lower.hasPrefix("line spacing") {
-            return
-        }
-        if isWarning {
-            toastManager.show(.warning(msg))
-        } else {
-            toastManager.show(.success(msg))
-        }
+    /// Confirmations are deliberately silent: the interface already shows the result of an action, and
+    /// banners over the page were noise. Call sites keep passing messages so a feedback channel can be
+    /// reintroduced in one place; problems are still written to the unified log.
+    func showToast(_ message: String) {
+        guard message.hasPrefix("⚠️") else { return }
+        Self.log.warning("\(message, privacy: .public)")
     }
+
+    private static let log = Logger(subsystem: "com.projectletters.Letters", category: "editor")
 }

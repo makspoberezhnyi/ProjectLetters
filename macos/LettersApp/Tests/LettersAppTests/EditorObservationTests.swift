@@ -8,9 +8,9 @@ import LettersKit
 final class EditorObservationTests: XCTestCase {
     private var bag = Set<AnyCancellable>()
 
-    override func tearDown() {
+    override func tearDown() async throws {
         bag.removeAll()
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testEditorContextNeverPublishesWhenDocumentChanges() {
@@ -49,9 +49,9 @@ final class EditorObservationTests: XCTestCase {
     }
 
     func testRightPaneToggleClosesOpenPaneAndReplacesOthers() {
-        XCTAssertEqual(EditorRightPane.inspector.toggled(.inspector), .none)
-        XCTAssertEqual(EditorRightPane.inspector.toggled(.assistant), .assistant)
-        XCTAssertEqual(EditorRightPane.none.toggled(.comments), .comments)
+        XCTAssertEqual(EditorRightPane.document.toggled(.document), .none)
+        XCTAssertEqual(EditorRightPane.document.toggled(.assistant), .assistant)
+        XCTAssertEqual(EditorRightPane.none.toggled(.review), .review)
     }
 
     func testDocumentBindingReadsAndWritesThroughController() {

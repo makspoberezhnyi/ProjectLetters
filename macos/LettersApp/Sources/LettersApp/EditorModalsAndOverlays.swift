@@ -10,16 +10,7 @@ import LettersKit
 // MARK: - Modals & overlays
 //
 // Everything that floats above the editor: the sheets (add source, cross reference, command palette,
-// settings, paste special), the toast host, and the transient inline-AI / find & replace HUD.
-
-/// Hosts the Sonner-style toast stack. Lives outside any document-observing subtree.
-struct EditorToastHost: View {
-    let toasts: ToastManager
-
-    var body: some View {
-        ToastOverlay(manager: toasts, position: .bottomTrailing)
-    }
-}
+// settings, paste special) and the transient inline-AI / find & replace HUD.
 
 /// All `.sheet` presentations of the editor shell, in one place.
 struct EditorSheetsModifier: ViewModifier {

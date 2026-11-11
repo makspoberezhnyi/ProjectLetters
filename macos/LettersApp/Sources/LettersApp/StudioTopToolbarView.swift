@@ -85,13 +85,15 @@ struct DocumentTitleBadge: View {
     }
 }
 
-/// Top glass strip: outline toggle, title, Word-style formatting controls and the quick-action cluster.
+/// Top strip: navigator toggle and title, Word-style formatting controls, and on the right the
+/// review indicator, the Document | Review | Assistant switcher and the command center.
 struct StudioTopToolbarView: View {
     /// Used only to mutate (track changes) and to build the title badge; not observed.
     let documentController: LettersDocumentController
     @ObservedObject var format: EditorFormatStore
     @Binding var showOutlineDrawer: Bool
     @Binding var rightPane: EditorRightPane
+    @Binding var reviewSegment: ReviewSegment
     let actions: StudioToolbarActions
 
     @StateObject private var slice: DocumentSlice<StudioToolbarSlice>
@@ -103,21 +105,19 @@ struct StudioTopToolbarView: View {
         format: EditorFormatStore,
         showOutlineDrawer: Binding<Bool>,
         rightPane: Binding<EditorRightPane>,
+        reviewSegment: Binding<ReviewSegment>,
         actions: StudioToolbarActions
     ) {
         self.documentController = documentController
         self.format = format
         self._showOutlineDrawer = showOutlineDrawer
         self._rightPane = rightPane
+        self._reviewSegment = reviewSegment
         self.actions = actions
         self._slice = StateObject(wrappedValue: DocumentSlice(documentController) { StudioToolbarSlice($0) })
     }
 
     private var s: StudioToolbarSlice { slice.value }
-    private var showDocumentHistory: Bool { rightPane == .history }
-    private var showComments: Bool { rightPane == .comments }
-    private var showPageDesignInspector: Bool { rightPane == .inspector }
-    private var showAIDrawer: Bool { rightPane == .assistant }
 
     private func shortFontDisplayName(_ rawName: String) -> String {
         if rawName.contains("Georgia") { return "Georgia" }
@@ -132,6 +132,75 @@ struct StudioTopToolbarView: View {
             }
         }
         return rawName
+    }
+
+    private var inspectorBadge: [InspectorTab: Int] {
+        [.review: s.openNoteCount + s.revisionCount]
+    }
+
+    /// Document | Review | Assistant. Picking the active tab again collapses the inspector.
+    private var inspectorSwitcher: some View {
+        StudioSegmentedControl(
+            segments: InspectorTab.allCases.map { tab in
+                StudioSegment(
+                    tag: tab,
+                    title: tab.title,
+                    icon: tab.icon,
+                    badge: inspectorBadge[tab],
+                    help: inspectorHelp(for: tab)
+                )
+            },
+            selected: rightPane.tab,
+            height: 30,
+            onSelect: { tab in rightPane = EditorRightPane(tab) },
+            onReselect: { _ in rightPane = .none }
+        )
+        .fixedSize()
+    }
+
+    private func inspectorHelp(for tab: InspectorTab) -> String {
+        let action = rightPane.tab == tab ? "Hide" : "Show"
+        switch tab {
+        case .document: return "\(action) Document inspector: page, typography, header & footer (⌥⌘D)"
+        case .review: return "\(action) Review: comments, tracked changes & history (⌥⌘T)"
+        case .assistant: return "\(action) Assistant: AI writing help, citations & sources (⌘J)"
+        }
+    }
+
+    /// Visible only while Track Changes is on or edits are waiting; jumps straight to the revisions list.
+    private var reviewIndicator: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                reviewSegment = .revisions
+                rightPane = .review
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "pencil.and.outline")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(reviewIndicatorTitle)
+                    .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                    .lineLimit(1)
+            }
+            .foregroundColor(.orange)
+            .padding(.horizontal, 9)
+            .frame(height: 26)
+            .background(Color.orange.opacity(0.14), in: Capsule())
+            .overlay(Capsule().stroke(Color.orange.opacity(0.35), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help(s.isTrackChangesEnabled
+              ? "Track Changes is on. Show tracked changes in Review."
+              : "\(s.revisionCount) tracked changes are waiting. Show them in Review.")
+        .accessibilityLabel(reviewIndicatorTitle)
+    }
+
+    private var reviewIndicatorTitle: String {
+        if s.isTrackChangesEnabled {
+            return s.revisionCount > 0 ? "Tracking · \(s.revisionCount)" : "Tracking"
+        }
+        return s.revisionCount == 1 ? "1 change" : "\(s.revisionCount) changes"
     }
 
     var body: some View {
@@ -355,32 +424,23 @@ struct StudioTopToolbarView: View {
                         )
                     }
 
-                    // Clear Formatting
-                    Button(action: { actions.clearFormatting() }) {
+                    // Clear Formatting (click) / Clean Contrast (menu)
+                    Menu {
+                        Button("Clean Text Contrast") { actions.cleanContrast() }
+                    } label: {
                         Image(systemName: "eraser")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.primary)
                             .frame(width: 30, height: 30)
                             .background(Color.primary.opacity(0.06))
                             .cornerRadius(7)
+                    } primaryAction: {
+                        actions.clearFormatting()
                     }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
                     .buttonStyle(.plain)
-                    .help("Clear Formatting (Reset text to default black)")
-
-                    // Clean Contrast / Adapt Text
-                    Button(action: {
-                        actions.cleanContrast()
-                        actions.toast("✓ Cleaned text contrast (dark mode sanitized)")
-                    }) {
-                        Image(systemName: "sun.max")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
-                            .frame(width: 30, height: 30)
-                            .background(Color.primary.opacity(0.06))
-                            .cornerRadius(7)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clean Contrast (Convert white/invisible text to dark charcoal)")
+                    .help("Clear Formatting (hold for Clean Text Contrast)")
                 }
                 .fixedSize()
                 
@@ -487,149 +547,27 @@ struct StudioTopToolbarView: View {
 
             Spacer(minLength: 4)
 
-            // Quick Action Center (AI, Timeline, Command)
-            HStack(spacing: 6) {
-                // Timeline
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        rightPane = rightPane.toggled(.history)
-                    }
-                }) {
-                    Image(systemName: showDocumentHistory ? "chart.bar.doc.horizontal.fill" : "chart.bar.doc.horizontal")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(showDocumentHistory ? StudioTheme.luminousCyan : .primary)
-                        .frame(width: 30, height: 30)
-                        .background(showDocumentHistory ? StudioTheme.luminousCyan.opacity(0.18) : Color.primary.opacity(0.06))
-                        .cornerRadius(7)
-                        .symbolEffect(.bounce, value: showDocumentHistory)
+            // Right cluster: review indicator, the one inspector switcher, command center.
+            HStack(spacing: 8) {
+                if s.isTrackChangesEnabled || s.revisionCount > 0 {
+                    reviewIndicator
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }
-                .buttonStyle(.plain)
-                .fixedSize()
-                .help("Toggle Reading Flow Timeline (⌥⌘T)")
-                
-                // Comments
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { rightPane = rightPane.toggled(.comments) }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("Comments")
-                            .font(.system(size: 12, weight: .medium))
-                            .lineLimit(1)
-                        if s.noteCount > 0 {
-                            Text("\(s.openNoteCount)")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Capsule().fill(Color.accentColor))
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .frame(height: 30)
-                    .background(showComments ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
-                    .foregroundColor(showComments ? .accentColor : .primary)
-                    .cornerRadius(7)
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
-                .help("Show Comments")
 
-                // Page Design & 3D Theme Inspector Button
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        rightPane = rightPane.toggled(.inspector)
-                    }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Design")
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 9)
-                    .frame(height: 30)
-                    .background(showPageDesignInspector ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06))
-                    .foregroundColor(showPageDesignInspector ? .accentColor : .primary)
-                    .cornerRadius(7)
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
-                .help("Toggle Page Design & 3D Theme Inspector (⌥⌘D)")
+                inspectorSwitcher
 
-                // Review Mode / Track Changes Toggle
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        documentController.isTrackChangesEnabled.toggle()
-                    }
-                    actions.toast(documentController.isTrackChangesEnabled ? "✓ Track Changes: ON" : "✓ Track Changes: OFF")
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pencil.and.outline")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Review")
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                        if s.revisionCount > 0 {
-                            Text("\(s.revisionCount)")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Capsule().fill(Color.orange))
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .frame(height: 30)
-                    .background(s.isTrackChangesEnabled ? Color.orange.opacity(0.18) : Color.primary.opacity(0.06))
-                    .foregroundColor(s.isTrackChangesEnabled ? .orange : .primary)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .stroke(s.isTrackChangesEnabled ? Color.orange.opacity(0.4) : Color.clear, lineWidth: 1)
-                    )
-                    .cornerRadius(7)
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
-                .help("Toggle Track Changes & Review Mode (⌥⌘K)")
-
-                Divider().frame(height: 16)
-                
-                // AI Assistant Toggle
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        rightPane = rightPane.toggled(.assistant)
-                    }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Assistant")
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 9)
-                    .frame(height: 30)
-                    .background(showAIDrawer ? StudioTheme.luminousPurple.opacity(0.2) : Color.primary.opacity(0.06))
-                    .foregroundColor(showAIDrawer ? StudioTheme.luminousPurple : .primary)
-                    .cornerRadius(7)
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
-                
-                // Command Center Button
                 Button(action: { actions.openCommandPalette() }) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 14, weight: .bold))
-                        .padding(8)
-                        .background(Color.primary.opacity(0.06))
-                        .cornerRadius(8)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.primary.opacity(0.85))
+                        .frame(width: 30, height: 30)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StudioHoverButtonStyle(cornerRadius: 7, restingFill: Color.primary.opacity(0.06)))
                 .fixedSize()
+                .help("Command Center (⌘K)")
+                .accessibilityLabel("Command Center")
             }
+            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: s.isTrackChangesEnabled || s.revisionCount > 0)
             .layoutPriority(1)
         }
         .padding(.horizontal, 14)

@@ -3,10 +3,18 @@ import SwiftUI
 import LettersKit
 #endif
 
+/// The two panes of the left navigator. Sources and citations live in the Assistant tab of the
+/// inspector, next to the writing tools that use them.
 public enum OutlineDrawerTab: String, CaseIterable {
     case outline = "Outline"
     case pages = "Pages"
-    case sources = "Sources"
+
+    var icon: String {
+        switch self {
+        case .outline: return "list.bullet.indent"
+        case .pages: return "doc.on.doc"
+        }
+    }
 }
 
 public struct HeadingNode: Identifiable {
@@ -21,23 +29,22 @@ public struct HeadingNode: Identifiable {
     public let pageNumber: Int
 }
 
+/// Left navigator: a searchable heading outline and a page strip, on sidebar vibrancy.
 public struct DocumentOutlineView: View {
-    @Binding var isPresented: Bool
     @Binding var rawText: String
     let cursorOffset: Int
     let pageCount: Int
     let pageForOffset: (Int) -> Int
     let pageSnippet: (Int) -> String
-    @Binding var sources: [String: Source]
-    @Binding var activeCitationStyle: CitationStyle
     var onSelectOffset: ((Int) -> Void)?
     var onSelectHeading: ((Int, Int) -> Void)?
     var onSelectPage: ((Int) -> Void)?
 
     @State private var activeTab: OutlineDrawerTab = .outline
     @State private var searchFilter: String = ""
-    @State private var collapsedNodes: Set<String> = []
     @State private var hoveredHeadingId: String? = nil
+    @State private var hoveredPage: Int? = nil
+    @FocusState private var searchFocused: Bool
     /// Parsed once per typing pause instead of on every body evaluation (it was recomputed several times per keystroke).
     @State private var headings: [HeadingNode] = []
     /// Edit-version token to avoid re-parsing when rawText hasn't meaningfully changed.
@@ -45,26 +52,20 @@ public struct DocumentOutlineView: View {
     @State private var lastParsedRawText: String = ""
 
     public init(
-        isPresented: Binding<Bool>,
         rawText: Binding<String>,
         cursorOffset: Int = 0,
         pageCount: Int = 1,
         pageForOffset: @escaping (Int) -> Int = { _ in 1 },
         pageSnippet: @escaping (Int) -> String = { _ in "" },
-        sources: Binding<[String: Source]>,
-        activeCitationStyle: Binding<CitationStyle>,
         onSelectOffset: ((Int) -> Void)? = nil,
         onSelectHeading: ((Int, Int) -> Void)? = nil,
         onSelectPage: ((Int) -> Void)? = nil
     ) {
-        self._isPresented = isPresented
         self._rawText = rawText
         self.cursorOffset = cursorOffset
         self.pageCount = max(1, pageCount)
         self.pageForOffset = pageForOffset
         self.pageSnippet = pageSnippet
-        self._sources = sources
-        self._activeCitationStyle = activeCitationStyle
         self.onSelectOffset = onSelectOffset
         self.onSelectHeading = onSelectHeading
         self.onSelectPage = onSelectPage
@@ -194,60 +195,27 @@ public struct DocumentOutlineView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 8) {
-                Image(systemName: "list.bullet.indent")
-                    .foregroundColor(.accentColor)
-                    .font(.system(size: 13, weight: .semibold))
-                Text("Outline")
-                    .font(.system(size: 13, weight: .bold))
-                Spacer()
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                        isPresented = false
-                    }
-                } label: {
-                    Image(systemName: "sidebar.left")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24, height: 24)
-                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .help("Close the outline")
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
-            Picker("", selection: $activeTab) {
-                ForEach(OutlineDrawerTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
-
-            Divider()
+            StudioSegmentedControl(
+                segments: OutlineDrawerTab.allCases.map {
+                    StudioSegment(tag: $0, title: $0.rawValue, icon: $0.icon, help: "Show \($0.rawValue.lowercased())")
+                },
+                selected: activeTab,
+                onSelect: { activeTab = $0 }
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
 
             switch activeTab {
             case .outline:
                 outlineTabBody
-
             case .pages:
                 pagesTabBody
-
-            case .sources:
-                SourceManagerView(
-                    sources: $sources,
-                    activeStyle: $activeCitationStyle
-                )
             }
         }
         .frame(width: 250)
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(maxHeight: .infinity)
+        .background(VisualEffectBackground(material: .sidebar))
         .onAppear { headings = computeHeadings() }
         .task(id: rawText) {
             // Debounce: cancelled and restarted on every edit, so parsing only runs once typing pauses.
@@ -260,14 +228,15 @@ public struct DocumentOutlineView: View {
     // MARK: - Outline Tab
     private var outlineTabBody: some View {
         VStack(spacing: 0) {
-            // Filter Bar
+            // Filter field
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-                TextField("Filter headings…", text: $searchFilter)
+                TextField("Filter headings", text: $searchFilter)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 11.5))
+                    .font(.system(size: 12))
+                    .focused($searchFocused)
                 if !searchFilter.isEmpty {
                     Button(action: { searchFilter = "" }) {
                         Image(systemName: "xmark.circle.fill")
@@ -275,35 +244,32 @@ public struct DocumentOutlineView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("Clear filter")
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .frame(height: 26)
+            .background(Color.primary.opacity(searchFocused ? 0.09 : 0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(searchFocused ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1.5)
+            )
+            .animation(.easeOut(duration: 0.15), value: searchFocused)
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.bottom, 8)
 
-            Divider()
+            Divider().opacity(0.6)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 3) {
+                LazyVStack(alignment: .leading, spacing: 1) {
                     if filteredHeadings.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: "text.alignleft")
-                                .font(.system(size: 24))
-                                .foregroundColor(.secondary.opacity(0.6))
-                            Text(searchFilter.isEmpty ? "No headings yet" : "No matching headings")
-                                .font(.caption.bold())
-                                .foregroundColor(.secondary)
-                            Text(searchFilter.isEmpty
-                                 ? "Style text as a heading, or start a line with # or ## to build an outline you can navigate."
-                                 : "Try a different word, or clear the filter.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(24)
+                        StudioEmptyState(
+                            icon: searchFilter.isEmpty ? "text.alignleft" : "magnifyingglass",
+                            title: searchFilter.isEmpty ? "No headings yet" : "No matching headings",
+                            message: searchFilter.isEmpty
+                                ? "Style a line as a heading, or start it with # or ##, and it shows up here."
+                                : "Try a different word, or clear the filter."
+                        )
                     } else {
                         ForEach(Array(filteredHeadings.enumerated()), id: \.element.id) { index, item in
                             headingRow(item: item, index: index)
@@ -311,7 +277,7 @@ public struct DocumentOutlineView: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
             }
         }
     }
@@ -319,19 +285,9 @@ public struct DocumentOutlineView: View {
     private func headingRow(item: HeadingNode, index: Int) -> some View {
         let isActive = (item.id == activeHeadingId)
         let isHovered = (item.id == hoveredHeadingId)
+        let canReorder = searchFilter.trimmingCharacters(in: .whitespaces).isEmpty
 
-        return HStack(spacing: 0) {
-            // Scroll-Spy Beacon Indicator (Capsule pill)
-            ZStack {
-                if isActive {
-                    Capsule()
-                        .fill(Color.accentColor)
-                        .frame(width: 3, height: 16)
-                        .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .frame(width: 6)
-
+        return HStack(spacing: 4) {
             Button(action: {
                 if let onSelectOffset = onSelectOffset {
                     onSelectOffset(item.charOffset)
@@ -340,71 +296,55 @@ public struct DocumentOutlineView: View {
                 }
             }) {
                 HStack(spacing: 6) {
-                    // Indentation based on level
-                    if item.level > 1 {
-                        Spacer()
-                            .frame(width: CGFloat(item.level - 1) * 12)
-                    }
-
-                    // Level bullet
-                    Image(systemName: item.level == 1 ? "number" : "chevron.right")
-                        .font(.system(size: item.level == 1 ? 10 : 8, weight: .bold))
-                        .foregroundColor(isActive ? .accentColor : .secondary.opacity(0.8))
+                    Capsule()
+                        .fill(Color.accentColor)
+                        .frame(width: 3, height: 14)
+                        .opacity(isActive ? 1 : 0)
 
                     Text(item.title)
-                        .font(.system(size: item.level == 1 ? 12 : 11.5, weight: item.level == 1 ? .semibold : .regular))
-                        .foregroundColor(isActive ? .primary : .primary.opacity(0.85))
+                        .font(.system(size: item.level == 1 ? 12.5 : 12, weight: item.level == 1 ? .semibold : (item.level == 2 ? .medium : .regular)))
+                        .foregroundColor(isActive ? .accentColor : (item.level >= 3 ? .primary.opacity(0.7) : .primary))
                         .lineLimit(1)
+                        .padding(.leading, CGFloat(max(0, item.level - 1)) * 12)
 
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 2)
 
-                    // Section word count badge
-                    if item.wordCount > 0 {
+                    if item.wordCount > 0 && !(isHovered && canReorder) {
                         Text("\(item.wordCount)")
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundColor(.secondary.opacity(0.8))
                             .help(Copy.count(item.wordCount, "word"))
-                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1.5)
-                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 3))
-                    }
-
-                    // Section reorder affordances on hover
-                    if isHovered {
-                        HStack(spacing: 2) {
-                            Button(action: { moveSection(at: index, direction: -1) }) {
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 16, height: 16)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(index == 0)
-                            .help("Move section up")
-
-                            Button(action: { moveSection(at: index, direction: 1) }) {
-                                Image(systemName: "arrow.down")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 16, height: 16)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(index == filteredHeadings.count - 1)
-                            .help("Move section down")
-                        }
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(
-                    isActive
-                        ? Color.accentColor.opacity(0.10)
-                        : (isHovered ? Color.primary.opacity(0.05) : Color.clear),
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                )
+                .padding(.leading, 4)
+                .padding(.trailing, 6)
+                .frame(minHeight: 26)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(item.title)
+            .accessibilityAddTraits(isActive ? .isSelected : [])
+            .overlay(alignment: .trailing) {
+                // Reorder affordances replace the word count while hovering, so rows never change width.
+                if isHovered && canReorder {
+                    HStack(spacing: 0) {
+                        reorderButton(icon: "chevron.up", help: "Move section up", disabled: index == 0) {
+                            moveSection(at: index, direction: -1)
+                        }
+                        reorderButton(icon: "chevron.down", help: "Move section down", disabled: index == filteredHeadings.count - 1) {
+                            moveSection(at: index, direction: 1)
+                        }
+                    }
+                    .padding(.trailing, 2)
+                    .transition(.opacity)
+                }
+            }
         }
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isActive ? Color.accentColor.opacity(0.12) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
+        )
+        .animation(.easeOut(duration: 0.12), value: isHovered)
         .onHover { hovering in
             if hovering {
                 hoveredHeadingId = item.id
@@ -412,6 +352,18 @@ public struct DocumentOutlineView: View {
                 hoveredHeadingId = nil
             }
         }
+    }
+
+    private func reorderButton(icon: String, help: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(StudioHoverButtonStyle(cornerRadius: 5))
+        .disabled(disabled)
+        .help(help)
     }
 
     // MARK: - Section Relocation
@@ -451,45 +403,80 @@ public struct DocumentOutlineView: View {
 
     // MARK: - Pages Tab
     private var pagesTabBody: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                ForEach(0..<totalPages, id: \.self) { pageIdx in
-                    let colIdx = pageIdx
-                    let preview = pageSnippet(pageIdx).trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentPage = max(1, min(totalPages, pageForOffset(cursorOffset)))
 
-                    Button(action: {
-                        if let onSelectPage = onSelectPage {
-                            onSelectPage(colIdx)
-                        }
-                    }) {
-                        HStack(alignment: .top, spacing: 10) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color.white)
-                                    .frame(width: 28, height: 36)
-                                    .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
-                                Text("\(pageIdx + 1)")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.black)
-                            }
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Page \(pageIdx + 1)")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.primary)
-                                Text(preview.isEmpty ? "Empty page" : String(preview.prefix(60)))
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(2)
-                            }
-                            Spacer()
-                        }
-                        .padding(8)
-                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
+        return VStack(spacing: 0) {
+            HStack {
+                Text(totalPages == 1 ? "1 page" : "\(totalPages) pages")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("On page \(currentPage)")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary.opacity(0.8))
             }
-            .padding(12)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+
+            Divider().opacity(0.6)
+
+            ScrollView {
+                LazyVStack(spacing: 4) {
+                    ForEach(0..<totalPages, id: \.self) { pageIdx in
+                        pageRow(pageIdx: pageIdx, isCurrent: pageIdx + 1 == currentPage)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+            }
         }
+    }
+
+    private func pageRow(pageIdx: Int, isCurrent: Bool) -> some View {
+        let preview = pageSnippet(pageIdx).trimmingCharacters(in: .whitespacesAndNewlines)
+        let isHovered = hoveredPage == pageIdx
+
+        return Button(action: { onSelectPage?(pageIdx) }) {
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(StudioTheme.paperBackground)
+                        .frame(width: 30, height: 40)
+                        .shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .stroke(isCurrent ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isCurrent ? 1.5 : 0.5)
+                        )
+                    Text("\(pageIdx + 1)")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundColor(StudioTheme.paperTextColor)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Page \(pageIdx + 1)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isCurrent ? .accentColor : .primary)
+                    Text(preview.isEmpty ? "Empty page" : String(preview.prefix(60)))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isCurrent ? Color.accentColor.opacity(0.12) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .onHover { hovering in
+            if hovering { hoveredPage = pageIdx } else if hoveredPage == pageIdx { hoveredPage = nil }
+        }
+        .accessibilityLabel("Page \(pageIdx + 1)")
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }

@@ -16,6 +16,10 @@ public struct AssistantSidebarView: View {
     var onInsertBibliography: (() -> Void)?
     var onToast: ((String) -> Void)?
     var onClose: (() -> Void)? = nil
+    /// Inserts text through the editor at the caret (replacing any selection). Optional so the view still works standalone.
+    var onInsertAtCaret: ((String) -> Void)? = nil
+    /// `true` when hosted inside the inspector: no floating chrome, no resize handle, fills the pane.
+    var embedded: Bool = false
     let currentDocumentContext: () -> String
 
     @State private var messages: [AIChatMessage] = []
@@ -42,6 +46,8 @@ public struct AssistantSidebarView: View {
         onInsertBibliography: (() -> Void)? = nil,
         onToast: ((String) -> Void)? = nil,
         onClose: (() -> Void)? = nil,
+        onInsertAtCaret: ((String) -> Void)? = nil,
+        embedded: Bool = false,
         currentDocumentContext: @escaping () -> String
     ) {
         self._rawText = rawText
@@ -55,6 +61,8 @@ public struct AssistantSidebarView: View {
         self.onInsertBibliography = onInsertBibliography
         self.onToast = onToast
         self.onClose = onClose
+        self.onInsertAtCaret = onInsertAtCaret
+        self.embedded = embedded
         self.currentDocumentContext = currentDocumentContext
     }
 
@@ -67,6 +75,53 @@ public struct AssistantSidebarView: View {
     }
 
     public var body: some View {
+        Group {
+            if embedded {
+                embeddedBody
+            } else {
+                floatingBody
+            }
+        }
+        .sheet(isPresented: $showingConnectSheet) {
+            connectClaudeSheet
+        }
+        .onAppear {
+            checkClaudeStatus()
+        }
+    }
+
+    /// Inside the inspector: connection strip, quick actions, conversation, prompt box.
+    private var embeddedBody: some View {
+        VStack(spacing: 0) {
+            embeddedStatusStrip
+
+            quickActionsGrid
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+
+            Divider().opacity(0.6)
+
+            contextStatusStrip
+
+            Divider().opacity(0.6)
+
+            ZStack {
+                if messages.isEmpty {
+                    minimalEmptyState
+                } else {
+                    chatHistoryStream
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider().opacity(0.6)
+
+            copilotInputBar
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var floatingBody: some View {
         HStack(spacing: 0) {
             // Smooth Left-Edge Drag Resize Handle
             resizeHandle
@@ -112,11 +167,87 @@ public struct AssistantSidebarView: View {
         }
         .frame(width: sidebarWidth)
         .frame(maxHeight: .infinity)
-        .sheet(isPresented: $showingConnectSheet) {
-            connectClaudeSheet
+    }
+
+    // MARK: - Embedded chrome
+
+    private var embeddedStatusStrip: some View {
+        HStack(spacing: 8) {
+            Button {
+                showingConnectSheet = true
+            } label: {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(isClaudeInstalled ? Color.green : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(isClaudeInstalled ? "Claude connected" : "Connect Claude")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Claude connection")
+
+            Spacer()
+
+            if !messages.isEmpty {
+                Button {
+                    messages.removeAll()
+                    appliedActionIds.removeAll()
+                } label: {
+                    Label("New chat", systemImage: "square.and.pencil")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear the conversation")
+            }
         }
-        .onAppear {
-            checkClaudeStatus()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    /// Four one-tap drafting actions. They work on the selection, or on the whole document when nothing is selected.
+    private var quickActionsGrid: some View {
+        let actions: [(title: String, icon: String, instruction: String)] = [
+            ("Polish prose", "wand.and.stars",
+             "Polish the prose of the following text: tighten wording, improve flow and word choice, keep the meaning and the author's voice. Return only the revised text."),
+            ("Fix tone", "dial.medium",
+             "Rewrite the following text in a clear, confident, professional tone, consistent throughout. Keep the meaning. Return only the revised text."),
+            ("Executive summary", "list.bullet.rectangle",
+             "Write an executive summary of the following text in under 120 words, leading with the main conclusion."),
+            ("Expand section", "arrow.up.left.and.arrow.down.right",
+             "Expand the following section with more depth, concrete detail and examples, matching its style. Return only the expanded text.")
+        ]
+
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+            ForEach(actions, id: \.title) { action in
+                Button {
+                    let target = selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? rawText : selectedText
+                    sendDirectPrompt("\(action.instruction)\n\n\(target)")
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: action.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.accentColor)
+                            .frame(width: 14)
+                        Text(action.title)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .foregroundColor(.primary)
+                }
+                .buttonStyle(StudioHoverButtonStyle(cornerRadius: 8, restingFill: Color.primary.opacity(0.05)))
+                .disabled(isGenerating || rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help(selectedText.isEmpty ? "\(action.title): whole document" : "\(action.title): selected text")
+            }
         }
     }
 
@@ -290,21 +421,23 @@ public struct AssistantSidebarView: View {
                     .padding(.horizontal, 24)
             }
 
-            // 3 Clean Inspiration Prompts
-            VStack(spacing: 8) {
-                inspirationChip("Add a comparison table") {
-                    sendDirectPrompt("Create a 3x3 smart table comparing Key Metrics across Q1, Q2, and Q3 with numeric values.")
+            // 3 Clean Inspiration Prompts (the inspector already offers quick actions above)
+            if !embedded {
+                VStack(spacing: 8) {
+                    inspirationChip("Add a comparison table") {
+                        sendDirectPrompt("Create a 3x3 smart table comparing Key Metrics across Q1, Q2, and Q3 with numeric values.")
+                    }
+                    inspirationChip("Polish the writing") {
+                        let target = !selectedText.isEmpty ? selectedText : rawText
+                        sendDirectPrompt("Polish and elevate the academic vocabulary and clarity of the following text:\n\n\(target)")
+                    }
+                    inspirationChip("Suggest citations") {
+                        let target = !selectedText.isEmpty ? selectedText : rawText
+                        sendDirectPrompt("Analyze the claims in this text and suggest relevant academic citations in APA 7 format:\n\n\(target)")
+                    }
                 }
-                inspirationChip("Polish the writing") {
-                    let target = !selectedText.isEmpty ? selectedText : rawText
-                    sendDirectPrompt("Polish and elevate the academic vocabulary and clarity of the following text:\n\n\(target)")
-                }
-                inspirationChip("Suggest citations") {
-                    let target = !selectedText.isEmpty ? selectedText : rawText
-                    sendDirectPrompt("Analyze the claims in this text and suggest relevant academic citations in APA 7 format:\n\n\(target)")
-                }
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
 
             Spacer()
         }
@@ -434,37 +567,30 @@ public struct AssistantSidebarView: View {
 
                         HStack(spacing: 6) {
                             let docReadyText = extractCleanDocumentContent(from: msg.content)
-                            if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Button {
-                                    applyTextToSelection(content: docReadyText)
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "selection.pin.in.out")
-                                        Text("Replace Selection")
-                                    }
-                                    .font(.system(size: 10, weight: .medium))
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3.5)
-                                    .background(StudioTheme.luminousCyan.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
-                                    .foregroundColor(StudioTheme.luminousCyan)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                            let hasSelection = !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
                             Button {
-                                appendToDocument(content: docReadyText)
+                                insertAtCaret(content: docReadyText)
                             } label: {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "plus.circle")
-                                    Text("Add to Document")
-                                }
-                                .font(.system(size: 10, weight: .medium))
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3.5)
-                                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                                .foregroundColor(.primary)
+                                Label("Insert at Caret", systemImage: "text.insert")
                             }
+                            .buttonStyle(StudioPillButtonStyle(prominent: true))
+                            .help(hasSelection ? "Replace the selected text with this" : "Insert this where the cursor is")
+
+                            Menu {
+                                Button("Add to End of Document") { appendToDocument(content: docReadyText) }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 24, height: 24)
+                                    .background(Color.primary.opacity(0.06), in: Circle())
+                            }
+                            .menuStyle(.button)
+                            .menuIndicator(.hidden)
                             .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("More ways to use this")
 
                             Spacer()
 
@@ -991,6 +1117,17 @@ public struct AssistantSidebarView: View {
             clean = clean.replacingOccurrences(of: "\n\n\n", with: "\n\n")
         }
         return clean
+    }
+
+    /// Inserts through the editor when hosted in the inspector (undoable, replaces any selection); otherwise appends.
+    private func insertAtCaret(content: String) {
+        let clean = normalizeSpacing(content)
+        guard !clean.isEmpty else { return }
+        if let onInsertAtCaret {
+            onInsertAtCaret(clean)
+        } else {
+            applyTextToSelection(content: clean)
+        }
     }
 
     private func applyTextToSelection(content: String) {
