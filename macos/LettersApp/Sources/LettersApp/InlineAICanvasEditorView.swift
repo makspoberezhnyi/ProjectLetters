@@ -21,13 +21,13 @@ public struct InlineAICanvasEditorView: View {
 
     // Quick Prompt Presets
     private let promptPresets: [(icon: String, label: String, prompt: String)] = [
-        ("wand.and.stars", "Polish Flow", "Improve flow, clarity, and elegance while preserving core meaning."),
+        ("wand.and.stars", "Polish", "Improve flow, clarity, and elegance while preserving core meaning."),
         ("arrow.down.right.and.arrow.up.left", "Make Shorter", "Make this text more concise, direct, and punchy without losing key facts."),
         ("text.badge.plus", "Expand", "Expand this text with rich academic detail, background context, and depth."),
         ("checkmark.shield", "Fix Grammar", "Fix all grammar, spelling, and punctuation errors cleanly."),
         ("graduationcap", "Academic Tone", "Rewrite this text in a formal academic journal style with sophisticated prose."),
-        ("character.book.closed", "Translate (EN)", "Translate this text into fluent, natural English."),
-        ("list.bullet", "Bullet Summary", "Convert this text into clean, structured bullet points.")
+        ("character.book.closed", "Translate to English", "Translate this text into fluent, natural English."),
+        ("list.bullet", "Summarize as Bullets", "Convert this text into clean, structured bullet points.")
     ]
 
     public init(
@@ -72,7 +72,7 @@ public struct InlineAICanvasEditorView: View {
                             )
                         )
 
-                    Text("Ask AI on Canvas")
+                    Text("Ask the Assistant")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.primary)
                 }
@@ -93,7 +93,7 @@ public struct InlineAICanvasEditorView: View {
                     Circle()
                         .fill(isStreaming ? Color.green : Color.accentColor)
                         .frame(width: 5, height: 5)
-                    Text(selectedProvider == .claudeCLI ? "Claude Pro" : selectedProvider.badgeLabel)
+                    Text(selectedProvider == .claudeCLI ? "Claude" : selectedProvider.badgeLabel)
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
@@ -121,7 +121,7 @@ public struct InlineAICanvasEditorView: View {
             if generatedResult.isEmpty && !isStreaming {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
-                        TextField("What changes should AI make to this text?...", text: $userPrompt)
+                        TextField("Describe how to change this text…", text: $userPrompt)
                             .textFieldStyle(.plain)
                             .font(.system(size: 12.5))
                             .focused($isPromptFocused)
@@ -201,7 +201,7 @@ public struct InlineAICanvasEditorView: View {
                         ProgressView()
                             .scaleEffect(0.65)
                             .frame(width: 14, height: 14)
-                        Text("Claude is editing selection...")
+                        Text("Claude is revising your selection…")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
 
@@ -216,7 +216,7 @@ public struct InlineAICanvasEditorView: View {
                     }
 
                     ScrollView {
-                        Text(generatedResult.isEmpty ? "Thinking..." : generatedResult)
+                        Text(generatedResult.isEmpty ? "Thinking…" : generatedResult)
                             .font(.system(size: 12))
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -232,7 +232,7 @@ public struct InlineAICanvasEditorView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     // Diff / Comparison Toggle
                     HStack {
-                        Text("PROPOSED REVISION")
+                        Text("Proposed Revision").textCase(.uppercase)
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.secondary)
 
@@ -253,7 +253,7 @@ public struct InlineAICanvasEditorView: View {
                             HStack(spacing: 3) {
                                 Image(systemName: showDiff ? "doc.text" : "arrow.left.arrow.right")
                                     .font(.system(size: 9))
-                                Text(showDiff ? "Clean Preview" : "Track Changes Diff")
+                                Text(showDiff ? "Hide Changes" : "Show Changes")
                                     .font(.system(size: 9.5, weight: .medium))
                             }
                             .foregroundColor(.accentColor)
@@ -301,7 +301,7 @@ public struct InlineAICanvasEditorView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 10, weight: .bold))
-                                Text("Accept & Replace")
+                                Text("Replace Selection")
                                     .font(.system(size: 11, weight: .semibold))
                             }
                             .padding(.horizontal, 10)
@@ -311,7 +311,7 @@ public struct InlineAICanvasEditorView: View {
                         }
                         .buttonStyle(.plain)
                         .keyboardShortcut(.defaultAction)
-                        .help("Replace selected text with revision (Return)")
+                        .help("Replace your selection with this revision (↩)")
 
                         // 2. Insert Below
                         Button(action: {
@@ -380,7 +380,7 @@ public struct InlineAICanvasEditorView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "terminal.fill")
                                     .font(.system(size: 9.5))
-                                Text("Re-login Claude")
+                                Text("Sign In to Claude Again")
                                     .font(.system(size: 10, weight: .bold))
                             }
                             .padding(.horizontal, 8)

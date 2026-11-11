@@ -31,5 +31,10 @@ let package = Package(
             dependencies: ["LettersKit"],
             path: "Tests/LettersKitTests"
         ),
+        .testTarget(
+            name: "LettersAppTests",
+            dependencies: ["LettersApp", "LettersKit"],
+            path: "Tests/LettersAppTests"
+        ),
     ]
 )

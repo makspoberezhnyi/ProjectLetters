@@ -16,6 +16,10 @@ public struct AssistantSidebarView: View {
     var onInsertBibliography: (() -> Void)?
     var onToast: ((String) -> Void)?
     var onClose: (() -> Void)? = nil
+    /// Inserts text through the editor at the caret (replacing any selection). Optional so the view still works standalone.
+    var onInsertAtCaret: ((String) -> Void)? = nil
+    /// `true` when hosted inside the inspector: no floating chrome, no resize handle, fills the pane.
+    var embedded: Bool = false
     let currentDocumentContext: () -> String
 
     @State private var messages: [AIChatMessage] = []
@@ -42,6 +46,8 @@ public struct AssistantSidebarView: View {
         onInsertBibliography: (() -> Void)? = nil,
         onToast: ((String) -> Void)? = nil,
         onClose: (() -> Void)? = nil,
+        onInsertAtCaret: ((String) -> Void)? = nil,
+        embedded: Bool = false,
         currentDocumentContext: @escaping () -> String
     ) {
         self._rawText = rawText
@@ -55,6 +61,8 @@ public struct AssistantSidebarView: View {
         self.onInsertBibliography = onInsertBibliography
         self.onToast = onToast
         self.onClose = onClose
+        self.onInsertAtCaret = onInsertAtCaret
+        self.embedded = embedded
         self.currentDocumentContext = currentDocumentContext
     }
 
@@ -67,6 +75,53 @@ public struct AssistantSidebarView: View {
     }
 
     public var body: some View {
+        Group {
+            if embedded {
+                embeddedBody
+            } else {
+                floatingBody
+            }
+        }
+        .sheet(isPresented: $showingConnectSheet) {
+            connectClaudeSheet
+        }
+        .onAppear {
+            checkClaudeStatus()
+        }
+    }
+
+    /// Inside the inspector: connection strip, quick actions, conversation, prompt box.
+    private var embeddedBody: some View {
+        VStack(spacing: 0) {
+            embeddedStatusStrip
+
+            quickActionsGrid
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+
+            Divider().opacity(0.6)
+
+            contextStatusStrip
+
+            Divider().opacity(0.6)
+
+            ZStack {
+                if messages.isEmpty {
+                    minimalEmptyState
+                } else {
+                    chatHistoryStream
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider().opacity(0.6)
+
+            copilotInputBar
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var floatingBody: some View {
         HStack(spacing: 0) {
             // Smooth Left-Edge Drag Resize Handle
             resizeHandle
@@ -112,11 +167,87 @@ public struct AssistantSidebarView: View {
         }
         .frame(width: sidebarWidth)
         .frame(maxHeight: .infinity)
-        .sheet(isPresented: $showingConnectSheet) {
-            connectClaudeSheet
+    }
+
+    // MARK: - Embedded chrome
+
+    private var embeddedStatusStrip: some View {
+        HStack(spacing: 8) {
+            Button {
+                showingConnectSheet = true
+            } label: {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(isClaudeInstalled ? Color.green : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(isClaudeInstalled ? "Claude connected" : "Connect Claude")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Claude connection")
+
+            Spacer()
+
+            if !messages.isEmpty {
+                Button {
+                    messages.removeAll()
+                    appliedActionIds.removeAll()
+                } label: {
+                    Label("New chat", systemImage: "square.and.pencil")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear the conversation")
+            }
         }
-        .onAppear {
-            checkClaudeStatus()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    /// Four one-tap drafting actions. They work on the selection, or on the whole document when nothing is selected.
+    private var quickActionsGrid: some View {
+        let actions: [(title: String, icon: String, instruction: String)] = [
+            ("Polish prose", "wand.and.stars",
+             "Polish the prose of the following text: tighten wording, improve flow and word choice, keep the meaning and the author's voice. Return only the revised text."),
+            ("Fix tone", "dial.medium",
+             "Rewrite the following text in a clear, confident, professional tone, consistent throughout. Keep the meaning. Return only the revised text."),
+            ("Executive summary", "list.bullet.rectangle",
+             "Write an executive summary of the following text in under 120 words, leading with the main conclusion."),
+            ("Expand section", "arrow.up.left.and.arrow.down.right",
+             "Expand the following section with more depth, concrete detail and examples, matching its style. Return only the expanded text.")
+        ]
+
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+            ForEach(actions, id: \.title) { action in
+                Button {
+                    let target = selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? rawText : selectedText
+                    sendDirectPrompt("\(action.instruction)\n\n\(target)")
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: action.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.accentColor)
+                            .frame(width: 14)
+                        Text(action.title)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .foregroundColor(.primary)
+                }
+                .buttonStyle(StudioHoverButtonStyle(cornerRadius: 8, restingFill: Color.primary.opacity(0.05)))
+                .disabled(isGenerating || rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help(selectedText.isEmpty ? "\(action.title): whole document" : "\(action.title): selected text")
+            }
         }
     }
 
@@ -171,7 +302,7 @@ public struct AssistantSidebarView: View {
                     .foregroundColor(.accentColor)
             }
 
-            Text("Letters Assistant")
+            Text("Assistant")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.primary)
 
@@ -211,7 +342,7 @@ public struct AssistantSidebarView: View {
                     .background(Color.primary.opacity(0.04), in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Claude connection settings")
+            .help("Claude connection")
 
             // Close Button
             if let onClose = onClose {
@@ -223,7 +354,7 @@ public struct AssistantSidebarView: View {
                         .background(Color.primary.opacity(0.04), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Close assistant")
+                .help("Close the assistant")
             }
         }
         .padding(.horizontal, 14)
@@ -239,7 +370,7 @@ public struct AssistantSidebarView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.accentColor)
 
-                Text("Target: Selected Passage (\(selectedWordCount) words)")
+                Text("Working on your selection (\(Copy.count(selectedWordCount, "word")))")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.accentColor)
             } else {
@@ -247,7 +378,7 @@ public struct AssistantSidebarView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
-                Text("Context: Active Document (\(documentWordCount) words)")
+                Text("Working on the whole document (\(Copy.count(documentWordCount, "word")))")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -279,32 +410,34 @@ public struct AssistantSidebarView: View {
             }
 
             VStack(spacing: 6) {
-                Text("How can I assist your document?")
+                Text("What are you working on?")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.primary)
 
-                Text("Ask Claude to write, format headings, create calculation tables, or add citations.")
+                Text("Ask Claude to draft, revise, structure, or cite your writing. Select text first to focus on one passage.")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
             }
 
-            // 3 Clean Inspiration Prompts
-            VStack(spacing: 8) {
-                inspirationChip("✦ Insert a comparison table with metrics") {
-                    sendDirectPrompt("Create a 3x3 smart table comparing Key Metrics across Q1, Q2, and Q3 with numeric values.")
+            // 3 Clean Inspiration Prompts (the inspector already offers quick actions above)
+            if !embedded {
+                VStack(spacing: 8) {
+                    inspirationChip("Add a comparison table") {
+                        sendDirectPrompt("Create a 3x3 smart table comparing Key Metrics across Q1, Q2, and Q3 with numeric values.")
+                    }
+                    inspirationChip("Polish the writing") {
+                        let target = !selectedText.isEmpty ? selectedText : rawText
+                        sendDirectPrompt("Polish and elevate the academic vocabulary and clarity of the following text:\n\n\(target)")
+                    }
+                    inspirationChip("Suggest citations") {
+                        let target = !selectedText.isEmpty ? selectedText : rawText
+                        sendDirectPrompt("Analyze the claims in this text and suggest relevant academic citations in APA 7 format:\n\n\(target)")
+                    }
                 }
-                inspirationChip("✦ Improve vocabulary & academic flow") {
-                    let target = !selectedText.isEmpty ? selectedText : rawText
-                    sendDirectPrompt("Polish and elevate the academic vocabulary and clarity of the following text:\n\n\(target)")
-                }
-                inspirationChip("✦ Suggest APA literature citations") {
-                    let target = !selectedText.isEmpty ? selectedText : rawText
-                    sendDirectPrompt("Analyze the claims in this text and suggest relevant academic citations in APA 7 format:\n\n\(target)")
-                }
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
 
             Spacer()
         }
@@ -434,37 +567,30 @@ public struct AssistantSidebarView: View {
 
                         HStack(spacing: 6) {
                             let docReadyText = extractCleanDocumentContent(from: msg.content)
-                            if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Button {
-                                    applyTextToSelection(content: docReadyText)
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "selection.pin.in.out")
-                                        Text("Replace Selection")
-                                    }
-                                    .font(.system(size: 10, weight: .medium))
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3.5)
-                                    .background(StudioTheme.luminousCyan.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
-                                    .foregroundColor(StudioTheme.luminousCyan)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                            let hasSelection = !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
                             Button {
-                                appendToDocument(content: docReadyText)
+                                insertAtCaret(content: docReadyText)
                             } label: {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "plus.circle")
-                                    Text("Append")
-                                }
-                                .font(.system(size: 10, weight: .medium))
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3.5)
-                                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                                .foregroundColor(.primary)
+                                Label("Insert at Caret", systemImage: "text.insert")
                             }
+                            .buttonStyle(StudioPillButtonStyle(prominent: true))
+                            .help(hasSelection ? "Replace the selected text with this" : "Insert this where the cursor is")
+
+                            Menu {
+                                Button("Add to End of Document") { appendToDocument(content: docReadyText) }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 24, height: 24)
+                                    .background(Color.primary.opacity(0.06), in: Circle())
+                            }
+                            .menuStyle(.button)
+                            .menuIndicator(.hidden)
                             .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("More ways to use this")
 
                             Spacer()
 
@@ -472,7 +598,7 @@ public struct AssistantSidebarView: View {
                                 let pasteboard = NSPasteboard.general
                                 pasteboard.clearContents()
                                 pasteboard.setString(docReadyText, forType: .string)
-                                onToast?("✓ Copied document content")
+                                onToast?("Copied to the clipboard")
                             } label: {
                                 Image(systemName: "doc.on.doc")
                                     .font(.system(size: 10))
@@ -481,7 +607,7 @@ public struct AssistantSidebarView: View {
                                     .background(Color.primary.opacity(0.05), in: Circle())
                             }
                             .buttonStyle(.plain)
-                            .help("Copy clean document content")
+                            .help("Copy as plain text")
                         }
                     } else {
                         Divider()
@@ -493,7 +619,7 @@ public struct AssistantSidebarView: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "terminal.fill")
-                                    Text("Re-login Claude")
+                                    Text("Sign In to Claude Again")
                                 }
                                 .font(.system(size: 10, weight: .bold))
                                 .padding(.horizontal, 8)
@@ -508,7 +634,7 @@ public struct AssistantSidebarView: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "gearshape.fill")
-                                    Text("Connection Settings")
+                                    Text("Claude Connection")
                                 }
                                 .font(.system(size: 10, weight: .medium))
                                 .padding(.horizontal, 8)
@@ -616,11 +742,11 @@ public struct AssistantSidebarView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Smart Calculation Table")
+                Text("Table")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.primary)
 
-                Text("\(table.headers.count) columns • \(table.rows.count) rows")
+                Text("\(Copy.count(table.headers.count, "column")) · \(Copy.count(table.rows.count, "row"))")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
@@ -630,7 +756,7 @@ public struct AssistantSidebarView: View {
             Button {
                 onInsertTable?(table)
                 appliedActionIds.insert(actionKey)
-                onToast?("✓ Inserted Smart Table")
+                onToast?("Table inserted")
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: isApplied ? "checkmark" : "bolt.fill")
@@ -663,25 +789,25 @@ public struct AssistantSidebarView: View {
         switch action.type {
         case .insertTable(let table):
             onInsertTable?(table)
-            onToast?("✓ Inserted Smart Table")
+            onToast?("Table inserted")
         case .insertHeading(let level, let title):
             onInsertHeading?(level, title)
-            onToast?("✓ Inserted Heading \(level)")
+            onToast?("Heading \(level) inserted")
         case .insertCitation(let source):
             onInsertSource?(source)
-            onToast?("✓ Added Citation: \(source.authors.first ?? source.title)")
+            onToast?("Citation added: \(source.authors.first ?? source.title)")
         case .setMargins(let preset):
             onSetMargins?(preset)
-            onToast?("✓ Applied Margins: \(preset.capitalized)")
+            onToast?("Margins: \(preset.capitalized)")
         case .insertPageBreak:
             onInsertPageBreak?()
-            onToast?("✓ Inserted Page Break")
+            onToast?("Page break inserted")
         case .insertTOC:
             onInsertTOC?()
-            onToast?("✓ Inserted Table of Contents")
+            onToast?("Table of contents inserted")
         case .insertBibliography:
             onInsertBibliography?()
-            onToast?("✓ Inserted Bibliography")
+            onToast?("Bibliography inserted")
         case .replaceSelection(let text):
             applyTextToSelection(content: text)
         case .appendDocument(let text):
@@ -697,7 +823,7 @@ public struct AssistantSidebarView: View {
                 .scaleEffect(isGenerating ? 1.3 : 0.8)
                 .animation(.easeInOut(duration: 0.6).repeatForever(), value: isGenerating)
 
-            Text("Synthesizing with Claude...")
+            Text("Claude is writing…")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
         }
@@ -707,7 +833,7 @@ public struct AssistantSidebarView: View {
     // MARK: - Input Bar
     private var copilotInputBar: some View {
         HStack(spacing: 8) {
-            TextField("Ask Claude or describe what to write or change...", text: $inputPrompt)
+            TextField("Ask Claude to write or revise…", text: $inputPrompt)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .focused($isInputFocused)
@@ -725,7 +851,7 @@ public struct AssistantSidebarView: View {
                         .foregroundColor(.secondary.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .help("Clear conversation")
+                .help("Clear the conversation")
             }
 
             Button(action: isGenerating ? { isGenerating = false } : sendMessage) {
@@ -776,7 +902,7 @@ public struct AssistantSidebarView: View {
                             .foregroundColor(StudioTheme.luminousPurple)
                     }
 
-                    Text("Connect Claude to Letters")
+                    Text("Connect Claude")
                         .font(.headline)
                         .foregroundColor(.primary)
                 }
@@ -797,11 +923,11 @@ public struct AssistantSidebarView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Use Your Existing Claude Subscription")
+                        Text("Use your Claude subscription")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.primary)
 
-                        Text("Letters connects directly to Anthropic's Claude on your Mac. You don't need to pay for developer API tokens—your regular Claude subscription covers everything.")
+                        Text("Letters works with the Claude subscription you already have. You don’t need an API key or separate billing.")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                             .lineSpacing(2)
@@ -809,11 +935,11 @@ public struct AssistantSidebarView: View {
 
                     // 1-Time Setup Box
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("1-Time Setup in Terminal")
+                        Text("One-time setup")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundColor(.primary)
 
-                        Text("Open Terminal on your Mac and run this single command to install and log in:")
+                        Text("Open Terminal and run this command. It installs Claude and signs you in.")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
 
@@ -830,7 +956,7 @@ public struct AssistantSidebarView: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "terminal.fill")
-                                    Text("Open Terminal & Login")
+                                    Text("Open Terminal")
                                 }
                                 .font(.system(size: 10, weight: .bold))
                                 .padding(.horizontal, 10)
@@ -844,7 +970,7 @@ public struct AssistantSidebarView: View {
                                 let pb = NSPasteboard.general
                                 pb.clearContents()
                                 pb.setString("npm install -g @anthropic-ai/claude-code && claude login", forType: .string)
-                                onToast?("✓ Copied command to clipboard")
+                                onToast?("Command copied")
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "doc.on.doc")
@@ -971,7 +1097,7 @@ public struct AssistantSidebarView: View {
             } catch {
                 await MainActor.run {
                     if let idx = messages.firstIndex(where: { $0.id == assistantMsgId }) {
-                        messages[idx].content = "⚠️ [Letters Assistant Error]: \(error.localizedDescription)"
+                        messages[idx].content = "⚠️ The assistant couldn’t finish: \(error.localizedDescription)\n\nCheck your Claude connection, then try again."
                     }
                 }
             }
@@ -993,6 +1119,17 @@ public struct AssistantSidebarView: View {
         return clean
     }
 
+    /// Inserts through the editor when hosted in the inspector (undoable, replaces any selection); otherwise appends.
+    private func insertAtCaret(content: String) {
+        let clean = normalizeSpacing(content)
+        guard !clean.isEmpty else { return }
+        if let onInsertAtCaret {
+            onInsertAtCaret(clean)
+        } else {
+            applyTextToSelection(content: clean)
+        }
+    }
+
     private func applyTextToSelection(content: String) {
         let clean = normalizeSpacing(content)
         guard !clean.isEmpty else { return }
@@ -1002,7 +1139,7 @@ public struct AssistantSidebarView: View {
         }
         rawText = rawText.replacingOccurrences(of: selectedText, with: clean)
         selectedText = ""
-        onToast?("✓ Replaced selection with assistant content")
+        onToast?("Selection replaced")
     }
 
     private func appendToDocument(content: String) {
@@ -1013,7 +1150,7 @@ public struct AssistantSidebarView: View {
         } else {
             rawText = rawText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + clean
         }
-        onToast?("✓ Appended assistant content to document")
+        onToast?("Added to your document")
     }
 
     // MARK: - Helper Parsing Methods
@@ -1103,8 +1240,8 @@ public struct AssistantSidebarView: View {
                 if let headers = json["headers"] as? [String], let rows = json["rows"] as? [[String]] {
                     let table = StudioTableData(headers: headers, rows: rows)
                     actions.append(AIDocumentAction(
-                        title: "Smart Table",
-                        subtitle: "\(headers.count) columns • \(rows.count) rows",
+                        title: "Table",
+                        subtitle: "\(Copy.count(headers.count, "column")) · \(Copy.count(rows.count, "row"))",
                         icon: "tablecells",
                         color: StudioTheme.luminousEmerald,
                         type: .insertTable(table)
@@ -1114,7 +1251,7 @@ public struct AssistantSidebarView: View {
                 let level = json["level"] as? Int ?? 1
                 let title = json["title"] as? String ?? "Section"
                 actions.append(AIDocumentAction(
-                    title: "Heading \(level)",
+                    title: "Insert Heading \(level)",
                     subtitle: "\"\(title)\"",
                     icon: "character.textbox",
                     color: StudioTheme.luminousCyan,
@@ -1127,8 +1264,8 @@ public struct AssistantSidebarView: View {
                 let doi = json["doi"] as? String
                 let source = Source(id: UUID().uuidString, sourceType: .journalArticle, authors: [author], year: year, title: title, doi: doi)
                 actions.append(AIDocumentAction(
-                    title: "Add Citation",
-                    subtitle: "\(author) (\(year)) - \"\(title)\"",
+                    title: "Add Citation Source",
+                    subtitle: "\(author) (\(year)) · \"\(title)\"",
                     icon: "quote.opening",
                     color: StudioTheme.luminousAmber,
                     type: .insertCitation(source)
@@ -1136,8 +1273,8 @@ public struct AssistantSidebarView: View {
             case "set_margins":
                 let preset = json["preset"] as? String ?? "normal"
                 actions.append(AIDocumentAction(
-                    title: "Apply Margins",
-                    subtitle: "\(preset.capitalized) layout",
+                    title: "Set Margins",
+                    subtitle: "\(preset.capitalized) margins",
                     icon: "doc.viewfinder",
                     color: StudioTheme.luminousPurple,
                     type: .setMargins(preset)
@@ -1145,7 +1282,7 @@ public struct AssistantSidebarView: View {
             case "insert_page_break":
                 actions.append(AIDocumentAction(
                     title: "Page Break",
-                    subtitle: "Force onto new page sheet",
+                    subtitle: "Start the next text on a new page",
                     icon: "pagebreak",
                     color: StudioTheme.luminousBlue,
                     type: .insertPageBreak
@@ -1153,7 +1290,7 @@ public struct AssistantSidebarView: View {
             case "insert_toc":
                 actions.append(AIDocumentAction(
                     title: "Table of Contents",
-                    subtitle: "Dynamic [[toc]] block",
+                    subtitle: "Headings with page numbers",
                     icon: "list.bullet.indent",
                     color: StudioTheme.luminousCyan,
                     type: .insertTOC
@@ -1161,7 +1298,7 @@ public struct AssistantSidebarView: View {
             case "insert_bibliography":
                 actions.append(AIDocumentAction(
                     title: "Bibliography",
-                    subtitle: "Dynamic [[bibliography]] block",
+                    subtitle: "Your cited sources, in your citation style",
                     icon: "books.vertical",
                     color: StudioTheme.luminousAmber,
                     type: .insertBibliography
@@ -1170,7 +1307,7 @@ public struct AssistantSidebarView: View {
                 if let replaceText = json["text"] as? String {
                     actions.append(AIDocumentAction(
                         title: "Replace Selection",
-                        subtitle: "\(EditorPerformanceCache.countWords(in: replaceText)) words",
+                        subtitle: Copy.count(EditorPerformanceCache.countWords(in: replaceText), "word"),
                         icon: "selection.pin.in.out",
                         color: StudioTheme.luminousCyan,
                         type: .replaceSelection(replaceText)
@@ -1179,8 +1316,8 @@ public struct AssistantSidebarView: View {
             case "append_document":
                 if let appendText = json["text"] as? String {
                     actions.append(AIDocumentAction(
-                        title: "Append Section",
-                        subtitle: "\(EditorPerformanceCache.countWords(in: appendText)) words",
+                        title: "Add to Document",
+                        subtitle: Copy.count(EditorPerformanceCache.countWords(in: appendText), "word"),
                         icon: "plus.circle",
                         color: StudioTheme.luminousPurple,
                         type: .appendDocument(appendText)
@@ -1346,12 +1483,12 @@ public struct AIThinkingView: View {
     
     private var headerText: String {
         if isGenerating {
-            return "Thinking..."
+            return "Thinking…"
         } else {
             if let duration = durationSeconds {
-                return String(format: "Thought for %.1f seconds", duration)
+                return String(format: "Thought for %.1f s", duration)
             } else {
-                return "Reasoning process"
+                return "How Claude approached this"
             }
         }
     }

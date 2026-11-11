@@ -35,7 +35,7 @@ public struct FindReplaceBar: View {
                     .foregroundColor(.secondary)
                     .font(.system(size: 12))
 
-                TextField("Find in document...", text: $findQuery)
+                TextField("Find in document…", text: $findQuery)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: isRegex ? .monospaced : .default))
                     .onSubmit {
@@ -59,7 +59,7 @@ public struct FindReplaceBar: View {
                             .cornerRadius(4)
                     }
                     .buttonStyle(.plain)
-                    .help("Match Case (Case Sensitive)")
+                    .help("Match case")
 
                     Button {
                         isRegex.toggle()
@@ -73,11 +73,11 @@ public struct FindReplaceBar: View {
                             .cornerRadius(4)
                     }
                     .buttonStyle(.plain)
-                    .help("Use Regular Expressions (Regex with $1, $2 capture groups)")
+                    .help("Use regular expressions")
                 }
 
                 if let err = regexErrorMessage {
-                    Text("Regex error")
+                    Text("Invalid pattern")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.red)
                         .help(err)
@@ -94,7 +94,7 @@ public struct FindReplaceBar: View {
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                     .disabled(matchCount == 0)
-                    .help("Previous Match (Shift+Enter)")
+                    .help("Previous match (⇧↩)")
 
                     Button(action: findNext) {
                         Image(systemName: "chevron.down")
@@ -103,7 +103,7 @@ public struct FindReplaceBar: View {
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                     .disabled(matchCount == 0)
-                    .help("Next Match (Enter)")
+                    .help("Next match (↩)")
                 }
 
                 // Close Button
@@ -115,7 +115,7 @@ public struct FindReplaceBar: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Close Find & Replace (Esc)")
+                .help("Close Find and Replace (Esc)")
             }
 
             Divider()
@@ -126,7 +126,7 @@ public struct FindReplaceBar: View {
                     .foregroundColor(.secondary)
                     .font(.system(size: 12))
 
-                TextField(isRegex ? "Replace (supports $1, $2, $0)..." : "Replace with...", text: $replaceQuery)
+                TextField(isRegex ? "Replace with ($1, $2 use matched groups)…" : "Replace with…", text: $replaceQuery)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: isRegex ? .monospaced : .default))
 
@@ -139,7 +139,7 @@ public struct FindReplaceBar: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(matchCount == 0 || regexErrorMessage != nil)
-                .help(isRegex ? "Replace active match with capture group expansion" : "Replace current matching instance")
+                .help(isRegex ? "Replace this match" : "Replace this match")
 
                 // 2. Replace All
                 Button("Replace All") {
@@ -148,7 +148,7 @@ public struct FindReplaceBar: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(matchCount == 0 || regexErrorMessage != nil)
-                .help(isRegex ? "Replace all matches expanding $1, $2 across document" : "Replace all matching instances in document")
+                .help(isRegex ? "Replace every match in the document" : "Replace every match in the document")
             }
         }
         .padding(10)
@@ -244,7 +244,7 @@ public struct FindReplaceBar: View {
                     let replacement = regex.replacementString(for: match, in: rawText, offset: 0, template: replaceQuery)
                     if let swiftRange = Range(match.range, in: rawText) {
                         rawText.replaceSubrange(swiftRange, with: replacement)
-                        onToast?("✓ Regex replaced instance (\(currentMatchIndex + 1)/\(matchCount))")
+                        onToast?("Replaced match \(currentMatchIndex + 1) of \(matchCount)")
                         recalculateMatches()
                     }
                 }
@@ -254,7 +254,7 @@ public struct FindReplaceBar: View {
         } else {
             let targetRange = matchRanges[currentMatchIndex]
             rawText.replaceSubrange(targetRange, with: replaceQuery)
-            onToast?("✓ Replaced instance (\(currentMatchIndex + 1)/\(matchCount))")
+            onToast?("Replaced match \(currentMatchIndex + 1) of \(matchCount)")
             recalculateMatches()
         }
     }
@@ -278,7 +278,7 @@ public struct FindReplaceBar: View {
                     withTemplate: replaceQuery
                 )
                 rawText = replaced
-                onToast?("✓ Regex replaced all \(count) occurrences")
+                onToast?("Replaced \(Copy.count(count, "match", plural: "matches"))")
                 recalculateMatches()
             } catch {
                 regexErrorMessage = error.localizedDescription
@@ -286,7 +286,7 @@ public struct FindReplaceBar: View {
         } else {
             let options: String.CompareOptions = isCaseSensitive ? [] : [.caseInsensitive]
             rawText = rawText.replacingOccurrences(of: findQuery, with: replaceQuery, options: options)
-            onToast?("✓ Replaced all \(count) occurrences")
+            onToast?("Replaced \(Copy.count(count, "match", plural: "matches"))")
             recalculateMatches()
         }
     }

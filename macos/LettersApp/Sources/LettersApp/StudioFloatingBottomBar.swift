@@ -53,7 +53,7 @@ public struct StudioFloatingBottomBar: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
 
-                Text("\(wordCount) words")
+                Text(Copy.count(wordCount, "word"))
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
 
@@ -61,7 +61,7 @@ public struct StudioFloatingBottomBar: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
-                Text("\(characterCount) chars")
+                Text(Copy.count(characterCount, "character"))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -70,7 +70,7 @@ public struct StudioFloatingBottomBar: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
-                Text("\(readingTimeMinutes)m read")
+                Text("\(readingTimeMinutes) min read")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -91,7 +91,7 @@ public struct StudioFloatingBottomBar: View {
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
 
-                        Text("Style: Standard")
+                        Text("Style check off")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -100,7 +100,7 @@ public struct StudioFloatingBottomBar: View {
                             .font(.system(size: 10))
                             .foregroundColor(lintIssues.isEmpty ? .green : .orange)
 
-                        Text(lintIssues.isEmpty ? "\(styleProfile.capitalized): Clean" : "\(lintIssues.count) \(styleProfile.capitalized) Notices")
+                        Text(lintIssues.isEmpty ? "\(styleProfile.capitalized): no issues" : "\(Copy.count(lintIssues.count, "\(styleProfile.capitalized) issue"))")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(lintIssues.isEmpty ? .secondary : .orange)
                             .lineLimit(1)
@@ -119,11 +119,11 @@ public struct StudioFloatingBottomBar: View {
                     HStack {
                         Image(systemName: "wand.and.stars")
                             .foregroundColor(.accentColor)
-                        Text("Style Profile & Quality")
+                        Text("Style Check")
                             .font(.system(size: 12, weight: .bold))
                         Spacer()
                         if styleProfile != "none" {
-                            Text("\(lintIssues.count) notices")
+                            Text(Copy.count(lintIssues.count, "issue"))
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                         }
@@ -131,12 +131,12 @@ public struct StudioFloatingBottomBar: View {
                     Divider()
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Document Style Standard:")
+                        Text("Check my writing against:")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.secondary)
 
                         Picker("", selection: $styleProfile) {
-                            Text("None (Standard)").tag("none")
+                            Text("No style rules").tag("none")
                             Text("Academic").tag("academic")
                             Text("Plain English").tag("plain")
                             Text("Legal Brief").tag("legal")
@@ -148,7 +148,7 @@ public struct StudioFloatingBottomBar: View {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.shield")
                                 .foregroundColor(.secondary)
-                            Text("Standard writing mode active. No prescriptive style or contraction warnings are imposed.")
+                            Text("No style rules are applied. Choose one above to get suggestions as you write.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                         }
@@ -157,7 +157,7 @@ public struct StudioFloatingBottomBar: View {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
-                            Text("No \(styleProfile.capitalized) style or citation issues detected. Prose is clean!")
+                            Text("No \(styleProfile.lowercased()) style or citation issues found.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                         }
@@ -207,7 +207,7 @@ public struct StudioFloatingBottomBar: View {
                 .padding(12)
                 .frame(width: 440)
             }
-            .help("Academic Prose & Citation Linter")
+            .help("Check style and citations")
 
             Divider()
                 .frame(height: 16)
@@ -217,7 +217,7 @@ public struct StudioFloatingBottomBar: View {
                 ForEach(CitationStyle.allCases, id: \.self) { style in
                     Button {
                         citationStyle = style
-                        onToast?("✓ Citation Style: \(style.displayName)")
+                        onToast?("Citation style: \(style.displayName)")
                     } label: {
                         HStack {
                             Text(style.displayName)
@@ -233,7 +233,7 @@ public struct StudioFloatingBottomBar: View {
                         .font(.system(size: 10))
                         .foregroundColor(citationStyle == .plain ? .secondary : .accentColor)
 
-                    Text(citationStyle == .plain ? "Citations: Off" : citationStyle.displayName)
+                    Text(citationStyle == .plain ? "Citations: plain" : citationStyle.displayName)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(1)
@@ -252,7 +252,7 @@ public struct StudioFloatingBottomBar: View {
                     isCitationHovered = hovering
                 }
             }
-            .help("Citation Standard Format")
+            .help("Citation style")
 
             Spacer(minLength: 8)
 
@@ -329,7 +329,7 @@ public struct StudioFloatingBottomBar: View {
             Divider()
                 .frame(height: 16)
 
-            // 4. AI Copilot Companion Button
+            // 4. AI Assistant Companion Button
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     showAIDrawer.toggle()
@@ -339,7 +339,7 @@ public struct StudioFloatingBottomBar: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.purple)
-                    Text("AI Copilot")
+                    Text("Assistant")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.purple)
                         .lineLimit(1)
@@ -362,7 +362,7 @@ public struct StudioFloatingBottomBar: View {
                     isAIHovered = hovering
                 }
             }
-            .help("Toggle AI Copilot Companion (⌘J)")
+            .help("Show or hide the assistant (⌘J)")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
