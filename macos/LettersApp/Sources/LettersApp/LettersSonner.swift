@@ -327,11 +327,9 @@ public struct ToastStackView: View {
     }
 
     public var body: some View {
-        VStack(alignment: alignment.horizontal, spacing: 0) {
-            if position == .bottomTrailing || position == .bottomCenter {
-                Spacer(minLength: 0)
-            }
-
+        if manager.toasts.isEmpty {
+            EmptyView()
+        } else {
             VStack(alignment: alignment.horizontal, spacing: 8) {
                 ForEach(Array(manager.toasts.enumerated()), id: \.element.id) { index, toast in
                     ToastView(
@@ -350,19 +348,12 @@ public struct ToastStackView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            if position == .topTrailing || position == .topCenter {
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-        // An empty stack must never swallow clicks meant for the canvas or status bar.
-        .allowsHitTesting(!manager.toasts.isEmpty)
-        .onHover { hovering in
-            if !hovering && manager.isExpanded {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    manager.isExpanded = false
+            .padding(.vertical, 16)
+            .onHover { hovering in
+                if !hovering && manager.isExpanded {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        manager.isExpanded = false
+                    }
                 }
             }
         }
